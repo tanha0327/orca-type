@@ -1,0 +1,238 @@
+@import "tailwindcss";
+
+/* =========================================================
+   ORCA TYPE — Neo-brutalist design tokens
+   厚いボーダー / ハードシャドウ / 高彩度 / 詰め組みの太ゴシック
+   ========================================================= */
+@theme {
+  --color-ink: #111111;
+  --color-paper: #faf7f0;
+  --color-bg: #ffd60a;
+
+  --color-pink: #ff3d71;
+  --color-purple: #7b5cff;
+  --color-lime: #a8e10c;
+  --color-green: #22c55e;
+  --color-sand: #f6ce7c;
+  --color-gray: #9ca3af;
+  --color-cyan: #38bdf8;
+  --color-orange: #fb923c;
+
+  --font-sans: "Noto Sans JP", system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  --font-mono: "Archivo", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --radius-cap: 10px;
+  --radius-card: 16px;
+  --radius-btn: 12px;
+}
+
+/* レイヤー色 — 8 レイヤー分。data-color 属性から引く */
+:root {
+  --layer-0: #9ca3af;
+  --layer-1: #ff3d71;
+  --layer-2: #22c55e;
+  --layer-3: #7b5cff;
+  --layer-4: #38bdf8;
+  --layer-5: #a8e10c;
+  --layer-6: #f6ce7c;
+  --layer-7: #fb923c;
+  color-scheme: light;
+}
+
+/*
+ * 要素の既定値は必ず @layer base に入れること。
+ * レイヤー外の CSS はすべてのカスケードレイヤーより強くなるため、
+ * ここを裸で書くと .nb-btn[data-active] などの指定が効かなくなる。
+ */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+    overflow-wrap: anywhere;
+  }
+
+  /* 見出しは詰め組みの極太 */
+  h1, h2, h3 {
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  button {
+    font-family: inherit;
+    font-weight: 700;
+    color: inherit;
+  }
+
+  input, select, textarea {
+    font-family: inherit;
+    color: inherit;
+  }
+
+  /* スクロールバーも角ばらせる */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-ink);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* --- 基本の面: 3px の黒枠 + ハードシャドウ --------------- */
+  .nb {
+    border: 3px solid var(--color-ink);
+    border-radius: var(--radius-card);
+    background: var(--color-paper);
+    box-shadow: 4px 4px 0 var(--color-ink);
+  }
+  .nb-lg {
+    box-shadow: 6px 6px 0 var(--color-ink);
+  }
+  .nb-flat {
+    box-shadow: none;
+  }
+
+  /* --- ボタン: 押すと物理的に沈む ------------------------- */
+  .nb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    border: 3px solid var(--color-ink);
+    border-radius: var(--radius-btn);
+    background: var(--color-paper);
+    box-shadow: 4px 4px 0 var(--color-ink);
+    font-weight: 700;
+    line-height: 1.1;
+    cursor: pointer;
+    transition: transform 90ms ease, box-shadow 90ms ease, background 120ms ease;
+    user-select: none;
+  }
+  .nb-btn:hover {
+    transform: translate(1px, 1px);
+    box-shadow: 3px 3px 0 var(--color-ink);
+  }
+  .nb-btn:active,
+  .nb-btn[data-pressed="true"] {
+    transform: translate(4px, 4px);
+    box-shadow: 0 0 0 var(--color-ink);
+  }
+  .nb-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: 4px 4px 0 var(--color-ink);
+  }
+  .nb-btn[data-active="true"] {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  /* --- 入力欄 -------------------------------------------- */
+  .nb-input {
+    border: 3px solid var(--color-ink);
+    border-radius: var(--radius-btn);
+    background: var(--color-paper);
+    padding: 0.5rem 0.75rem;
+    font-weight: 700;
+    outline: none;
+    width: 100%;
+  }
+  .nb-input:focus {
+    box-shadow: 4px 4px 0 var(--color-ink);
+  }
+
+  /* --- ラベルチップ -------------------------------------- */
+  .nb-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    border: 2px solid var(--color-ink);
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  /* --- セクション見出し ---------------------------------- */
+  .nb-eyebrow {
+    font-family: var(--font-mono);
+    font-weight: 900;
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.65;
+  }
+
+  /* --- タブ付きフォルダカード (参照デザインの My Collections) */
+  .nb-folder {
+    position: relative;
+    margin-top: 12px;
+  }
+  .nb-folder::before {
+    content: "";
+    position: absolute;
+    top: -12px;
+    left: 10px;
+    width: 46%;
+    min-width: 54px;
+    height: 16px;
+    background: var(--tab-color, var(--color-gray));
+    border: 3px solid var(--color-ink);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+  }
+}
+
+/* 画面遷移のないシングルページなので、モーション量は控えめに */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
+
+/* --- キー押下時の「長押し判定まで」の進行バー -------------------- */
+@keyframes orca-term {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+/* --- コンボ発火のフラッシュ ------------------------------------- */
+@keyframes orca-flash {
+  0%   { transform: scale(0.92); opacity: 0; }
+  18%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* --- 出力が切り替わった瞬間のポップ ----------------------------- */
+@keyframes orca-pop {
+  0%   { transform: translateY(6px) scale(0.96); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* --- センサー発火時のリング ------------------------------------- */
+@keyframes orca-ring {
+  0%   { box-shadow: 0 0 0 0 var(--color-ink); opacity: 1; }
+  100% { box-shadow: 0 0 0 14px transparent; opacity: 0; }
+}

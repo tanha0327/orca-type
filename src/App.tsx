@@ -1,0 +1,289 @@
+import { useEffect, useState } from 'react'
+import { KeyboardView } from './components/Board/KeyboardView'
+import { ComboList } from './components/Combos/ComboList'
+import { ExportView } from './components/Export/ExportView'
+import { GestureView } from './components/Gestures/GestureView'
+import { Hud } from './components/Hud/Hud'
+import { Inspector } from './components/Inspector/Inspector'
+import { LayerBar } from './components/LayerBar/LayerBar'
+import { PipPortal } from './components/PipHost/PipPortal'
+import { usePipWindow } from './components/PipHost/usePipWindow'
+import { engine, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { useKeymapStore, type ViewId } from './store/keymapStore'
+
+const VIEWS: { id: ViewId; label: string }[] = [
+  { id: 'board', label: '盤面' },
+  { id: 'combos', label: 'コンボ' },
+  { id: 'gestures', label: 'ジェスチャー' },
+  { id: 'export', label: '書き出し' },
+]
+
+export function App() {
+  const view = useKeymapStore((s) => s.view)
+  const setView = useKeymapStore((s) => s.setView)
+  const capture = useKeymapStore((s) => s.captureEnabled)
+  const setCapture = useKeymapStore((s) => s.setCapture)
+  const comboPickId = useKeymapStore((s) => s.comboPickId)
+  const setComboPick = useKeymapStore((s) => s.setComboPick)
+  const [subLegends, setSubLegends] = useState(true)
+
+  const pip = usePipWindow({ width: 380, height: 620 })
+
+  useKeyCapture(typeof document !== 'undefined' ? document : null)
+  useResetOnCaptureOff()
+
+  // PiP を開いたら自動でキャプチャを入れる（HUD が空だと意味がないので）
+  useEffect(() => { if (pip.win && !capture) setCapture(true) }, [pip.win, capture, setCapture])
+
+  return (
+    <div className="min-h-full">
+      <Header
+        view={view}
+        onView={setView}
+        capture={capture}
+        onCapture={setCapture}
+        pipOn={!!pip.win}
+        pipSupported={pip.supported}
+        onPip={pip.toggle}
+      />
+
+      {pip.error && (
+        <p className="mx-auto max-w-[1500px] px-4">
+          <span className="nb mt-3 block p-2.5 text-[0.8rem] font-bold" style={{ background: 'var(--color-pink)' }}>
+            {pip.error}
+          </span>
+        </p>
+      )}
+
+      {comboPickId && (
+        <div className="mx-auto max-w-[1500px] px-4">
+          <div
+            className="nb mt-3 flex flex-wrap items-center gap-2 p-2.5"
+            style={{ background: 'var(--color-purple)' }}
+          >
+            <span className="text-[0.82rem] font-black">
+              コンボに入れるキーを、盤面でクリックしてください
+            </span>
+            <span className="flex-1" />
+            <button type="button" className="nb-btn !py-1.5 text-[0.78rem]" onClick={() => setComboPick(null)}>
+              選択を終える
+            </button>
+          </div>
+        </div>
+      )}
+
+      <main className="mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-4">
+          <section className="nb nb-lg p-4">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
+                <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
+                  キーをクリックで選択・ダブルクリックで試し打ち。
+                  ホイールとパッドはドラッグ／スクロールで動かせます。
+                </p>
+              </div>
+              <button
+                type="button"
+                className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
+                data-active={subLegends}
+                onClick={() => setSubLegends((v) => !v)}
+              >
+                重ね印字
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[520px]">
+                <KeyboardView subLegends={subLegends} />
+              </div>
+            </div>
+            <Legend />
+          </section>
+
+          <LayerBar />
+
+          {view === 'combos' && <ComboList />}
+          {view === 'gestures' && <GestureView />}
+          {view === 'export' && <ExportView />}
+          {view === 'board' && <HowTo />}
+        </div>
+
+        <aside className="min-w-0">
+          <div className="flex flex-col gap-4 lg:sticky lg:top-[5.5rem] lg:h-[calc(100vh-7rem)]">
+            <div className="nb nb-lg min-h-[22rem] overflow-hidden lg:min-h-0 lg:flex-[1.15]">
+              {pip.win ? <PipPlaceholder onClose={pip.close} /> : <Hud />}
+            </div>
+            <div className="min-h-[20rem] lg:min-h-0 lg:flex-1">
+              <Inspector />
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <PipPortal win={pip.win}>
+        <Hud variant="pip" />
+      </PipPortal>
+
+      <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
+        <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
+          ORCA TYPE は Keychron Orca echo のキーマップを設計するための非公式のコンセプトサイトです。
+          実機には接続せず、手元のキーボードの入力を読み替えてシミュレートしています。
+          Keychron / GIZMART とは関係ありません。
+        </p>
+      </footer>
+    </div>
+  )
+}
+
+function Header({
+  view, onView, capture, onCapture, pipOn, pipSupported, onPip,
+}: {
+  view: ViewId
+  onView: (v: ViewId) => void
+  capture: boolean
+  onCapture: (on: boolean) => void
+  pipOn: boolean
+  pipSupported: boolean
+  onPip: () => void
+}) {
+  return (
+    <header
+      className="sticky top-0 z-30 border-b-[3px] border-[var(--color-ink)]"
+      style={{ background: 'var(--color-bg)' }}
+    >
+      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-3 gap-y-2 p-3">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-[1.5rem] leading-none">ORCA TYPE</h1>
+          <span className="nb-eyebrow hidden sm:inline">KEYMAP STUDIO</span>
+        </div>
+
+        <nav className="flex flex-wrap gap-1.5" aria-label="表示切替">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              className="nb-btn !py-1.5 text-[0.8rem]"
+              data-active={view === v.id}
+              onClick={() => onView(v.id)}
+            >
+              {v.label}
+            </button>
+          ))}
+        </nav>
+
+        <span className="flex-1" />
+
+        <button
+          type="button"
+          className="nb-btn !py-2 text-[0.82rem]"
+          onClick={onPip}
+          disabled={!pipSupported}
+          data-active={pipOn}
+          title={pipSupported ? '出力 HUD を常に最前面のウィンドウで表示します' : 'Chrome / Edge でご利用ください'}
+        >
+          ⧉ {pipOn ? 'PiP を閉じる' : 'PiP で常時表示'}
+        </button>
+
+        <button
+          type="button"
+          className="nb-btn !py-2 text-[0.85rem]"
+          style={{ background: capture ? 'var(--color-lime)' : 'var(--color-paper)' }}
+          onClick={() => onCapture(!capture)}
+          aria-pressed={capture}
+        >
+          <span
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ background: capture ? 'var(--color-ink)' : 'transparent', border: '2px solid var(--color-ink)' }}
+          />
+          入力キャプチャ {capture ? 'ON' : 'OFF'}
+        </button>
+      </div>
+    </header>
+  )
+}
+
+function PipPlaceholder({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="flex h-full flex-col items-center justify-center gap-3 p-5 text-center"
+      style={{ background: 'var(--color-ink)', color: 'var(--color-paper)' }}
+    >
+      <p className="text-[2rem] leading-none">⧉</p>
+      <h3 className="text-[1.05rem]">HUD は PiP ウィンドウに出ています</h3>
+      <p className="text-[0.78rem] font-bold leading-relaxed opacity-70">
+        別ウィンドウが常に最前面に表示されます。
+        他のアプリで作業しながら、打鍵の出力を確認できます。
+      </p>
+      <button type="button" className="nb-btn !py-2 text-[0.8rem]" onClick={onClose}>
+        ここに戻す
+      </button>
+    </div>
+  )
+}
+
+function Legend() {
+  const items: [string, string][] = [
+    ['var(--color-pink)', '長押し（MOD-TAP）の出力'],
+    ['var(--color-purple)', 'コンボに参加しているキー'],
+    ['var(--color-orange)', 'アクセントキーキャップ'],
+  ]
+  return (
+    <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+      {items.map(([color, label]) => (
+        <li key={label} className="flex items-center gap-1.5 text-[0.7rem] font-bold opacity-70">
+          <span
+            className="h-3 w-3 rounded-full"
+            style={{ background: color, border: '2px solid var(--color-ink)' }}
+          />
+          {label}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function HowTo() {
+  const setCapture = useKeymapStore((s) => s.setCapture)
+  const capture = useKeymapStore((s) => s.captureEnabled)
+  const steps: [string, string][] = [
+    ['1', '盤面のキーをクリックして、右のインスペクタで単押しと長押しを決めます。'],
+    ['2', '「入力キャプチャ ON」で、手元のキーボードの打鍵を Orca echo の配列として読み替えます。'],
+    ['3', 'HUD に「いま何が出力されたか」「単押しか長押しか」が常に表示されます。'],
+    ['4', 'PiP で常時表示すれば、他のアプリを使いながらでも確認できます。'],
+  ]
+  return (
+    <section className="nb nb-lg p-4">
+      <h2 className="text-[1.35rem]">使い方</h2>
+      <ol className="mt-3 space-y-2">
+        {steps.map(([n, text]) => (
+          <li key={n} className="flex items-start gap-2.5">
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] font-mono text-[0.85rem] font-black"
+              style={{ background: 'var(--color-lime)', border: '3px solid var(--color-ink)' }}
+            >
+              {n}
+            </span>
+            <span className="pt-1 text-[0.82rem] font-bold leading-relaxed">{text}</span>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="nb-btn !py-2 text-[0.82rem]"
+          style={{ background: capture ? 'var(--color-lime)' : 'var(--color-paper)' }}
+          onClick={() => setCapture(!capture)}
+        >
+          入力キャプチャを {capture ? 'OFF にする' : 'ON にする'}
+        </button>
+        <button type="button" className="nb-btn !py-2 text-[0.82rem]" onClick={() => engine.clearLog()}>
+          HUD のログを消す
+        </button>
+      </div>
+      <p className="mt-3 text-[0.72rem] font-bold leading-relaxed opacity-60">
+        キャプチャ中は、ブラウザのショートカットを除くほとんどのキーがこのページに取り込まれます。
+        文字を入力したいときは OFF に戻してください。
+      </p>
+    </section>
+  )
+}
