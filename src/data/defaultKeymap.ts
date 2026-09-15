@@ -1,4 +1,4 @@
-import type { KeyId } from './layout'
+import { KEYS, type KeyId } from './layout'
 import {
   bind, TRANS, NONE,
   type Binding, type Combo, type EncoderConfig, type Keymap,
@@ -8,7 +8,7 @@ import {
 /* ================================================================
    初期キーマップ
    L0〜L2 は実機写真のキーキャップ印字（白 / 赤 / 緑）をそのまま再現。
-   L3 以降は空き枠として使いやすい初期値を入れてある。
+   L3 以降は白紙（すべて未割当）。
    ================================================================ */
 
 type KeyMapPatch = Record<KeyId, Binding>
@@ -21,7 +21,11 @@ const pad = (
 const enc = (cw: Binding, ccw: Binding, press: Binding = TRANS): EncoderConfig => ({ cw, ccw, press })
 
 const transPad = (): PadConfig => pad(TRANS, TRANS, TRANS, TRANS, TRANS, TRANS)
-const transEnc = (): EncoderConfig => enc(TRANS, TRANS, TRANS)
+
+/* 白紙レイヤー用: 全キー／エンコーダー／パッドを未割当（NONE）にする */
+const NONE_KEYS: KeyMapPatch = Object.fromEntries(KEYS.map((k) => [k.id, NONE])) as KeyMapPatch
+const nonePad = (): PadConfig => pad(NONE, NONE, NONE, NONE, NONE, NONE)
+const noneEnc = (): EncoderConfig => enc(NONE, NONE, NONE)
 
 /* ------------------------------------------------- L0 BASE（白印字） */
 const BASE_KEYS: KeyMapPatch = {
@@ -86,46 +90,6 @@ const SYSTEM_KEYS: KeyMapPatch = {
   R33: bind('BT_NXT'),
 }
 
-/* --------------------------------------------------- L3 NAV */
-const NAV_KEYS: KeyMapPatch = {
-  R11: bind('LEFT'), R12: bind('DOWN'), R13: bind('UP'), R14: bind('RIGHT'),
-  R01: bind('HOME'), R02: bind('PG_DN'), R03: bind('PG_UP'), R04: bind('END'),
-  R21: bind('ESC'), R22: bind('TAB'), R23: bind('DEL'),
-  L01: bind('LANG2'), L02: bind('LANG1'),
-}
-
-/* --------------------------------------------------- L4 MOUSE */
-const MOUSE_KEYS: KeyMapPatch = {
-  R11: bind('MS_LEFT'), R12: bind('MS_DOWN'), R13: bind('MS_UP'), R14: bind('MS_RIGHT'),
-  R01: bind('MSC_WHEEL_UP'), R02: bind('MSC_WHEEL_DOWN'),
-  R03: bind('MSC_HWHEEL_LEFT'), R04: bind('MSC_HWHEEL_RIGHT'),
-  R21: bind('MB1'), R22: bind('MB2'), R23: bind('MB3'),
-  R05: bind('MB4'), R06: bind('MB5'),
-  L24: bind('SNIPE'), L25: bind('SCRL_MODE'),
-  LT0: bind('MB1'),
-}
-
-/* --------------------------------------------------- L5 MEDIA */
-const MEDIA_KEYS: KeyMapPatch = {
-  R11: bind('C_PREV'), R12: bind('C_VOL_DN'), R13: bind('C_VOL_UP'), R14: bind('C_NEXT'),
-  R21: bind('C_PP'), R22: bind('C_MUTE'), R23: bind('C_STOP'),
-  L03: bind('C_BRI_UP'), L13: bind('C_BRI_DN'),
-}
-
-/* --------------------------------------------------- L6 NUM */
-const NUM_KEYS: KeyMapPatch = {
-  R04: bind('KP_N7'), R05: bind('KP_N8'), R06: bind('KP_N9'),
-  R14: bind('KP_N4'), R15: bind('KP_N5'), R16: bind('KP_N6'),
-  R24: bind('KP_N1'), R25: bind('KP_N2'), R26: bind('KP_N3'),
-  R33: bind('KP_N0'), R23: bind('DOT'), R22: bind('COMMA'),
-}
-
-/* --------------------------------------------------- L7 MACRO */
-const MACRO_KEYS: KeyMapPatch = {
-  R34: bind('MACRO_1'), R35: bind('MACRO_2'), R36: bind('MACRO_3'),
-  R24: bind('MACRO_4'), R25: bind('MACRO_5'), R26: bind('MACRO_6'),
-}
-
 interface LayerSeed {
   name: string
   color: LayerColor
@@ -166,33 +130,24 @@ const SEEDS: LayerSeed[] = [
     padR: transPad(),
   },
   {
-    name: 'NAV', color: 'purple', keys: NAV_KEYS,
-    encoder: enc(bind('C_NEXT'), bind('C_PREV'), bind('C_PP')),
-    padL: transPad(), padR: transPad(),
+    name: 'NAV', color: 'purple', keys: NONE_KEYS,
+    encoder: noneEnc(), padL: nonePad(), padR: nonePad(),
   },
   {
-    name: 'MOUSE', color: 'cyan', keys: MOUSE_KEYS,
-    encoder: enc(bind('MSC_WHEEL_DOWN'), bind('MSC_WHEEL_UP'), bind('MB3')),
-    padL: transPad(),
-    padR: pad(
-      bind('MSC_WHEEL_UP'), bind('MSC_WHEEL_DOWN'),
-      bind('MSC_HWHEEL_LEFT'), bind('MSC_HWHEEL_RIGHT'),
-      bind('MB1'), bind('MB2'),
-    ),
+    name: 'MOUSE', color: 'cyan', keys: NONE_KEYS,
+    encoder: noneEnc(), padL: nonePad(), padR: nonePad(),
   },
   {
-    name: 'MEDIA', color: 'lime', keys: MEDIA_KEYS,
-    encoder: enc(bind('C_VOL_UP'), bind('C_VOL_DN'), bind('C_MUTE')),
-    padL: pad(bind('C_VOL_UP'), bind('C_VOL_DN'), bind('C_PREV'), bind('C_NEXT'), bind('C_PP'), bind('C_MUTE')),
-    padR: transPad(),
+    name: 'MEDIA', color: 'lime', keys: NONE_KEYS,
+    encoder: noneEnc(), padL: nonePad(), padR: nonePad(),
   },
   {
-    name: 'NUM', color: 'sand', keys: NUM_KEYS,
-    encoder: transEnc(), padL: transPad(), padR: transPad(),
+    name: 'NUM', color: 'sand', keys: NONE_KEYS,
+    encoder: noneEnc(), padL: nonePad(), padR: nonePad(),
   },
   {
-    name: 'MACRO', color: 'orange', keys: MACRO_KEYS,
-    encoder: transEnc(), padL: transPad(), padR: transPad(),
+    name: 'MACRO', color: 'orange', keys: NONE_KEYS,
+    encoder: noneEnc(), padL: nonePad(), padR: nonePad(),
   },
 ]
 
@@ -224,7 +179,7 @@ export function createDefaultKeymap(): Keymap {
     id,
     name: seed.name,
     color: seed.color,
-    // L0 以外は未指定キーを「透過」にして下のレイヤーへ落とす
+    // L1/L2 は未指定キーを「透過」にして下のレイヤーへ落とす。L3〜L7 は全キー未割当（白紙）
     keys: { ...seed.keys },
     encoder: seed.encoder,
     padL: seed.padL,
