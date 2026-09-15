@@ -33,7 +33,7 @@ export function ExportView() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `orca-type-${keymap.name.replace(/\s+/g, '-')}.json`
+    a.download = `orca-map-${keymap.name.replace(/\s+/g, '-')}.json`
     a.click()
     URL.revokeObjectURL(url)
   }

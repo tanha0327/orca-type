@@ -1,4 +1,4 @@
-# ORCA TYPE
+# ORCA MAP
 
 **Keychron Orca echo** のキーマップを設計するための、非公式のコンセプト・エディタです。
 
@@ -57,5 +57,5 @@ src/
 
 ## 注意
 
-ORCA TYPE は非公式のコンセプトサイトです。Keychron / GIZMART とは関係ありません。
+ORCA MAP は非公式のコンセプトサイトです。Keychron / GIZMART とは関係ありません。
 実機のファームウェアへの書き込みは行いません。
