@@ -126,7 +126,7 @@ export function App() {
 
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
-          ORCA TYPE は Keychron Orca echo のキーマップを設計するための非公式のコンセプトサイトです。
+          ORCA MAP は Keychron Orca echo のキーマップを設計するための非公式のコンセプトサイトです。
           実機には接続せず、手元のキーボードの入力を読み替えてシミュレートしています。
           Keychron / GIZMART とは関係ありません。
         </p>
@@ -153,7 +153,7 @@ function Header({
     >
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-3 gap-y-2 p-3">
         <div className="flex items-baseline gap-2">
-          <h1 className="text-[1.5rem] leading-none">ORCA TYPE</h1>
+          <h1 className="text-[1.5rem] leading-none">ORCA MAP</h1>
           <span className="nb-eyebrow hidden sm:inline">KEYMAP STUDIO</span>
         </div>
 
