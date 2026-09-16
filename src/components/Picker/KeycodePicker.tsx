@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  CATEGORY_LABEL, CATEGORY_ORDER, getKeycode, searchKeycodes,
+  CATEGORY_LABEL, CATEGORY_ORDER, CODE_TO_KEYCODE, getKeycode, searchKeycodes,
   type Keycode, type KeycodeCategory,
 } from '../../data/keycodes'
 
@@ -23,11 +23,16 @@ export function KeycodePicker({ open, title, value, allowNone, onPick, onClose }
     if (!open) return
     setQuery('')
     setCat(null)
-    const t = window.setTimeout(() => inputRef.current?.focus(), 30)
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return }
+      // 検索欄に入力中は普通にタイプさせる。それ以外では、押した物理キーで直接選ぶ
+      if (e.repeat || e.target === inputRef.current) return
+      const mapped = CODE_TO_KEYCODE[e.code]
+      if (mapped) { e.preventDefault(); onPick(mapped) }
+    }
     window.addEventListener('keydown', onKey)
-    return () => { window.clearTimeout(t); window.removeEventListener('keydown', onKey) }
-  }, [open, onClose])
+    return () => { window.removeEventListener('keydown', onKey) }
+  }, [open, onClose, onPick])
 
   const results = useMemo(
     () => (open ? searchKeycodes(query, cat ?? undefined) : []),
@@ -68,6 +73,9 @@ export function KeycodePicker({ open, title, value, allowNone, onPick, onClose }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <p className="mt-1.5 text-[0.68rem] font-bold leading-relaxed opacity-55">
+            手元のキーボードのキーを押しても選べます（この検索欄に入力中は無効）
+          </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <CatChip label="すべて" active={cat === null} onClick={() => setCat(null)} />
             {CATEGORY_ORDER.map((c) => (
