@@ -23,7 +23,6 @@ export const FLAVOR_HELP: Record<Flavor, string> = {
 export interface Binding {
   tap: Keycode
   hold?: Keycode
-  doubleTap?: Keycode
   /** 未設定なら keymap.settings.tappingTermMs を使う */
   tappingTermMs?: number
   flavor?: Flavor
@@ -115,8 +114,6 @@ export interface Combo {
 export interface KeymapSettings {
   tappingTermMs: number
   flavor: Flavor
-  /** ダブルタップとみなす最大間隔 */
-  doubleTapMs: number
 }
 
 export interface Keymap {

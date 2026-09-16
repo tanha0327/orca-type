@@ -146,7 +146,6 @@ function remapBinding(b: Binding): Binding {
     ...b,
     tap: LEGACY_LAYER_CODE_MAP[b.tap] ?? b.tap,
     ...(b.hold ? { hold: LEGACY_LAYER_CODE_MAP[b.hold] ?? b.hold } : {}),
-    ...(b.doubleTap ? { doubleTap: LEGACY_LAYER_CODE_MAP[b.doubleTap] ?? b.doubleTap } : {}),
   }
 }
 

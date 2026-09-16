@@ -15,7 +15,7 @@ import { BindingSlot, KeycodePicker } from '../Picker/KeycodePicker'
 import { ComboEditor } from '../Combos/ComboEditor'
 import { TrackballPanel } from './TrackballPanel'
 
-type Slot = 'tap' | 'hold' | 'doubleTap'
+type Slot = 'tap' | 'hold'
 
 export function Inspector() {
   const selection = useKeymapStore((s) => s.selection)
@@ -158,15 +158,11 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
   const slotLabel: Record<Slot, string> = {
     tap: '単押し（TAP）',
     hold: '長押し（HOLD）',
-    doubleTap: 'ダブルタップ',
   }
 
   const pick = (code: string) => {
     if (picking === 'tap') setTap(layerId, target, code)
     else if (picking === 'hold') setHold(layerId, target, code === 'NONE' ? undefined : code)
-    else if (picking === 'doubleTap') {
-      patchBinding(layerId, target, { doubleTap: code === 'NONE' ? undefined : code })
-    }
     setPicking(null)
   }
 
@@ -224,14 +220,6 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
             短く押せば単押しの出力、押し続ければ長押しの出力（Shift やレイヤー）になります。
           </p>
         </div>
-
-        <BindingSlot
-          label={slotLabel.doubleTap}
-          code={binding.doubleTap}
-          tone="var(--color-purple)"
-          onClick={() => setPicking('doubleTap')}
-          onClear={binding.doubleTap ? () => patchBinding(layerId, target, { doubleTap: undefined }) : undefined}
-        />
 
         {hasHold && (
           <div className="nb nb-flat space-y-3 p-3">
@@ -293,8 +281,8 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
       <KeycodePicker
         open={picking !== null}
         title={picking ? `${slotLabel[picking]} に割り当てる` : ''}
-        value={picking === 'tap' ? binding.tap : picking === 'hold' ? binding.hold : binding.doubleTap}
-        allowNone={picking !== 'tap'}
+        value={picking === 'tap' ? binding.tap : binding.hold}
+        allowNone={picking === 'hold'}
         onPick={pick}
         onClose={() => setPicking(null)}
       />
@@ -306,7 +294,6 @@ function Preview({ binding }: { binding: Binding }) {
   const rows: [string, string | undefined][] = [
     ['単押し', binding.tap === 'TRANS' ? undefined : binding.tap],
     ['長押し', binding.hold],
-    ['ダブルタップ', binding.doubleTap],
   ]
   return (
     <div className="nb nb-flat p-3" style={{ background: 'var(--color-ink)', color: 'var(--color-paper)' }}>
