@@ -29,7 +29,7 @@ export function ComboEditor({ combo }: { combo: Combo }) {
   }, [listQuery, keymap, combo.layers])
 
   return (
-    <div className="nb nb-lg flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="nb nb-lg overflow-hidden">
       <header
         className="flex items-start gap-2 border-b-[3px] border-[var(--color-ink)] p-3"
         style={{ background: 'var(--color-purple)' }}
@@ -48,7 +48,7 @@ export function ComboEditor({ combo }: { combo: Combo }) {
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <div className="space-y-4 p-3">
         <label className="block">
           <span className="nb-eyebrow">名前</span>
           <input

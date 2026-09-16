@@ -116,7 +116,7 @@ export function App() {
             <Legend />
           </section>
 
-          <LayerBar />
+          <Inspector />
 
           {view === 'edit' && (
             <>
@@ -134,8 +134,8 @@ export function App() {
             <div className="nb nb-lg min-h-[22rem] overflow-hidden lg:min-h-0 lg:flex-[1.15]">
               {pip.win ? <PipPlaceholder onClose={pip.close} /> : <Hud />}
             </div>
-            <div className="min-h-[20rem] lg:min-h-0 lg:flex-1">
-              <Inspector />
+            <div className="min-h-0 lg:flex-1 lg:overflow-y-auto">
+              <LayerBar />
             </div>
           </div>
         </aside>
