@@ -113,6 +113,7 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
                   ? (keymap.combos.find((c) => c.id === comboPickId)?.keys.includes(k.id) ?? false)
                   : sameTarget(selection, { kind: 'key', keyId: k.id })
               }
+              selectedTone={comboPickId ? 'var(--color-purple)' : undefined}
               dimmed={interactive && !comboPickId && selection?.kind === 'key' && selection.keyId !== k.id}
               press={pressByKey.get(k.id)}
               comboCount={comboCount.get(k.id) ?? 0}

@@ -10,6 +10,8 @@ export interface KeyCapProps {
   /** 下のレイヤーから落ちてきた（このレイヤーでは透過）割当か */
   inherited: boolean
   selected: boolean
+  /** 選択中の縁の色（既定は黒。コンボの参加キー選択中は紫にする） */
+  selectedTone?: string
   /** 他のキーを選択中で、このキーは選択されていない（少しグレーを重ねて目立たなくする） */
   dimmed?: boolean
   press?: PressView
@@ -27,7 +29,7 @@ export interface KeyCapProps {
 }
 
 export function KeyCap({
-  keyDef, binding, inherited, selected, dimmed, press, comboCount, accent,
+  keyDef, binding, inherited, selected, selectedTone, dimmed, press, comboCount, accent,
   subLegends, interactive = true, totalW, totalH, onSelect, onPulse,
 }: KeyCapProps) {
   const kc = getKeycode(binding?.tap)
@@ -71,7 +73,7 @@ export function KeyCap({
           // HUD の中では周囲の文字色が paper なので、明示的に ink に戻す
           // （キーキャップは常に明るい面なので、継承すると文字が消える）
           color: 'var(--color-ink)',
-          border: `${selected ? 3.5 : 2.5}px solid var(--color-ink)`,
+          border: `${selected ? 3.5 : 2.5}px solid ${selected ? (selectedTone ?? 'var(--color-ink)') : 'var(--color-ink)'}`,
           borderRadius: 'clamp(5px, 1.5cqw, 11px)',
           background: isDown
             ? accent
@@ -80,7 +82,9 @@ export function KeyCap({
               : keyDef.accent
                 ? 'var(--color-orange)'
                 : 'var(--color-paper)',
-          boxShadow: isDown ? 'none' : `${selected ? 3 : 2}px ${selected ? 3 : 2}px 0 var(--color-ink)`,
+          boxShadow: isDown
+            ? 'none'
+            : `${selected ? 3 : 2}px ${selected ? 3 : 2}px 0 ${selected ? (selectedTone ?? 'var(--color-ink)') : 'var(--color-ink)'}`,
           transform: isDown ? 'translate(2px, 2px)' : 'none',
           transition: 'transform 60ms ease, box-shadow 60ms ease, background 90ms ease',
           opacity: inherited && !isDown ? 0.5 : 1,
