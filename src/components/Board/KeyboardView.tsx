@@ -140,7 +140,6 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
                 glyphs={{
                   cw: sensorGlyph(e?.cw.tap),
                   ccw: sensorGlyph(e?.ccw.tap),
-                  press: sensorGlyph(e?.press.tap),
                 }}
                 interactive={interactive}
                 onSlot={(slot: EncoderSlot) => engine.encoder(slot)}
@@ -160,10 +159,7 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
                 selectedSlot={
                   selection?.kind === 'pad' && selection.sensor === sensorId ? selection.slot : null
                 }
-                glyphs={{
-                  up: g('up'), down: g('down'), left: g('left'), right: g('right'),
-                  tap: g('tap'), doubleTap: g('doubleTap'),
-                }}
+                glyphs={{ up: g('up'), down: g('down'), tap: g('tap') }}
                 interactive={interactive}
                 onSlot={(slot) => engine.pad(sensorId, slot)}
                 onSelect={(slot) => doSelect({ kind: 'pad', sensor: sensorId, slot })}

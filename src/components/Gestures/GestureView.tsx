@@ -46,7 +46,7 @@ export function GestureView() {
 
         <Group
           title="左スクロールパッド"
-          note="初期設定は上下スワイプで音量、左右スワイプで水平スクロール。"
+          note="初期設定は上下スワイプで音量、タップでミュート。"
           tone="var(--color-lime)"
         >
           {PAD_SLOTS.map((slot: PadSlot) => (
@@ -64,7 +64,7 @@ export function GestureView() {
 
         <Group
           title="右スクロールパッド"
-          note="初期設定は上下で縦スクロール、左右で水平スクロール。"
+          note="初期設定は上下で縦スクロール、タップで左クリック。"
           tone="var(--color-cyan)"
         >
           {PAD_SLOTS.map((slot: PadSlot) => (

@@ -23,7 +23,7 @@ function place(def: SensorDef, { totalW, totalH }: Geo) {
 
 /* ================================================================
    ロータリーエンコーダー（左）
-   ホイール操作・上下ドラッグで回転、クリックで押し込み。
+   ホイール操作・上下ドラッグで回転。
    ================================================================ */
 export function EncoderView({
   def, geo, selected, glyphs, onSlot, onSelect, interactive = true,
@@ -115,7 +115,7 @@ export function EncoderView({
 
 /* ================================================================
    スクロールパッド（左右）
-   スワイプ（ドラッグ / ホイール）とタップ・ダブルタップ。
+   上下ドラッグ／ホイールでスワイプ、クリックでタップ。
    ================================================================ */
 export function PadView({
   def, geo, selectedSlot, glyphs, onSlot, onSelect, interactive = true,
@@ -128,9 +128,8 @@ export function PadView({
   onSelect: (slot: PadSlot) => void
   interactive?: boolean
 }) {
-  const start = useRef<{ x: number; y: number; t: number } | null>(null)
-  const lastTap = useRef(0)
-  const accum = useRef({ x: 0, y: 0 })
+  const start = useRef<{ x: number; y: number } | null>(null)
+  const accum = useRef(0)
   const [flash, setFlash] = useState(0)
 
   const fire = (slot: PadSlot) => {
@@ -138,18 +137,12 @@ export function PadView({
     onSlot(slot)
   }
 
-  const feedWheel = (dx: number, dy: number) => {
-    accum.current.x += dx
-    accum.current.y += dy
-    while (Math.abs(accum.current.y) >= 40) {
-      const dir = accum.current.y > 0 ? 1 : -1
-      accum.current.y -= dir * 40
+  const feedWheel = (dy: number) => {
+    accum.current += dy
+    while (Math.abs(accum.current) >= 40) {
+      const dir = accum.current > 0 ? 1 : -1
+      accum.current -= dir * 40
       fire(dir > 0 ? 'down' : 'up')
-    }
-    while (Math.abs(accum.current.x) >= 40) {
-      const dir = accum.current.x > 0 ? 1 : -1
-      accum.current.x -= dir * 40
-      fire(dir > 0 ? 'right' : 'left')
     }
   }
 
@@ -158,13 +151,13 @@ export function PadView({
   return (
     <div
       {...inertProps(interactive, `${label}（スワイプ）`)}
-      title="ドラッグでスワイプ・クリックでタップ"
+      title="上下ドラッグでスワイプ・クリックでタップ"
       className="absolute touch-none"
       style={{ ...place(def, geo), pointerEvents: interactive ? undefined : 'none' }}
-      onWheel={(e) => { e.preventDefault(); feedWheel(e.deltaX, e.deltaY) }}
+      onWheel={(e) => { e.preventDefault(); feedWheel(e.deltaY) }}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture(e.pointerId)
-        start.current = { x: e.clientX, y: e.clientY, t: performance.now() }
+        start.current = { x: e.clientX, y: e.clientY }
       }}
       onPointerUp={(e) => {
         const s = start.current
@@ -173,18 +166,16 @@ export function PadView({
         const dx = e.clientX - s.x
         const dy = e.clientY - s.y
         if (Math.max(Math.abs(dx), Math.abs(dy)) >= 10) {
-          const slot: PadSlot = Math.abs(dx) > Math.abs(dy)
-            ? (dx > 0 ? 'right' : 'left')
-            : (dy > 0 ? 'down' : 'up')
-          onSelect(slot)
-          fire(slot)
+          // 横方向が主な動きなら（左右スワイプは実機にないので）何もしない
+          if (Math.abs(dy) >= Math.abs(dx)) {
+            const slot: PadSlot = dy > 0 ? 'down' : 'up'
+            onSelect(slot)
+            fire(slot)
+          }
           return
         }
-        const now = performance.now()
-        const slot: PadSlot = now - lastTap.current < 260 ? 'doubleTap' : 'tap'
-        lastTap.current = now
-        onSelect(slot)
-        fire(slot)
+        onSelect('tap')
+        fire('tap')
       }}
     >
       <div
@@ -210,10 +201,7 @@ export function PadView({
         {/* 割当の表示 */}
         <div className="absolute inset-0 flex flex-col items-center justify-between" style={{ padding: '6% 2%' }}>
           <PadTag glyph={glyphs.up} active={selectedSlot === 'up'} />
-          <div className="flex w-full items-center justify-between">
-            <PadTag glyph={glyphs.left} active={selectedSlot === 'left'} />
-            <PadTag glyph={glyphs.right} active={selectedSlot === 'right'} />
-          </div>
+          <PadTag glyph={glyphs.tap} active={selectedSlot === 'tap'} />
           <PadTag glyph={glyphs.down} active={selectedSlot === 'down'} />
         </div>
       </div>

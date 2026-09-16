@@ -28,32 +28,27 @@ export interface Binding {
   flavor?: Flavor
 }
 
-export type SwipeDir = 'up' | 'down' | 'left' | 'right'
-export type PadSlot = SwipeDir | 'tap' | 'doubleTap'
-export type EncoderSlot = 'cw' | 'ccw' | 'press'
+export type PadSlot = 'up' | 'down' | 'tap'
+export type EncoderSlot = 'cw' | 'ccw'
 
-export const PAD_SLOTS: PadSlot[] = ['up', 'down', 'left', 'right', 'tap', 'doubleTap']
-export const ENCODER_SLOTS: EncoderSlot[] = ['cw', 'ccw', 'press']
+export const PAD_SLOTS: PadSlot[] = ['up', 'down', 'tap']
+export const ENCODER_SLOTS: EncoderSlot[] = ['cw', 'ccw']
 
 export const PAD_SLOT_LABEL: Record<PadSlot, string> = {
   up: '上スワイプ',
   down: '下スワイプ',
-  left: '左スワイプ',
-  right: '右スワイプ',
   tap: 'タップ',
-  doubleTap: 'ダブルタップ',
 }
 export const PAD_SLOT_GLYPH: Record<PadSlot, string> = {
-  up: '↑', down: '↓', left: '←', right: '→', tap: '·', doubleTap: '··',
+  up: '↑', down: '↓', tap: '·',
 }
 
 export const ENCODER_SLOT_LABEL: Record<EncoderSlot, string> = {
   cw: '右回し（時計回り）',
   ccw: '左回し（反時計回り）',
-  press: '押し込み',
 }
 export const ENCODER_SLOT_GLYPH: Record<EncoderSlot, string> = {
-  cw: '↻', ccw: '↺', press: '⊙',
+  cw: '↻', ccw: '↺',
 }
 
 export type PadConfig = Record<PadSlot, Binding>
@@ -140,4 +135,19 @@ export function isTrans(b: Binding | undefined): boolean {
 
 export function isModTap(b: Binding | undefined): boolean {
   return !!b?.hold && b.hold !== 'TRANS' && b.hold !== 'NONE'
+}
+
+/**
+ * ざっくりとした形チェック。ファイル読み込みや共有フィードなど、
+ * 外部から来た JSON を信用せずに取り込む前に使う。
+ */
+export function isValidKeymapShape(x: unknown): x is Keymap {
+  if (!x || typeof x !== 'object') return false
+  const km = x as Partial<Keymap>
+  return (
+    Array.isArray(km.layers)
+    && Array.isArray(km.combos)
+    && typeof km.trackball === 'object' && km.trackball !== null
+    && typeof km.settings === 'object' && km.settings !== null
+  )
 }

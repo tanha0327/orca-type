@@ -195,7 +195,7 @@ export class KeyEngine {
     this.publish()
   }
 
-  /** ロータリーエンコーダーの回転・押し込み */
+  /** ロータリーエンコーダーの回転 */
   encoder(slot: EncoderSlot) {
     this.fireSensor('enc-l', slot, 'encoder')
   }
@@ -405,8 +405,7 @@ export class KeyEngine {
   private sourceOfSensor(sensor: SensorId, slot: SensorSlot): string {
     const head = sensor === 'enc-l' ? 'ENC' : sensor === 'pad-l' ? 'PAD L' : 'PAD R'
     const glyphs: Record<string, string> = {
-      cw: '↻', ccw: '↺', press: '⊙',
-      up: '↑', down: '↓', left: '←', right: '→', tap: '·', doubleTap: '··',
+      cw: '↻', ccw: '↺', up: '↑', down: '↓', tap: '·',
     }
     return `${head} ${glyphs[slot] ?? slot}`
   }
