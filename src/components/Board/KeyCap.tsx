@@ -10,6 +10,8 @@ export interface KeyCapProps {
   /** 下のレイヤーから落ちてきた（このレイヤーでは透過）割当か */
   inherited: boolean
   selected: boolean
+  /** 他のキーを選択中で、このキーは選択されていない（少しグレーを重ねて目立たなくする） */
+  dimmed?: boolean
   press?: PressView
   comboCount: number
   /** 編集中レイヤーの色 */
@@ -25,7 +27,7 @@ export interface KeyCapProps {
 }
 
 export function KeyCap({
-  keyDef, binding, inherited, selected, press, comboCount, accent,
+  keyDef, binding, inherited, selected, dimmed, press, comboCount, accent,
   subLegends, interactive = true, totalW, totalH, onSelect, onPulse,
 }: KeyCapProps) {
   const kc = getKeycode(binding?.tap)
@@ -154,6 +156,18 @@ export function KeyCap({
             style={{
               background: 'var(--color-ink)',
               animation: `orca-term ${press.termMs}ms linear forwards`,
+            }}
+          />
+        )}
+
+        {/* 他のキーを選択中：このキーを少しグレーで覆って目立たなくする */}
+        {dimmed && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: 'color-mix(in srgb, var(--color-ink) 40%, transparent)',
+              transition: 'background 120ms ease',
             }}
           />
         )}

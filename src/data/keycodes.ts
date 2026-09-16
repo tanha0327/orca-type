@@ -260,6 +260,44 @@ export function getKeycode(code: Keycode | undefined): KeycodeDef {
   return byCode.get(code) ?? { code, label: code, name: code, category: 'basic' }
 }
 
+/**
+ * ブラウザの物理キー（KeyboardEvent.code）→ 対応するキーコードの表。
+ * ピッカーで「手元のキーボードのキーを押して選ぶ」ときに使う。
+ */
+export const CODE_TO_KEYCODE: Record<string, Keycode> = {
+  KeyA: 'A', KeyB: 'B', KeyC: 'C', KeyD: 'D', KeyE: 'E', KeyF: 'F', KeyG: 'G',
+  KeyH: 'H', KeyI: 'I', KeyJ: 'J', KeyK: 'K', KeyL: 'L', KeyM: 'M', KeyN: 'N',
+  KeyO: 'O', KeyP: 'P', KeyQ: 'Q', KeyR: 'R', KeyS: 'S', KeyT: 'T', KeyU: 'U',
+  KeyV: 'V', KeyW: 'W', KeyX: 'X', KeyY: 'Y', KeyZ: 'Z',
+
+  Digit1: 'N1', Digit2: 'N2', Digit3: 'N3', Digit4: 'N4', Digit5: 'N5',
+  Digit6: 'N6', Digit7: 'N7', Digit8: 'N8', Digit9: 'N9', Digit0: 'N0',
+  Numpad0: 'KP_N0', Numpad1: 'KP_N1', Numpad2: 'KP_N2', Numpad3: 'KP_N3', Numpad4: 'KP_N4',
+  Numpad5: 'KP_N5', Numpad6: 'KP_N6', Numpad7: 'KP_N7', Numpad8: 'KP_N8', Numpad9: 'KP_N9',
+
+  Minus: 'MINUS', Equal: 'EQUAL', BracketLeft: 'LBKT', BracketRight: 'RBKT',
+  Backslash: 'BSLH', Semicolon: 'SEMI', Quote: 'SQT', Backquote: 'GRAVE',
+  Comma: 'COMMA', Period: 'DOT', Slash: 'FSLH',
+
+  ShiftLeft: 'LSHFT', ShiftRight: 'RSHFT',
+  ControlLeft: 'LCTRL', ControlRight: 'RCTRL',
+  AltLeft: 'LALT', AltRight: 'RALT',
+  MetaLeft: 'LGUI', MetaRight: 'RGUI',
+
+  Space: 'SPACE', Enter: 'ENTER', Backspace: 'BSPC', Delete: 'DEL',
+  Tab: 'TAB', CapsLock: 'CAPS', Lang1: 'LANG1', Lang2: 'LANG2',
+
+  ArrowLeft: 'LEFT', ArrowRight: 'RIGHT', ArrowUp: 'UP', ArrowDown: 'DOWN',
+  Home: 'HOME', End: 'END', PageUp: 'PG_UP', PageDown: 'PG_DN', Insert: 'INS',
+
+  F1: 'F1', F2: 'F2', F3: 'F3', F4: 'F4', F5: 'F5', F6: 'F6',
+  F7: 'F7', F8: 'F8', F9: 'F9', F10: 'F10', F11: 'F11', F12: 'F12',
+  PrintScreen: 'PSCRN',
+
+  AudioVolumeUp: 'C_VOL_UP', AudioVolumeDown: 'C_VOL_DN', AudioVolumeMute: 'C_MUTE',
+  MediaPlayPause: 'C_PP', MediaTrackNext: 'C_NEXT', MediaTrackPrevious: 'C_PREV', MediaStop: 'C_STOP',
+}
+
 /** ピッカーの検索。コード名・正式名・キーワード・表記のいずれかに前方/部分一致 */
 export function searchKeycodes(query: string, category?: KeycodeCategory): KeycodeDef[] {
   const q = query.trim().toLowerCase()
