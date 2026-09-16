@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
+import { KEYS } from '../../data/layout'
 import { LAYER_COLOR_HEX, type Combo } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
 import { useKeymapStore } from '../../store/keymapStore'
@@ -11,10 +12,21 @@ export function ComboEditor({ combo }: { combo: Combo }) {
   const removeCombo = useKeymapStore((s) => s.removeCombo)
   const comboPickId = useKeymapStore((s) => s.comboPickId)
   const setComboPick = useKeymapStore((s) => s.setComboPick)
+  const toggleComboKey = useKeymapStore((s) => s.toggleComboKey)
   const [picking, setPicking] = useState(false)
+  const [listQuery, setListQuery] = useState('')
 
   const pickingKeys = comboPickId === combo.id
   const kc = getKeycode(combo.binding.tap)
+
+  const listResults = useMemo(() => {
+    const q = listQuery.trim().toLowerCase()
+    return KEYS.filter((k) => {
+      if (!q) return true
+      const label = getKeycode(resolveKey(keymap, [0, combo.layers[0] ?? 0], k.id).binding.tap).label
+      return k.id.toLowerCase().includes(q) || label.toLowerCase().includes(q)
+    })
+  }, [listQuery, keymap, combo.layers])
 
   return (
     <div className="nb nb-lg flex h-full min-h-0 flex-col overflow-hidden">
@@ -56,13 +68,13 @@ export function ComboEditor({ combo }: { combo: Combo }) {
               data-active={pickingKeys}
               onClick={() => setComboPick(pickingKeys ? null : combo.id)}
             >
-              {pickingKeys ? '選択を終える' : '盤面から選ぶ'}
+              {pickingKeys ? '選択を終える' : 'キーを選ぶ'}
             </button>
           </div>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {combo.keys.length === 0 && (
               <span className="text-[0.76rem] font-bold opacity-60">
-                「盤面から選ぶ」を押して、キーをクリックしてください
+                「キーを選ぶ」を押して追加してください
               </span>
             )}
             {combo.keys.map((k) => {
@@ -83,9 +95,35 @@ export function ComboEditor({ combo }: { combo: Combo }) {
             })}
           </div>
           {pickingKeys && (
-            <p className="mt-1.5 text-[0.7rem] font-bold leading-relaxed opacity-70">
-              盤面のキーをクリックするか、手元のキーボードで押すと追加／解除されます。
-            </p>
+            <>
+              <p className="mt-1.5 text-[0.7rem] font-bold leading-relaxed opacity-70">
+                盤面のキーをクリックする、手元のキーボードで押す、下のリストから選ぶ、
+                のいずれかで追加／解除されます。
+              </p>
+              <input
+                className="nb-input mt-2 !py-1.5 text-[0.82rem]"
+                placeholder="リストを検索（例: Q / shift）"
+                value={listQuery}
+                onChange={(e) => setListQuery(e.target.value)}
+              />
+              <div className="mt-1.5 grid max-h-40 grid-cols-4 gap-1 overflow-y-auto sm:grid-cols-6">
+                {listResults.map((k) => {
+                  const g = getKeycode(resolveKey(keymap, [0, combo.layers[0] ?? 0], k.id).binding.tap)
+                  const on = combo.keys.includes(k.id)
+                  return (
+                    <button
+                      key={k.id}
+                      type="button"
+                      className="nb-chip !justify-center"
+                      style={{ background: on ? 'var(--color-lime)' : 'transparent', cursor: 'pointer' }}
+                      onClick={() => toggleComboKey(combo.id, k.id)}
+                    >
+                      {g.label || k.id}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
           )}
         </div>
 
