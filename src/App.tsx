@@ -25,7 +25,7 @@ export function App() {
   const setCapture = useKeymapStore((s) => s.setCapture)
   const comboPickId = useKeymapStore((s) => s.comboPickId)
   const setComboPick = useKeymapStore((s) => s.setComboPick)
-  const [subLegends, setSubLegends] = useState(true)
+  const [subLegends, setSubLegends] = useState(false)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
