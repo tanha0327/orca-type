@@ -202,7 +202,6 @@ export function createDefaultKeymap(): Keymap {
     settings: {
       tappingTermMs: 200,
       flavor: 'balanced',
-      doubleTapMs: 220,
     },
   }
 }

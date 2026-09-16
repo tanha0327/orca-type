@@ -57,7 +57,7 @@ export function ExportView() {
           個別に上書きしていないキーは、ここの値が使われます。
         </p>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4">
           <label className="block">
             <span className="flex items-baseline justify-between text-[0.8rem] font-black">
               タッピングターム（既定値）
@@ -67,18 +67,6 @@ export function ExportView() {
               type="range" min={80} max={500} step={10} value={keymap.settings.tappingTermMs}
               className="mt-1 w-full accent-[var(--color-ink)]"
               onChange={(e) => setSettings({ tappingTermMs: Number(e.target.value) })}
-            />
-          </label>
-
-          <label className="block">
-            <span className="flex items-baseline justify-between text-[0.8rem] font-black">
-              ダブルタップの最大間隔
-              <span className="font-mono">{keymap.settings.doubleTapMs} ms</span>
-            </span>
-            <input
-              type="range" min={120} max={500} step={10} value={keymap.settings.doubleTapMs}
-              className="mt-1 w-full accent-[var(--color-ink)]"
-              onChange={(e) => setSettings({ doubleTapMs: Number(e.target.value) })}
             />
           </label>
         </div>
