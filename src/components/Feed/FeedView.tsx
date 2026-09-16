@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react'
 import { fetchFeed, feedEnabled, shareKeymap, type SharedKeymap } from '../../lib/feed'
 import { useKeymapStore } from '../../store/keymapStore'
 
+/**
+ * Supabase のエラー（PostgrestError）は Error を継承していないので、
+ * instanceof Error だけで見るとメッセージが拾えない。
+ */
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message
+  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string' && e.message) {
+    return e.message
+  }
+  return '不明なエラー'
+}
+
 export function FeedView() {
   const keymap = useKeymapStore((s) => s.keymap)
   const importKeymap = useKeymapStore((s) => s.importKeymap)
@@ -22,7 +34,7 @@ export function FeedView() {
     try {
       setItems(await fetchFeed())
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : '読み込みに失敗しました')
+      setLoadError(`読み込みに失敗しました: ${errorMessage(e)}`)
     }
   }
 
@@ -54,11 +66,12 @@ export function FeedView() {
       setShareDesc('')
       setShareOpen(false)
       void load()
+      window.setTimeout(() => setShareMsg(null), 3000)
     } catch (e) {
-      setShareMsg(e instanceof Error ? `共有に失敗しました: ${e.message}` : '共有に失敗しました')
+      // エラーは自動で消さない（読んで報告できるように残しておく）
+      setShareMsg(`共有に失敗しました: ${errorMessage(e)}`)
     } finally {
       setSharing(false)
-      window.setTimeout(() => setShareMsg(null), 3000)
     }
   }
 
