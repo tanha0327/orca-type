@@ -13,19 +13,16 @@ import {
 
 type KeyMapPatch = Record<KeyId, Binding>
 
-const pad = (
-  up: Binding, down: Binding, left: Binding, right: Binding,
-  tap: Binding = TRANS, doubleTap: Binding = TRANS,
-): PadConfig => ({ up, down, left, right, tap, doubleTap })
+const pad = (up: Binding, down: Binding, tap: Binding = TRANS): PadConfig => ({ up, down, tap })
 
-const enc = (cw: Binding, ccw: Binding, press: Binding = TRANS): EncoderConfig => ({ cw, ccw, press })
+const enc = (cw: Binding, ccw: Binding): EncoderConfig => ({ cw, ccw })
 
-const transPad = (): PadConfig => pad(TRANS, TRANS, TRANS, TRANS, TRANS, TRANS)
+const transPad = (): PadConfig => pad(TRANS, TRANS, TRANS)
 
 /* 白紙レイヤー用: 全キー／エンコーダー／パッドを未割当（NONE）にする */
 const NONE_KEYS: KeyMapPatch = Object.fromEntries(KEYS.map((k) => [k.id, NONE])) as KeyMapPatch
-const nonePad = (): PadConfig => pad(NONE, NONE, NONE, NONE, NONE, NONE)
-const noneEnc = (): EncoderConfig => enc(NONE, NONE, NONE)
+const nonePad = (): PadConfig => pad(NONE, NONE, NONE)
+const noneEnc = (): EncoderConfig => enc(NONE, NONE)
 
 /* ------------------------------------------------- L0 BASE（白印字） */
 const BASE_KEYS: KeyMapPatch = {
@@ -103,30 +100,22 @@ const SEEDS: LayerSeed[] = [
   {
     name: 'BASE', color: 'gray', keys: BASE_KEYS,
     // 左エンコーダーは右矢印・左矢印
-    encoder: enc(bind('RIGHT'), bind('LEFT'), bind('MB3')),
-    // 左パッド: 上下スワイプで音量、左右スワイプで水平スクロール
-    padL: pad(
-      bind('C_VOL_UP'), bind('C_VOL_DN'),
-      bind('MSC_HWHEEL_LEFT'), bind('MSC_HWHEEL_RIGHT'),
-      bind('C_MUTE'), bind('C_PP'),
-    ),
-    // 右パッド: 上下で縦スクロール、左右で水平スクロール
-    padR: pad(
-      bind('MSC_WHEEL_UP'), bind('MSC_WHEEL_DOWN'),
-      bind('MSC_HWHEEL_LEFT'), bind('MSC_HWHEEL_RIGHT'),
-      bind('MB1'), bind('MB2'),
-    ),
+    encoder: enc(bind('RIGHT'), bind('LEFT')),
+    // 左パッド: 上下スワイプで音量、タップでミュート
+    padL: pad(bind('C_VOL_UP'), bind('C_VOL_DN'), bind('C_MUTE')),
+    // 右パッド: 上下で縦スクロール、タップで左クリック
+    padR: pad(bind('MSC_WHEEL_UP'), bind('MSC_WHEEL_DOWN'), bind('MB1')),
   },
   {
     name: 'SYMBOL', color: 'pink', keys: SYMBOL_KEYS,
-    encoder: enc(bind('PG_DN'), bind('PG_UP'), TRANS),
-    padL: pad(bind('C_BRI_UP'), bind('C_BRI_DN'), TRANS, TRANS, TRANS, TRANS),
+    encoder: enc(bind('PG_DN'), bind('PG_UP')),
+    padL: pad(bind('C_BRI_UP'), bind('C_BRI_DN')),
     padR: transPad(),
   },
   {
     name: 'SYSTEM', color: 'green', keys: SYSTEM_KEYS,
-    encoder: enc(bind('BT_NXT'), bind('BT_NXT'), bind('BT_CLR')),
-    padL: pad(bind('RGB_TOG'), bind('RGB_TOG'), TRANS, TRANS, TRANS, TRANS),
+    encoder: enc(bind('BT_NXT'), bind('BT_NXT')),
+    padL: pad(bind('RGB_TOG'), bind('RGB_TOG')),
     padR: transPad(),
   },
   {

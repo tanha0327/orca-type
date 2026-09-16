@@ -28,32 +28,27 @@ export interface Binding {
   flavor?: Flavor
 }
 
-export type SwipeDir = 'up' | 'down' | 'left' | 'right'
-export type PadSlot = SwipeDir | 'tap' | 'doubleTap'
-export type EncoderSlot = 'cw' | 'ccw' | 'press'
+export type PadSlot = 'up' | 'down' | 'tap'
+export type EncoderSlot = 'cw' | 'ccw'
 
-export const PAD_SLOTS: PadSlot[] = ['up', 'down', 'left', 'right', 'tap', 'doubleTap']
-export const ENCODER_SLOTS: EncoderSlot[] = ['cw', 'ccw', 'press']
+export const PAD_SLOTS: PadSlot[] = ['up', 'down', 'tap']
+export const ENCODER_SLOTS: EncoderSlot[] = ['cw', 'ccw']
 
 export const PAD_SLOT_LABEL: Record<PadSlot, string> = {
   up: '上スワイプ',
   down: '下スワイプ',
-  left: '左スワイプ',
-  right: '右スワイプ',
   tap: 'タップ',
-  doubleTap: 'ダブルタップ',
 }
 export const PAD_SLOT_GLYPH: Record<PadSlot, string> = {
-  up: '↑', down: '↓', left: '←', right: '→', tap: '·', doubleTap: '··',
+  up: '↑', down: '↓', tap: '·',
 }
 
 export const ENCODER_SLOT_LABEL: Record<EncoderSlot, string> = {
   cw: '右回し（時計回り）',
   ccw: '左回し（反時計回り）',
-  press: '押し込み',
 }
 export const ENCODER_SLOT_GLYPH: Record<EncoderSlot, string> = {
-  cw: '↻', ccw: '↺', press: '⊙',
+  cw: '↻', ccw: '↺',
 }
 
 export type PadConfig = Record<PadSlot, Binding>
