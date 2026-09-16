@@ -40,14 +40,21 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
     [snap.presses],
   )
 
+  // 参加キーを選んでいる最中は、そのコンボのキーだけに印を絞る。
+  // 普通のときは、このレイヤーで有効なコンボ全部のキーに印をつける。
   const comboCount = useMemo(() => {
     const m = new Map<KeyId, number>()
+    if (comboPickId) {
+      const combo = keymap.combos.find((c) => c.id === comboPickId)
+      for (const k of combo?.keys ?? []) m.set(k, 1)
+      return m
+    }
     for (const c of keymap.combos) {
       if (!c.enabled || !c.layers.includes(viewLayer)) continue
       for (const k of c.keys) m.set(k, (m.get(k) ?? 0) + 1)
     }
     return m
-  }, [keymap.combos, viewLayer])
+  }, [keymap.combos, viewLayer, comboPickId])
 
   const doSelect = (s: Selection) => {
     if (!interactive) return
