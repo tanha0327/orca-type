@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { KeyboardView } from './components/Board/KeyboardView'
 import { ComboList } from './components/Combos/ComboList'
 import { ExportView } from './components/Export/ExportView'
+import { FeedView } from './components/Feed/FeedView'
 import { GestureView } from './components/Gestures/GestureView'
 import { Hud } from './components/Hud/Hud'
 import { Inspector } from './components/Inspector/Inspector'
@@ -14,6 +15,7 @@ import { useKeymapStore, type ViewId } from './store/keymapStore'
 
 const VIEWS: { id: ViewId; label: string }[] = [
   { id: 'edit', label: '編集' },
+  { id: 'feed', label: 'みんなの配列' },
   { id: 'export', label: '書き出し' },
 ]
 
@@ -123,6 +125,7 @@ export function App() {
               <HowTo />
             </>
           )}
+          {view === 'feed' && <FeedView />}
           {view === 'export' && <ExportView />}
         </div>
 

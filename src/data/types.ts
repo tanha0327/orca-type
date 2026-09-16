@@ -136,3 +136,18 @@ export function isTrans(b: Binding | undefined): boolean {
 export function isModTap(b: Binding | undefined): boolean {
   return !!b?.hold && b.hold !== 'TRANS' && b.hold !== 'NONE'
 }
+
+/**
+ * ざっくりとした形チェック。ファイル読み込みや共有フィードなど、
+ * 外部から来た JSON を信用せずに取り込む前に使う。
+ */
+export function isValidKeymapShape(x: unknown): x is Keymap {
+  if (!x || typeof x !== 'object') return false
+  const km = x as Partial<Keymap>
+  return (
+    Array.isArray(km.layers)
+    && Array.isArray(km.combos)
+    && typeof km.trackball === 'object' && km.trackball !== null
+    && typeof km.settings === 'object' && km.settings !== null
+  )
+}
