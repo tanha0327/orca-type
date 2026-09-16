@@ -17,7 +17,7 @@ export function useEngineSnapshot(): EngineSnapshot {
   )
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+export function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null
   if (!el || !el.tagName) return false
   if (el.isContentEditable) return true
