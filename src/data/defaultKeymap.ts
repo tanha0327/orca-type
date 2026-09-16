@@ -37,11 +37,11 @@ const BASE_KEYS: KeyMapPatch = {
   L15: bind('G'),
   // 左 row2 — shift Z X C V B fn2
   L20: bind('LSHFT'), L21: bind('Z'), L22: bind('X'), L23: bind('C'), L24: bind('V'), L25: bind('B'),
-  L26: bind('MO_2'),
+  L26: bind('FN_2'),
   // 左 row3 — ctrl _ opt ⌘ fn1
-  L30: bind('LCTRL'), L31: NONE, L32: bind('LALT'), L33: bind('LGUI'), L34: bind('MO_1'),
+  L30: bind('LCTRL'), L31: NONE, L32: bind('LALT'), L33: bind('LGUI'), L34: bind('FN_1'),
   // 左親指 — スペース長押しで NAV レイヤー
-  LT0: bind('SPACE', 'MO_3'),
+  LT0: bind('SPACE', 'FN_3'),
 
   // 右 row0 — Y U I O P -
   R01: bind('Y'), R02: bind('U'), R03: bind('I'), R04: bind('O'), R05: bind('P'), R06: bind('MINUS'),

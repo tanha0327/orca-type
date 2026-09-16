@@ -132,6 +132,44 @@ export function sameTarget(a: Selection | null, b: Selection | null): boolean {
   return a.kind === 'ball'
 }
 
+/* -------------------------------------------------- 旧キーコードの移行 */
+
+/** v1 で MO_1/MO_2/MO_3 と呼んでいたキーコードを fn1/fn2/fn3 の新コードへ */
+const LEGACY_LAYER_CODE_MAP: Record<string, Keycode> = {
+  MO_1: 'FN_1',
+  MO_2: 'FN_2',
+  MO_3: 'FN_3',
+}
+
+function remapBinding(b: Binding): Binding {
+  return {
+    ...b,
+    tap: LEGACY_LAYER_CODE_MAP[b.tap] ?? b.tap,
+    ...(b.hold ? { hold: LEGACY_LAYER_CODE_MAP[b.hold] ?? b.hold } : {}),
+    ...(b.doubleTap ? { doubleTap: LEGACY_LAYER_CODE_MAP[b.doubleTap] ?? b.doubleTap } : {}),
+  }
+}
+
+function remapBindingsRecord<T extends Record<string, Binding>>(rec: T): T {
+  const out = {} as Record<string, Binding>
+  for (const k of Object.keys(rec)) out[k] = remapBinding(rec[k])
+  return out as T
+}
+
+function remapLegacyKeymap(km: Keymap): Keymap {
+  return {
+    ...km,
+    layers: km.layers.map((l) => ({
+      ...l,
+      keys: remapBindingsRecord(l.keys),
+      encoder: remapBindingsRecord(l.encoder),
+      padL: remapBindingsRecord(l.padL),
+      padR: remapBindingsRecord(l.padR),
+    })),
+    combos: km.combos.map((c) => ({ ...c, binding: remapBinding(c.binding) })),
+  }
+}
+
 /* -------------------------------------------------- ストア本体 */
 
 const DEFAULT_HUD: HudOptions = {
@@ -258,7 +296,14 @@ export const useKeymapStore = create<EditorState>()(
     }),
     {
       name: 'orca-type/keymap',
-      version: 1,
+      version: 2,
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<Pick<EditorState, 'keymap' | 'hud' | 'hudDocked' | 'editingLayer'>>
+        if (version < 2 && state?.keymap) {
+          return { ...state, keymap: remapLegacyKeymap(state.keymap) } as EditorState
+        }
+        return state as EditorState
+      },
       partialize: (s) => ({
         keymap: s.keymap,
         hud: s.hud,

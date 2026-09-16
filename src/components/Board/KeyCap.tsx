@@ -35,7 +35,7 @@ export function KeyCap({
   const awaiting = press?.awaitingHold ?? false
 
   const label = kc.code === 'NONE' ? '' : kc.label || kc.code
-  // 文字数でフォントを落とす。MO2 のような 3 文字が折り返さないようにする
+  // 文字数でフォントを落とす。fn2 のような 3 文字が折り返さないようにする
   const mainFontSize =
     label.length <= 2 ? 'clamp(9px, 4.6cqw, 21px)'
       : label.length === 3 ? 'clamp(7px, 3.5cqw, 16px)'

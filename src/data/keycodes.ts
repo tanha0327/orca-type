@@ -225,8 +225,14 @@ def({ code: 'OUT_TOG', label: '((•))', name: '出力切替（USB ⇄ 無線）
 
 /* ---------------------------------------------------------------- レイヤー */
 export const LAYER_COUNT = 8
+/** キーキャップに fn1/fn2/fn3 と印字されているレイヤー（実機写真準拠） */
+const FN_LAYERS = new Set([1, 2, 3])
 for (let n = 0; n < LAYER_COUNT; n++) {
-  def({ code: `MO_${n}`, label: `MO${n}`, name: `レイヤー ${n} を押している間だけ有効`, category: 'layer', layerAction: 'MO', layerTarget: n, keywords: ['もーめんたり', 'momentary', 'レイヤー', `${n}`] })
+  if (FN_LAYERS.has(n)) {
+    def({ code: `FN_${n}`, label: `fn${n}`, name: `fn${n}（レイヤー ${n} を押している間だけ有効）`, category: 'layer', layerAction: 'MO', layerTarget: n, keywords: ['もーめんたり', 'momentary', 'レイヤー', 'fn', `fn${n}`, `${n}`] })
+  } else {
+    def({ code: `MO_${n}`, label: `MO${n}`, name: `レイヤー ${n} を押している間だけ有効`, category: 'layer', layerAction: 'MO', layerTarget: n, keywords: ['もーめんたり', 'momentary', 'レイヤー', `${n}`] })
+  }
   def({ code: `TG_${n}`, label: `TG${n}`, name: `レイヤー ${n} をトグル`, category: 'layer', layerAction: 'TG', layerTarget: n, keywords: ['トグル', 'toggle', 'レイヤー', `${n}`] })
   def({ code: `TO_${n}`, label: `TO${n}`, name: `レイヤー ${n} に切り替える`, category: 'layer', layerAction: 'TO', layerTarget: n, keywords: ['きりかえ', '切替', 'レイヤー', `${n}`] })
 }
