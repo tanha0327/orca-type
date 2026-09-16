@@ -84,7 +84,7 @@ export function ComboEditor({ combo }: { combo: Combo }) {
           </div>
           {pickingKeys && (
             <p className="mt-1.5 text-[0.7rem] font-bold leading-relaxed opacity-70">
-              盤面のキーをクリックすると追加／解除されます。
+              盤面のキーをクリックするか、手元のキーボードで押すと追加／解除されます。
             </p>
           )}
         </div>

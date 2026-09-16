@@ -8,7 +8,8 @@ import { Inspector } from './components/Inspector/Inspector'
 import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
-import { engine, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { CODE_TO_KEY } from './data/layout'
+import { engine, isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 
 const VIEWS: { id: ViewId; label: string }[] = [
@@ -25,12 +26,27 @@ export function App() {
   const setCapture = useKeymapStore((s) => s.setCapture)
   const comboPickId = useKeymapStore((s) => s.comboPickId)
   const setComboPick = useKeymapStore((s) => s.setComboPick)
+  const toggleComboKey = useKeymapStore((s) => s.toggleComboKey)
   const [subLegends, setSubLegends] = useState(false)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
   useKeyCapture(typeof document !== 'undefined' ? document : null)
   useResetOnCaptureOff()
+
+  // コンボの参加キーを選んでいる間は、手元のキーボードのキーでも盤面のキーを追加／解除できる
+  useEffect(() => {
+    if (!comboPickId) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || isTypingTarget(e.target)) return
+      const keyId = CODE_TO_KEY[e.code]
+      if (!keyId) return
+      e.preventDefault()
+      toggleComboKey(comboPickId, keyId)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [comboPickId, toggleComboKey])
 
   // PiP を開いたら自動でキャプチャを入れる（HUD が空だと意味がないので）
   useEffect(() => { if (pip.win && !capture) setCapture(true) }, [pip.win, capture, setCapture])
@@ -62,7 +78,7 @@ export function App() {
             style={{ background: 'var(--color-purple)' }}
           >
             <span className="text-[0.82rem] font-black">
-              コンボに入れるキーを、盤面でクリックしてください
+              コンボに入れるキーを、盤面でクリックするか、手元のキーボードで押してください
             </span>
             <span className="flex-1" />
             <button type="button" className="nb-btn !py-1.5 text-[0.78rem]" onClick={() => setComboPick(null)}>
