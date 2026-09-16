@@ -52,49 +52,55 @@ export function LayerBar() {
           const isEditing = layer.id === editingLayer
           const isLive = snap.stack.includes(layer.id) && snap.down.length > 0
           return (
-            <button
+            <div
               key={layer.id}
-              type="button"
-              onClick={() => setEditingLayer(layer.id)}
-              className="nb-folder nb-btn !block w-full !p-0 text-left"
+              className="nb-folder"
               style={{
                 // @ts-expect-error CSS カスタムプロパティ
                 '--tab-color': hex,
-                background: isEditing ? hex : 'var(--color-paper)',
-                transform: isEditing ? 'translate(3px, 3px)' : undefined,
-                boxShadow: isEditing ? '1px 1px 0 var(--color-ink)' : undefined,
               }}
-              aria-pressed={isEditing}
             >
-              <div className="flex items-start justify-between gap-2 p-2.5">
-                <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] font-mono text-[1rem] font-black"
-                  style={{ background: hex, border: '3px solid var(--color-ink)' }}
-                >
-                  {layer.id}
-                </div>
-                <div className="min-w-0 flex-1 text-right">
-                  <div className="font-mono text-[0.68rem] font-black leading-tight opacity-70">
-                    {countAssignments(layer)} キー
-                  </div>
-                  <div className="font-mono text-[0.68rem] font-black leading-tight opacity-70">
-                    {countSensors(layer)} センサー
-                    {comboCounts.get(layer.id) ? ` / ${comboCounts.get(layer.id)} コンボ` : ''}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
-                <span className="truncate text-[0.95rem] font-black leading-none">{layer.name}</span>
-                {isLive && (
-                  <span
-                    className="nb-chip shrink-0 !py-0 !text-[0.55rem]"
-                    style={{ background: 'var(--color-lime)' }}
+              <button
+                type="button"
+                onClick={() => setEditingLayer(layer.id)}
+                className="nb-btn !block w-full !p-0 text-left"
+                style={{
+                  background: isEditing ? hex : 'var(--color-paper)',
+                  transform: isEditing ? 'translate(3px, 3px)' : undefined,
+                  boxShadow: isEditing ? '1px 1px 0 var(--color-ink)' : undefined,
+                }}
+                aria-pressed={isEditing}
+              >
+                <div className="flex items-start justify-between gap-2 p-2.5">
+                  <div
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] font-mono text-[1rem] font-black"
+                    style={{ background: hex, border: '3px solid var(--color-ink)' }}
                   >
-                    LIVE
-                  </span>
-                )}
-              </div>
-            </button>
+                    {layer.id}
+                  </div>
+                  <div className="min-w-0 flex-1 text-right">
+                    <div className="font-mono text-[0.68rem] font-black leading-tight opacity-70">
+                      {countAssignments(layer)} キー
+                    </div>
+                    <div className="font-mono text-[0.68rem] font-black leading-tight opacity-70">
+                      {countSensors(layer)} センサー
+                      {comboCounts.get(layer.id) ? ` / ${comboCounts.get(layer.id)} コンボ` : ''}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
+                  <span className="truncate text-[0.95rem] font-black leading-none">{layer.name}</span>
+                  {isLive && (
+                    <span
+                      className="nb-chip shrink-0 !py-0 !text-[0.55rem]"
+                      style={{ background: 'var(--color-lime)' }}
+                    >
+                      LIVE
+                    </span>
+                  )}
+                </div>
+              </button>
+            </div>
           )
         })}
       </div>
