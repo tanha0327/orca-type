@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
-import { getKey } from '../../data/layout'
+import { getKey, KEYS } from '../../data/layout'
 import {
   ENCODER_SLOT_GLYPH, ENCODER_SLOT_LABEL, FLAVOR_HELP, FLAVOR_LABEL,
   LAYER_COLOR_HEX, PAD_SLOT_GLYPH, PAD_SLOT_LABEL,
   type Binding, type Flavor,
 } from '../../data/types'
 import { engine } from '../../engine/useEngine'
+import { resolveKey } from '../../engine/resolve'
 import {
-  getBinding, useKeymapStore, type BindingTarget,
+  getBinding, sameTarget, useKeymapStore, type BindingTarget,
 } from '../../store/keymapStore'
 import { BindingSlot, KeycodePicker } from '../Picker/KeycodePicker'
 import { ComboEditor } from '../Combos/ComboEditor'
@@ -21,15 +22,83 @@ export function Inspector() {
   const keymap = useKeymapStore((s) => s.keymap)
   const editingLayer = useKeymapStore((s) => s.editingLayer)
 
-  if (!selection) return <EmptyState />
-  if (selection.kind === 'ball') return <TrackballPanel />
-  if (selection.kind === 'combo') {
-    const combo = keymap.combos.find((c) => c.id === selection.comboId)
-    if (!combo) return <EmptyState />
-    return <ComboEditor combo={combo} />
-  }
+  const body = selection?.kind === 'ball'
+    ? <TrackballPanel />
+    : selection?.kind === 'combo'
+      ? (() => {
+          const combo = keymap.combos.find((c) => c.id === selection.comboId)
+          return combo ? <ComboEditor combo={combo} /> : <EmptyState />
+        })()
+      : selection
+        ? <BindingInspector target={selection} layerId={editingLayer} />
+        : <EmptyState />
 
-  return <BindingInspector target={selection} layerId={editingLayer} />
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      <KeyListPicker />
+      <div className="min-h-0 flex-1">{body}</div>
+    </div>
+  )
+}
+
+/** 編集したいキーを、盤面をクリックせずに検索して選べるリスト */
+function KeyListPicker() {
+  const selection = useKeymapStore((s) => s.selection)
+  const keymap = useKeymapStore((s) => s.keymap)
+  const editingLayer = useKeymapStore((s) => s.editingLayer)
+  const select = useKeymapStore((s) => s.select)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return KEYS.filter((k) => {
+      if (!q) return true
+      const label = getKeycode(resolveKey(keymap, [0, editingLayer], k.id).binding.tap).label
+      return k.id.toLowerCase().includes(q) || label.toLowerCase().includes(q)
+    })
+  }, [query, keymap, editingLayer])
+
+  return (
+    <div className="nb shrink-0 p-2.5">
+      <button
+        type="button"
+        className="nb-btn w-full !py-1.5 text-[0.78rem]"
+        data-active={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? '閉じる' : 'リストからキーを選ぶ'}
+      </button>
+      {open && (
+        <>
+          <input
+            className="nb-input mt-2 !py-1.5 text-[0.82rem]"
+            placeholder="キーを検索（例: Q / shift）"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+          <div className="mt-1.5 grid max-h-40 grid-cols-4 gap-1 overflow-y-auto sm:grid-cols-6">
+            {results.map((k) => {
+              const g = getKeycode(resolveKey(keymap, [0, editingLayer], k.id).binding.tap)
+              const active = sameTarget(selection, { kind: 'key', keyId: k.id })
+              return (
+                <button
+                  key={k.id}
+                  type="button"
+                  className="nb-chip !justify-center"
+                  style={{ background: active ? 'var(--color-lime)' : 'transparent', cursor: 'pointer' }}
+                  onClick={() => { select({ kind: 'key', keyId: k.id }); setOpen(false); setQuery('') }}
+                >
+                  {g.label || k.id}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 function EmptyState() {
@@ -38,7 +107,8 @@ function EmptyState() {
       <p className="text-[2rem] leading-none">👆</p>
       <h3 className="text-[1.05rem]">編集したいところを選ぶ</h3>
       <p className="text-[0.82rem] font-bold leading-relaxed opacity-70">
-        盤面のキー・ロータリーエンコーダー・スクロールパッド・トラックボールをクリックすると、
+        盤面のキー・ロータリーエンコーダー・スクロールパッド・トラックボールをクリックするか、
+        上の「リストからキーを選ぶ」で検索すると、
         ここで<strong>単押し</strong>と<strong>長押し（MOD-TAP）</strong>を編集できます。
       </p>
       <p className="text-[0.75rem] font-bold leading-relaxed opacity-50">
