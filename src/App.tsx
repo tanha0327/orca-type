@@ -13,9 +13,7 @@ import { engine, isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './e
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 
 const VIEWS: { id: ViewId; label: string }[] = [
-  { id: 'board', label: '盤面' },
-  { id: 'combos', label: 'コンボ' },
-  { id: 'gestures', label: 'ジェスチャー' },
+  { id: 'edit', label: '編集' },
   { id: 'export', label: '書き出し' },
 ]
 
@@ -118,10 +116,14 @@ export function App() {
 
           <LayerBar />
 
-          {view === 'combos' && <ComboList />}
-          {view === 'gestures' && <GestureView />}
+          {view === 'edit' && (
+            <>
+              <ComboList />
+              <GestureView />
+              <HowTo />
+            </>
+          )}
           {view === 'export' && <ExportView />}
-          {view === 'board' && <HowTo />}
         </div>
 
         <aside className="min-w-0">

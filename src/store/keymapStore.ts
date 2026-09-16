@@ -19,7 +19,7 @@ export type BindingTarget =
 
 export type Selection = BindingTarget | { kind: 'ball' }
 
-export type ViewId = 'board' | 'combos' | 'gestures' | 'export'
+export type ViewId = 'edit' | 'export'
 
 export interface HudOptions {
   showCombination: boolean
@@ -188,7 +188,7 @@ export const useKeymapStore = create<EditorState>()(
       selection: null,
       captureEnabled: false,
       comboPickId: null,
-      view: 'board',
+      view: 'edit',
       hud: DEFAULT_HUD,
       hudDocked: true,
 
