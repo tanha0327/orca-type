@@ -1,8 +1,22 @@
-import { useEffect, useState } from 'react'
-import { LAYER_COLOR_HEX } from '../../data/types'
+import { useEffect, useMemo, useState } from 'react'
+import { KEYS, type KeyId } from '../../data/layout'
+import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
+import { resolveKey } from '../../engine/resolve'
 import { fetchFeed, feedEnabled, shareKeymap, type SharedKeymap } from '../../lib/feed'
 import { useKeymapStore } from '../../store/keymapStore'
 import { KeyboardView } from '../Board/KeyboardView'
+
+/** 2 つのキーマップで、指定レイヤーの割当（単押し・長押し）が違うキーの ID 集合 */
+function diffKeysForLayer(a: Keymap, b: Keymap, layerIndex: number): Set<KeyId> {
+  const stack = layerIndex === 0 ? [0] : [0, layerIndex]
+  const diffs = new Set<KeyId>()
+  for (const k of KEYS) {
+    const ra = resolveKey(a, stack, k.id).binding
+    const rb = resolveKey(b, stack, k.id).binding
+    if (ra.tap !== rb.tap || ra.hold !== rb.hold) diffs.add(k.id)
+  }
+  return diffs
+}
 
 /**
  * Supabase のエラー（PostgrestError）は Error を継承していないので、
@@ -30,6 +44,7 @@ export function FeedView() {
   const [shareDesc, setShareDesc] = useState('')
   const [sharing, setSharing] = useState(false)
   const [shareMsg, setShareMsg] = useState<string | null>(null)
+  const [compareItem, setCompareItem] = useState<SharedKeymap | null>(null)
 
   const load = async () => {
     setLoadError(null)
@@ -102,7 +117,12 @@ export function FeedView() {
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {items?.map((item) => (
-          <FeedCard key={item.id} item={item} onImport={() => doImport(item)} />
+          <FeedCard
+            key={item.id}
+            item={item}
+            onImport={() => doImport(item)}
+            onCompare={() => setCompareItem(item)}
+          />
         ))}
         <AddTile onClick={() => setShareOpen(true)} />
       </div>
@@ -129,6 +149,17 @@ export function FeedView() {
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
       />
+
+      <CompareModal
+        item={compareItem}
+        myKeymap={keymap}
+        onClose={() => setCompareItem(null)}
+        onImport={() => {
+          if (!compareItem) return
+          doImport(compareItem)
+          setCompareItem(null)
+        }}
+      />
     </section>
   )
 }
@@ -147,7 +178,13 @@ function AddTile({ onClick }: { onClick: () => void }) {
   )
 }
 
-function FeedCard({ item, onImport }: { item: SharedKeymap; onImport: () => void }) {
+function FeedCard({
+  item, onImport, onCompare,
+}: {
+  item: SharedKeymap
+  onImport: () => void
+  onCompare: () => void
+}) {
   const [hovered, setHovered] = useState(false)
   const peekLayers = item.keymap.layers.slice(0, 3)
 
@@ -168,9 +205,19 @@ function FeedCard({ item, onImport }: { item: SharedKeymap; onImport: () => void
           <p className="line-clamp-3 text-[0.76rem] font-bold opacity-80">{item.description}</p>
         )}
         <span className="flex-1" />
-        <button type="button" className="nb-btn w-full !py-1.5 text-[0.78rem]" onClick={onImport}>
-          読み込む
-        </button>
+        <div className="flex gap-1.5">
+          <button type="button" className="nb-btn flex-1 !py-1.5 text-[0.78rem]" onClick={onCompare}>
+            比較する
+          </button>
+          <button
+            type="button"
+            className="nb-btn flex-1 !py-1.5 text-[0.78rem]"
+            style={{ background: 'var(--color-lime)' }}
+            onClick={onImport}
+          >
+            読み込む
+          </button>
+        </div>
       </div>
 
       {hovered && peekLayers.length > 0 && (
@@ -288,6 +335,135 @@ function ShareModal({
             onClick={onSubmit}
           >
             {sharing ? '共有中…' : '共有する'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CompareModal({
+  item, myKeymap, onClose, onImport,
+}: {
+  item: SharedKeymap | null
+  myKeymap: Keymap
+  onClose: () => void
+  onImport: () => void
+}) {
+  useEffect(() => {
+    if (!item) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [item, onClose])
+
+  const diffByLayer = useMemo(() => {
+    if (!item) return []
+    return item.keymap.layers.map((_, i) => diffKeysForLayer(myKeymap, item.keymap, i))
+  }, [item, myKeymap])
+
+  if (!item) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center"
+      style={{ background: 'color-mix(in srgb, var(--color-ink) 45%, transparent)' }}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${item.name} と比較`}
+        className="nb nb-lg flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden"
+      >
+        <header
+          className="flex items-center gap-2 border-b-[3px] border-[var(--color-ink)] p-3"
+          style={{ background: 'var(--color-purple)' }}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="nb-eyebrow !opacity-80">配列を比較</p>
+            <h3 className="truncate text-[1.05rem]">あなたの配列 ⇔ {item.name}</h3>
+          </div>
+          <button type="button" className="nb-btn shrink-0 !py-1.5 text-[0.78rem]" onClick={onClose}>
+            閉じる
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <div className="mb-3 grid grid-cols-2 gap-3">
+            <div className="nb nb-flat p-2 text-center">
+              <p className="text-[0.85rem] font-black">あなたの配列</p>
+              <p className="text-[0.7rem] font-bold opacity-60">
+                {myKeymap.layers.length} レイヤー ・ {myKeymap.combos.length} コンボ
+              </p>
+            </div>
+            <div className="nb nb-flat p-2 text-center">
+              <p className="truncate text-[0.85rem] font-black">{item.name}</p>
+              <p className="text-[0.7rem] font-bold opacity-60">
+                {item.author} ・ {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
+              </p>
+            </div>
+          </div>
+
+          <p className="mb-3 flex items-center gap-1.5 text-[0.7rem] font-bold opacity-70">
+            <span
+              className="inline-block h-3 w-3 shrink-0 rounded-[3px]"
+              style={{
+                background: 'color-mix(in srgb, var(--color-pink) 20%, var(--color-paper))',
+                border: '2px solid var(--color-pink)',
+              }}
+            />
+            縁がピンクのキーは、あなたの配列と割当が違います
+          </p>
+
+          <div className="space-y-4">
+            {item.keymap.layers.map((theirLayer, i) => {
+              const myLayer = myKeymap.layers[i]
+              const diffKeys = diffByLayer[i]
+              return (
+                <div key={i} className="grid grid-cols-2 gap-3">
+                  <div>
+                    {myLayer && (
+                      <span
+                        className="nb-chip mb-1"
+                        style={{ background: LAYER_COLOR_HEX[myLayer.color] }}
+                      >
+                        L{myLayer.id} {myLayer.name}
+                      </span>
+                    )}
+                    {myLayer
+                      ? (
+                        <KeyboardView
+                          interactive={false} compact previewKeymap={myKeymap} previewLayer={i} diffKeys={diffKeys}
+                        />
+                      )
+                      : <p className="text-[0.72rem] font-bold opacity-50">このレイヤーはありません</p>}
+                  </div>
+                  <div>
+                    <span
+                      className="nb-chip mb-1"
+                      style={{ background: LAYER_COLOR_HEX[theirLayer.color] }}
+                    >
+                      L{theirLayer.id} {theirLayer.name}
+                    </span>
+                    <KeyboardView
+                      interactive={false} compact previewKeymap={item.keymap} previewLayer={i} diffKeys={diffKeys}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="border-t-[3px] border-[var(--color-ink)] p-3">
+          <button
+            type="button"
+            className="nb-btn w-full !py-2 text-[0.82rem]"
+            style={{ background: 'var(--color-lime)' }}
+            onClick={onImport}
+          >
+            「{item.name}」を読み込む
           </button>
         </div>
       </div>

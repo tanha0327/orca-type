@@ -14,6 +14,8 @@ export interface KeyCapProps {
   selectedTone?: string
   /** 他のキーを選択中で、このキーは選択されていない（少しグレーを重ねて目立たなくする） */
   dimmed?: boolean
+  /** 比較プレビューで、もう一方のキーマップとこのキーの割当が違う */
+  diff?: boolean
   press?: PressView
   comboCount: number
   /** 編集中レイヤーの色 */
@@ -29,7 +31,7 @@ export interface KeyCapProps {
 }
 
 export function KeyCap({
-  keyDef, binding, inherited, selected, selectedTone, dimmed, press, comboCount, accent,
+  keyDef, binding, inherited, selected, selectedTone, dimmed, diff, press, comboCount, accent,
   subLegends, interactive = true, totalW, totalH, onSelect, onPulse,
 }: KeyCapProps) {
   const kc = getKeycode(binding?.tap)
@@ -73,18 +75,24 @@ export function KeyCap({
           // HUD の中では周囲の文字色が paper なので、明示的に ink に戻す
           // （キーキャップは常に明るい面なので、継承すると文字が消える）
           color: 'var(--color-ink)',
-          border: `${selected ? 3.5 : 2.5}px solid ${selected ? (selectedTone ?? 'var(--color-ink)') : 'var(--color-ink)'}`,
+          border: `${selected ? 3.5 : diff ? 3 : 2.5}px solid ${
+            selected ? (selectedTone ?? 'var(--color-ink)') : diff ? 'var(--color-pink)' : 'var(--color-ink)'
+          }`,
           borderRadius: 'clamp(5px, 1.5cqw, 11px)',
           background: isDown
             ? accent
             : selected
               ? 'color-mix(in srgb, var(--color-paper) 70%, #fff)'
-              : keyDef.accent
-                ? 'var(--color-orange)'
-                : 'var(--color-paper)',
+              : diff
+                ? 'color-mix(in srgb, var(--color-pink) 20%, var(--color-paper))'
+                : keyDef.accent
+                  ? 'var(--color-orange)'
+                  : 'var(--color-paper)',
           boxShadow: isDown
             ? 'none'
-            : `${selected ? 3 : 2}px ${selected ? 3 : 2}px 0 ${selected ? (selectedTone ?? 'var(--color-ink)') : 'var(--color-ink)'}`,
+            : `${selected ? 3 : 2}px ${selected ? 3 : 2}px 0 ${
+              selected ? (selectedTone ?? 'var(--color-ink)') : diff ? 'var(--color-pink)' : 'var(--color-ink)'
+            }`,
           transform: isDown ? 'translate(2px, 2px)' : 'none',
           transition: 'transform 60ms ease, box-shadow 60ms ease, background 90ms ease',
           opacity: inherited && !isDown ? 0.5 : 1,
