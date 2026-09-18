@@ -16,6 +16,8 @@ export interface KeyCapProps {
   dimmed?: boolean
   /** 比較プレビューで、もう一方のキーマップとこのキーの割当が違う */
   diff?: boolean
+  /** キーボード本体の色がブラックのとき true。キーキャップの地色と文字色を反転する */
+  dark?: boolean
   press?: PressView
   comboCount: number
   /** 編集中レイヤーの色 */
@@ -31,7 +33,7 @@ export interface KeyCapProps {
 }
 
 export function KeyCap({
-  keyDef, binding, inherited, selected, selectedTone, dimmed, diff, press, comboCount, accent,
+  keyDef, binding, inherited, selected, selectedTone, dimmed, diff, dark, press, comboCount, accent,
   subLegends, interactive = true, totalW, totalH, onSelect, onPulse,
 }: KeyCapProps) {
   const kc = getKeycode(binding?.tap)
@@ -39,6 +41,18 @@ export function KeyCap({
   const isDown = !!press
   const isHeld = press?.state === 'hold'
   const awaiting = press?.awaitingHold ?? false
+
+  // 本体色に応じて、キーキャップの地色・縁・文字色を反転する
+  const faceDefault = dark ? 'var(--color-ink)' : 'var(--color-paper)'
+  const borderDefault = dark ? 'var(--color-paper)' : 'var(--color-ink)'
+  const textDefault = dark ? 'var(--color-paper)' : 'var(--color-ink)'
+  const selectedBorder = selectedTone ?? borderDefault
+  const selectedFace = dark
+    ? 'color-mix(in srgb, var(--color-ink) 55%, #000)'
+    : 'color-mix(in srgb, var(--color-paper) 70%, #fff)'
+  const diffFace = dark
+    ? 'color-mix(in srgb, var(--color-pink) 28%, var(--color-ink))'
+    : 'color-mix(in srgb, var(--color-pink) 20%, var(--color-paper))'
 
   const label = kc.code === 'NONE' ? '' : kc.label || kc.code
   // 文字数でフォントを落とす。fn2 のような 3 文字が折り返さないようにする
@@ -72,22 +86,22 @@ export function KeyCap({
       <span
         className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden"
         style={{
-          // HUD の中では周囲の文字色が paper なので、明示的に ink に戻す
-          // （キーキャップは常に明るい面なので、継承すると文字が消える）
-          color: 'var(--color-ink)',
+          // HUD の中では周囲の文字色が paper なので、明示的に戻す
+          // （キーキャップは常に本体色の面なので、継承すると文字が消える）
+          color: textDefault,
           border: `${selected ? 3.5 : diff ? 3 : 2.5}px solid ${
-            selected ? (selectedTone ?? 'var(--color-ink)') : diff ? 'var(--color-pink)' : 'var(--color-ink)'
+            selected ? selectedBorder : diff ? 'var(--color-pink)' : borderDefault
           }`,
           borderRadius: 'clamp(5px, 1.5cqw, 11px)',
           background: isDown
             ? accent
             : selected
-              ? 'color-mix(in srgb, var(--color-paper) 70%, #fff)'
+              ? selectedFace
               : diff
-                ? 'color-mix(in srgb, var(--color-pink) 20%, var(--color-paper))'
+                ? diffFace
                 : keyDef.accent
                   ? 'var(--color-orange)'
-                  : 'var(--color-paper)',
+                  : faceDefault,
           boxShadow: isDown
             ? 'none'
             : `${selected ? 3 : 2}px ${selected ? 3 : 2}px 0 ${

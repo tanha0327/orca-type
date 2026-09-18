@@ -168,6 +168,7 @@ export function createDefaultKeymap(): Keymap {
     settings: {
       tappingTermMs: 200,
       flavor: 'balanced',
+      bodyColor: 'white',
     },
   }
 }

@@ -10,8 +10,11 @@ import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
 import { CODE_TO_KEY } from './data/layout'
+import { BODY_COLOR_LABEL, TRACKBALL_COLOR_GRADIENT, type BodyColor } from './data/types'
 import { engine, isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
+
+const BODY_COLORS: BodyColor[] = ['white', 'black']
 
 const VIEWS: { id: ViewId; label: string }[] = [
   { id: 'edit', label: '編集' },
@@ -27,6 +30,8 @@ export function App() {
   const comboPickId = useKeymapStore((s) => s.comboPickId)
   const setComboPick = useKeymapStore((s) => s.setComboPick)
   const toggleComboKey = useKeymapStore((s) => s.toggleComboKey)
+  const bodyColor = useKeymapStore((s) => s.keymap.settings.bodyColor) ?? 'white'
+  const setSettings = useKeymapStore((s) => s.setSettings)
   const [subLegends, setSubLegends] = useState(false)
 
   const pip = usePipWindow({ width: 380, height: 620 })
@@ -101,14 +106,26 @@ export function App() {
                       ホイールとパッドはドラッグ／スクロールで動かせます。
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
-                    data-active={subLegends}
-                    onClick={() => setSubLegends((v) => !v)}
-                  >
-                    重ね印字
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex items-center gap-1" role="group" aria-label="キーボード本体の色">
+                      {BODY_COLORS.map((c) => (
+                        <BodyColorSwatch
+                          key={c}
+                          color={c}
+                          active={bodyColor === c}
+                          onClick={() => setSettings({ bodyColor: c })}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
+                      data-active={subLegends}
+                      onClick={() => setSubLegends((v) => !v)}
+                    >
+                      重ね印字
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <div className="min-w-[520px]">
@@ -238,6 +255,32 @@ function PipPlaceholder({ onClose }: { onClose: () => void }) {
         ここに戻す
       </button>
     </div>
+  )
+}
+
+function BodyColorSwatch({
+  color, active, onClick,
+}: {
+  color: BodyColor
+  active: boolean
+  onClick: () => void
+}) {
+  const [hi, mid, lo] = TRACKBALL_COLOR_GRADIENT[color]
+  return (
+    <button
+      type="button"
+      title={`本体色: ${BODY_COLOR_LABEL[color]}`}
+      aria-label={`本体色を${BODY_COLOR_LABEL[color]}にする`}
+      aria-pressed={active}
+      onClick={onClick}
+      className="block h-6 w-6 rounded-full"
+      style={{
+        background: `radial-gradient(circle at 32% 28%, ${hi} 0%, ${mid} 42%, ${lo} 100%)`,
+        border: `${active ? 3 : 2}px solid var(--color-ink)`,
+        boxShadow: active ? '2px 2px 0 var(--color-ink)' : '1px 1px 0 var(--color-ink)',
+        transform: active ? 'translate(-1px, -1px)' : undefined,
+      }}
+    />
   )
 }
 
