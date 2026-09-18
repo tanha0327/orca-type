@@ -5,6 +5,7 @@ import { resolveKey } from '../../engine/resolve'
 import { fetchFeed, feedEnabled, shareKeymap, type SharedKeymap } from '../../lib/feed'
 import { useKeymapStore } from '../../store/keymapStore'
 import { KeyboardView } from '../Board/KeyboardView'
+import { Ring } from '../Ring'
 
 /** 2 つのキーマップで、指定レイヤーの割当（単押し・長押し）が違うキーの ID 集合 */
 function diffKeysForLayer(a: Keymap, b: Keymap, layerIndex: number): Set<KeyId> {
@@ -128,7 +129,10 @@ export function FeedView() {
       </div>
 
       {items === null && !loadError && (
-        <p className="py-6 text-center text-[0.85rem] font-bold opacity-60">読み込み中…</p>
+        <p className="flex items-center justify-center gap-2 py-6 text-[0.85rem] font-bold opacity-60">
+          <Ring size={15} />
+          読み込み中…
+        </p>
       )}
       {items?.length === 0 && (
         <p className="py-6 text-center text-[0.85rem] font-bold opacity-60">
@@ -329,11 +333,12 @@ function ShareModal({
           )}
           <button
             type="button"
-            className="nb-btn w-full !py-2 text-[0.82rem]"
+            className="nb-btn flex w-full items-center justify-center gap-2 !py-2 text-[0.82rem]"
             style={{ background: 'var(--color-lime)' }}
             disabled={!canSubmit}
             onClick={onSubmit}
           >
+            {sharing && <Ring size={14} />}
             {sharing ? '共有中…' : '共有する'}
           </button>
         </div>
