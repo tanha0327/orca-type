@@ -2,7 +2,8 @@ import { useCallback, useRef, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import type { SensorDef } from '../../data/layout'
 import {
-  TRACKBALL_COLOR_DARK, TRACKBALL_COLOR_GRADIENT, type EncoderSlot, type PadSlot, type TrackballColor,
+  TRACKBALL_COLOR_DARK, TRACKBALL_COLOR_GRADIENT,
+  type BodyColor, type EncoderSlot, type PadSlot, type TrackballColor,
 } from '../../data/types'
 
 interface Geo { totalW: number; totalH: number }
@@ -28,12 +29,13 @@ function place(def: SensorDef, { totalW, totalH }: Geo) {
    ホイール操作・上下ドラッグで回転。
    ================================================================ */
 export function EncoderView({
-  def, geo, selected, glyphs, onSlot, onSelect, interactive = true,
+  def, geo, selected, glyphs, color = 'white', onSlot, onSelect, interactive = true,
 }: {
   def: SensorDef
   geo: Geo
   selected: boolean
   glyphs: Record<EncoderSlot, string>
+  color?: BodyColor
   onSlot: (slot: EncoderSlot) => void
   onSelect: (slot: EncoderSlot) => void
   interactive?: boolean
@@ -42,6 +44,8 @@ export function EncoderView({
   const dragging = useRef(false)
   const lastY = useRef(0)
   const [spin, setSpin] = useState(0)
+  const [, mid] = TRACKBALL_COLOR_GRADIENT[color]
+  const knurlColor = TRACKBALL_COLOR_DARK[color] ? 'var(--color-paper)' : 'var(--color-ink)'
 
   const step = useCallback((dir: 1 | -1) => {
     setSpin((v) => v + dir * 18)
@@ -86,7 +90,7 @@ export function EncoderView({
         style={{
           border: `${selected ? 3.5 : 2.5}px solid var(--color-ink)`,
           borderRadius: 'clamp(4px, 1.2cqw, 9px)',
-          background: 'var(--color-ink)',
+          background: mid,
           boxShadow: '2px 2px 0 var(--color-ink)',
         }}
       >
@@ -95,7 +99,7 @@ export function EncoderView({
           className="absolute inset-0"
           style={{
             backgroundImage:
-              'repeating-linear-gradient(to bottom, var(--color-paper) 0 1.5px, transparent 1.5px 5px)',
+              `repeating-linear-gradient(to bottom, ${knurlColor} 0 1.5px, transparent 1.5px 5px)`,
             transform: `translateY(${spin % 5}px)`,
             opacity: 0.75,
           }}
@@ -126,7 +130,7 @@ export function PadView({
   geo: Geo
   selectedSlot: PadSlot | null
   glyphs: Record<PadSlot, string>
-  color?: TrackballColor
+  color?: BodyColor
   onSlot: (slot: PadSlot) => void
   onSelect: (slot: PadSlot) => void
   interactive?: boolean

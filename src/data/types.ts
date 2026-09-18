@@ -140,9 +140,19 @@ export interface Combo {
   enabled: boolean
 }
 
+/** キーボード本体（キーキャップ・スクロールパッド・エンコーダー）の色。実機の白／黒モデルに対応 */
+export type BodyColor = 'white' | 'black'
+
+export const BODY_COLOR_LABEL: Record<BodyColor, string> = {
+  white: 'ホワイト',
+  black: 'ブラック',
+}
+
 export interface KeymapSettings {
   tappingTermMs: number
   flavor: Flavor
+  /** キーボード本体の色（見た目のみ。トラックボールの色とは独立） */
+  bodyColor: BodyColor
 }
 
 export interface Keymap {

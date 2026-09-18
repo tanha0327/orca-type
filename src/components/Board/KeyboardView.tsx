@@ -47,6 +47,8 @@ export function KeyboardView({
   // 実際に入力を受けているときは、押下中に有効なレイヤーを映す
   const viewLayer = !isPreview && snap.down.length > 0 ? snap.activeLayer : editingLayer
   const accent = LAYER_COLOR_HEX[keymap.layers[viewLayer]?.color ?? 'gray']
+  const bodyColor = keymap.settings.bodyColor ?? 'white'
+  const dark = bodyColor === 'black'
   const displayStack = useMemo(
     () => (viewLayer === 0 ? [0] : [0, viewLayer]),
     [viewLayer],
@@ -133,6 +135,7 @@ export function KeyboardView({
               selectedTone={comboPickId ? 'var(--color-purple)' : undefined}
               dimmed={interactive && !comboPickId && selection?.kind === 'key' && selection.keyId !== k.id}
               diff={diffKeys?.has(k.id) ?? false}
+              dark={dark}
               press={pressByKey.get(k.id)}
               comboCount={comboCount.get(k.id) ?? 0}
               accent={accent}
@@ -159,6 +162,7 @@ export function KeyboardView({
                   cw: sensorGlyph(e?.cw.tap),
                   ccw: sensorGlyph(e?.ccw.tap),
                 }}
+                color={bodyColor}
                 interactive={interactive}
                 onSlot={(slot: EncoderSlot) => engine.encoder(slot)}
                 onSelect={(slot) => doSelect({ kind: 'encoder', slot })}
@@ -178,7 +182,7 @@ export function KeyboardView({
                   selection?.kind === 'pad' && selection.sensor === sensorId ? selection.slot : null
                 }
                 glyphs={{ up: g('up'), down: g('down'), tap: g('tap') }}
-                color={keymap.trackball.color ?? 'white'}
+                color={bodyColor}
                 interactive={interactive}
                 onSlot={(slot) => engine.pad(sensorId, slot)}
                 onSelect={(slot) => doSelect({ kind: 'pad', sensor: sensorId, slot })}
