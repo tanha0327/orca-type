@@ -90,36 +90,35 @@ export function App() {
 
       <main className="mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-4">
-          <section className="nb nb-lg p-4">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-              <div className="min-w-0">
-                <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
-                <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
-                  キーをクリックで選択・ダブルクリックで試し打ち。
-                  ホイールとパッドはドラッグ／スクロールで動かせます。
-                </p>
-              </div>
-              <button
-                type="button"
-                className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
-                data-active={subLegends}
-                onClick={() => setSubLegends((v) => !v)}
-              >
-                重ね印字
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <div className="min-w-[520px]">
-                <KeyboardView subLegends={subLegends} />
-              </div>
-            </div>
-            <Legend />
-          </section>
-
-          <Inspector />
-
           {view === 'edit' && (
             <>
+              <section className="nb nb-lg p-4">
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                  <div className="min-w-0">
+                    <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
+                    <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
+                      キーをクリックで選択・ダブルクリックで試し打ち。
+                      ホイールとパッドはドラッグ／スクロールで動かせます。
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
+                    data-active={subLegends}
+                    onClick={() => setSubLegends((v) => !v)}
+                  >
+                    重ね印字
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <div className="min-w-[520px]">
+                    <KeyboardView subLegends={subLegends} />
+                  </div>
+                </div>
+                <Legend />
+              </section>
+
+              <Inspector />
               <ComboList />
               <GestureView />
               <HowTo />
