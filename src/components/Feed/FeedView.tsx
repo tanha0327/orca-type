@@ -101,10 +101,10 @@ export function FeedView() {
       )}
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <AddTile onClick={() => setShareOpen(true)} />
         {items?.map((item) => (
           <FeedCard key={item.id} item={item} onImport={() => doImport(item)} />
         ))}
+        <AddTile onClick={() => setShareOpen(true)} />
       </div>
 
       {items === null && !loadError && (
