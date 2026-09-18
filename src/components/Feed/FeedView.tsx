@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { LAYER_COLOR_HEX } from '../../data/types'
 import { fetchFeed, feedEnabled, shareKeymap, type SharedKeymap } from '../../lib/feed'
 import { useKeymapStore } from '../../store/keymapStore'
+import { KeyboardView } from '../Board/KeyboardView'
 
 /**
  * Supabase のエラー（PostgrestError）は Error を継承していないので、
@@ -83,33 +85,176 @@ export function FeedView() {
 
   return (
     <section className="nb nb-lg p-4">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h2 className="text-[1.35rem]">みんなの配列</h2>
-          <p className="mt-1 text-[0.78rem] font-bold leading-relaxed opacity-70">
-            みんなが共有したキーマップを見たり、読み込んだりできます。
+      <div>
+        <h2 className="text-[1.35rem]">みんなの配列</h2>
+        <p className="mt-1 text-[0.78rem] font-bold leading-relaxed opacity-70">
+          みんなが共有したキーマップを見たり、読み込んだりできます。
+          カードにマウスを乗せると、上位 3 レイヤーをチラ見できます。
+        </p>
+      </div>
+
+      {shareMsg && (
+        <p className="nb-chip mt-3" style={{ background: 'var(--color-lime)' }}>{shareMsg}</p>
+      )}
+      {loadError && (
+        <p className="mt-3 text-[0.8rem] font-bold" style={{ color: 'var(--color-pink)' }}>{loadError}</p>
+      )}
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <AddTile onClick={() => setShareOpen(true)} />
+        {items?.map((item) => (
+          <FeedCard key={item.id} item={item} onImport={() => doImport(item)} />
+        ))}
+      </div>
+
+      {items === null && !loadError && (
+        <p className="py-6 text-center text-[0.85rem] font-bold opacity-60">読み込み中…</p>
+      )}
+      {items?.length === 0 && (
+        <p className="py-6 text-center text-[0.85rem] font-bold opacity-60">
+          まだ共有された配列がありません。「＋」から最初の 1 つを投稿してみてください。
+        </p>
+      )}
+
+      <ShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        shareName={shareName}
+        onShareName={setShareName}
+        authorName={authorName}
+        onAuthorName={setAuthorName}
+        shareDesc={shareDesc}
+        onShareDesc={setShareDesc}
+        sharing={sharing}
+        onSubmit={() => void doShare()}
+        shareMsg={shareMsg}
+      />
+    </section>
+  )
+}
+
+function AddTile({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="nb flex min-h-[9rem] flex-col items-center justify-center gap-1.5 p-4 text-center"
+      style={{ background: 'transparent', borderStyle: 'dashed' }}
+    >
+      <span className="text-[1.8rem] leading-none">＋</span>
+      <span className="text-[0.85rem] font-black">今の配列を投稿する</span>
+    </button>
+  )
+}
+
+function FeedCard({ item, onImport }: { item: SharedKeymap; onImport: () => void }) {
+  const [hovered, setHovered] = useState(false)
+  const peekLayers = item.keymap.layers.slice(0, 3)
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div className="nb nb-flat flex h-full min-h-[9rem] flex-col gap-2 p-3">
+        <div className="min-w-0">
+          <p className="truncate text-[0.95rem] font-black">{item.name}</p>
+          <p className="truncate text-[0.72rem] font-bold opacity-60">
+            {item.author} ・ {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
           </p>
         </div>
-        <button
-          type="button"
-          className="nb-btn shrink-0 !py-2 text-[0.82rem]"
-          style={{ background: 'var(--color-purple)' }}
-          onClick={() => setShareOpen((v) => !v)}
-        >
-          {shareOpen ? '閉じる' : '今の配列を共有する'}
+        {item.description && (
+          <p className="line-clamp-3 text-[0.76rem] font-bold opacity-80">{item.description}</p>
+        )}
+        <span className="flex-1" />
+        <button type="button" className="nb-btn w-full !py-1.5 text-[0.78rem]" onClick={onImport}>
+          読み込む
         </button>
       </div>
 
-      {shareOpen && (
-        <div className="nb nb-flat mt-3 space-y-3 p-3">
+      {hovered && peekLayers.length > 0 && (
+        <div
+          className="nb nb-lg absolute left-1/2 top-full z-20 mt-2 w-[19rem] max-w-[85vw] -translate-x-1/2 space-y-2 p-3"
+          style={{ background: 'var(--color-paper)' }}
+        >
+          <p className="nb-eyebrow">上位 3 レイヤーをチラ見</p>
+          {peekLayers.map((layer, i) => (
+            <div key={layer.id}>
+              <span
+                className="nb-chip mb-1"
+                style={{ background: LAYER_COLOR_HEX[layer.color] }}
+              >
+                L{layer.id} {layer.name}
+              </span>
+              <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={i} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ShareModal({
+  open, onClose, shareName, onShareName, authorName, onAuthorName,
+  shareDesc, onShareDesc, sharing, onSubmit, shareMsg,
+}: {
+  open: boolean
+  onClose: () => void
+  shareName: string
+  onShareName: (v: string) => void
+  authorName: string
+  onAuthorName: (v: string) => void
+  shareDesc: string
+  onShareDesc: (v: string) => void
+  sharing: boolean
+  onSubmit: () => void
+  shareMsg: string | null
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  const canSubmit = !!shareName.trim() && !!authorName.trim() && !sharing
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center"
+      style={{ background: 'color-mix(in srgb, var(--color-ink) 45%, transparent)' }}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="今の配列を投稿する"
+        className="nb nb-lg w-full max-w-md overflow-hidden"
+      >
+        <header
+          className="flex items-center gap-2 border-b-[3px] border-[var(--color-ink)] p-3"
+          style={{ background: 'var(--color-purple)' }}
+        >
+          <h3 className="min-w-0 flex-1 truncate text-[1.05rem]">今の配列を投稿する</h3>
+          <button type="button" className="nb-btn shrink-0 !py-1.5 text-[0.78rem]" onClick={onClose}>
+            閉じる
+          </button>
+        </header>
+
+        <div className="space-y-3 p-3">
           <label className="block">
             <span className="nb-eyebrow">配列名</span>
             <input
               className="nb-input mt-1"
               value={shareName}
               maxLength={60}
-              onChange={(e) => setShareName(e.target.value)}
+              onChange={(e) => onShareName(e.target.value)}
               placeholder="例: プログラマー向け配列"
+              autoFocus
             />
           </label>
           <label className="block">
@@ -118,7 +263,7 @@ export function FeedView() {
               className="nb-input mt-1"
               value={authorName}
               maxLength={30}
-              onChange={(e) => setAuthorName(e.target.value)}
+              onChange={(e) => onAuthorName(e.target.value)}
               placeholder="例: たなか"
             />
           </label>
@@ -128,59 +273,24 @@ export function FeedView() {
               className="nb-input mt-1"
               value={shareDesc}
               maxLength={280}
-              onChange={(e) => setShareDesc(e.target.value)}
+              onChange={(e) => onShareDesc(e.target.value)}
               placeholder="どんな配列か一言"
             />
           </label>
+          {shareMsg && (
+            <p className="nb-chip" style={{ background: 'var(--color-lime)' }}>{shareMsg}</p>
+          )}
           <button
             type="button"
             className="nb-btn w-full !py-2 text-[0.82rem]"
             style={{ background: 'var(--color-lime)' }}
-            disabled={!shareName.trim() || !authorName.trim() || sharing}
-            onClick={() => void doShare()}
+            disabled={!canSubmit}
+            onClick={onSubmit}
           >
             {sharing ? '共有中…' : '共有する'}
           </button>
         </div>
-      )}
-
-      {shareMsg && (
-        <p className="nb-chip mt-2" style={{ background: 'var(--color-lime)' }}>{shareMsg}</p>
-      )}
-
-      <div className="mt-4 space-y-2">
-        {loadError && (
-          <p className="text-[0.8rem] font-bold" style={{ color: 'var(--color-pink)' }}>{loadError}</p>
-        )}
-        {items === null && !loadError && (
-          <p className="py-6 text-center text-[0.85rem] font-bold opacity-60">読み込み中…</p>
-        )}
-        {items?.length === 0 && (
-          <p className="py-6 text-center text-[0.85rem] font-bold opacity-60">
-            まだ共有された配列がありません
-          </p>
-        )}
-        {items?.map((item) => (
-          <div key={item.id} className="nb nb-flat flex flex-wrap items-center justify-between gap-2 p-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[0.95rem] font-black">{item.name}</p>
-              <p className="truncate text-[0.72rem] font-bold opacity-60">
-                {item.author} ・ {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
-              </p>
-              {item.description && (
-                <p className="mt-1 text-[0.76rem] font-bold opacity-80">{item.description}</p>
-              )}
-            </div>
-            <button
-              type="button"
-              className="nb-btn shrink-0 !py-1.5 text-[0.78rem]"
-              onClick={() => doImport(item)}
-            >
-              読み込む
-            </button>
-          </div>
-        ))}
       </div>
-    </section>
+    </div>
   )
 }
