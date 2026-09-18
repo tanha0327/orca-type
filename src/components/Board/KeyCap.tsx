@@ -106,18 +106,21 @@ export function KeyCap({
           style={{
             fontSize: mainFontSize,
             letterSpacing: '-0.02em',
-            marginTop: hold || subLegends?.length ? '-6%' : 0,
+            marginTop: subLegends?.length ? '-6%' : 0,
           }}
         >
           {label}
         </span>
 
-        {/* 長押し（MOD-TAP）— キーキャップには現れない情報なので必ず出す */}
+        {/* 長押し（MOD-TAP）— キーキャップには現れない情報なので必ず出す。
+            重ね印字（JKL などの下側の赤／緑サブ表記）とかぶらないよう、キーキャップの上側に出す */}
         {hold && hold.code !== 'NONE' && (
           <span
             className="absolute font-black leading-none"
             style={{
-              bottom: '7%',
+              top: '6%',
+              left: '50%',
+              transform: 'translateX(-50%)',
               color: isDown ? 'var(--color-ink)' : 'var(--color-pink)',
               fontSize: 'clamp(6px, 2.4cqw, 11px)',
               opacity: isHeld ? 1 : 0.9,
@@ -127,8 +130,8 @@ export function KeyCap({
           </span>
         )}
 
-        {/* 他レイヤーの重ね印字（実機の赤／緑サブ印字の再現） */}
-        {!hold && subLegends && subLegends.length > 0 && (
+        {/* 他レイヤーの重ね印字（実機の赤／緑サブ印字の再現）。長押しがあっても消さない */}
+        {subLegends && subLegends.length > 0 && (
           <span
             className="absolute flex items-center gap-[0.35em] font-black leading-none"
             style={{ bottom: '7%', fontSize: 'clamp(5px, 2.2cqw, 10px)' }}

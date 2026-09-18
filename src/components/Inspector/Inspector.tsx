@@ -34,9 +34,9 @@ export function Inspector() {
         : <EmptyState />
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
+    <div className="space-y-2">
       <KeyListPicker />
-      <div className="min-h-0 flex-1">{body}</div>
+      {body}
     </div>
   )
 }
@@ -103,7 +103,7 @@ function KeyListPicker() {
 
 function EmptyState() {
   return (
-    <div className="nb nb-lg flex h-full flex-col justify-center gap-2 p-5 text-center">
+    <div className="nb nb-lg flex flex-col gap-2 p-5 text-center">
       <p className="text-[2rem] leading-none">👆</p>
       <h3 className="text-[1.05rem]">編集したいところを選ぶ</h3>
       <p className="text-[0.82rem] font-bold leading-relaxed opacity-70">
@@ -167,7 +167,7 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
   }
 
   return (
-    <div className="nb nb-lg flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="nb nb-lg overflow-hidden">
       <header
         className="flex items-center gap-2 border-b-[3px] border-[var(--color-ink)] p-3"
         style={{ background: hex }}
@@ -188,7 +188,7 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
         )}
       </header>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <div className="space-y-4 p-3">
         {isTrans && (
           <div
             className="nb nb-flat p-2.5 text-[0.76rem] font-bold leading-relaxed"

@@ -5,7 +5,7 @@ export function TrackballPanel() {
   const setTrackball = useKeymapStore((s) => s.setTrackball)
 
   return (
-    <div className="nb nb-lg flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="nb nb-lg overflow-hidden">
       <header
         className="border-b-[3px] border-[var(--color-ink)] p-3"
         style={{ background: 'linear-gradient(100deg, #ff8a9b, #d21f3c)' }}
@@ -17,7 +17,7 @@ export function TrackballPanel() {
         </p>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <div className="space-y-4 p-3">
         <Slider
           label="DPI（ポインタ速度）" value={ball.dpi} min={200} max={3200} step={100}
           unit="dpi" onChange={(v) => setTrackball({ dpi: v })}

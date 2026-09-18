@@ -46,7 +46,7 @@ export function LayerBar() {
         <p className="nb-eyebrow">8 LAYERS</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-5">
         {keymap.layers.map((layer) => {
           const hex = LAYER_COLOR_HEX[layer.color]
           const isEditing = layer.id === editingLayer
