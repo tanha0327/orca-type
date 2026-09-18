@@ -73,18 +73,15 @@ const SYMBOL_KEYS: KeyMapPatch = {
 
 /* --------------------------------------- L2 SYSTEM（緑印字 = fn2） */
 const SYSTEM_KEYS: KeyMapPatch = {
-  L00: bind('BT_CLR'),
-  L01: bind('OUT_TOG'),      // 写真の Q の緑 Wi-Fi アイコン
-  L02: bind('RGB_TOG'), L03: bind('C_BRI_UP'), L13: bind('C_BRI_DN'),
-  L05: bind('STUDIO_UNLOCK'),
-  L21: bind('SYS_RESET'), L22: bind('BOOTLOADER'),
-  R01: bind('F12'), R02: bind('F11'), R03: bind('F10'),
-  R04: bind('F7'), R05: bind('F8'), R06: bind('F9'),
-  R14: bind('F4'), R15: bind('F5'), R16: bind('F6'),
-  R24: bind('F1'), R25: bind('F2'), R26: bind('F3'),
-  R32: bind('OUT_TOG'),      // 写真の右手の緑 Wi-Fi アイコン
-  R34: bind('BT_SEL_0'), R35: bind('BT_SEL_1'), R36: bind('BT_SEL_2'), // B1 / B2 / B3
-  R33: bind('BT_NXT'),
+  // 左手 ESDF: 矢印キー
+  L03: bind('UP'), L12: bind('LEFT'), L13: bind('DOWN'), L14: bind('RIGHT'),
+  // 右手: マウスボタン（U/J/K）+ テンキー状の数字
+  R02: bind('MB3'),
+  R04: bind('N7'), R05: bind('N8'), R06: bind('N9'),
+  R12: bind('MB1'), R13: bind('MB2'),
+  R14: bind('N4'), R15: bind('N5'), R16: bind('N6'),
+  R24: bind('N1'), R25: bind('N2'), R26: bind('N3'),
+  R34: bind('N0'),
 }
 
 interface LayerSeed {
@@ -114,8 +111,8 @@ const SEEDS: LayerSeed[] = [
   },
   {
     name: 'SYSTEM', color: 'green', keys: SYSTEM_KEYS,
-    encoder: enc(bind('BT_NXT'), bind('BT_NXT')),
-    padL: pad(bind('RGB_TOG'), bind('RGB_TOG')),
+    encoder: enc(bind('PG_DN'), bind('PG_UP')),
+    padL: pad(bind('C_BRI_UP'), bind('C_BRI_DN')),
     padR: transPad(),
   },
   {
