@@ -163,6 +163,7 @@ export function createDefaultKeymap(): Keymap {
       invertY: false,
       snipeRatio: 0.35,
       scrollDivisor: 24,
+      color: 'white',
     },
     settings: {
       tappingTermMs: 200,

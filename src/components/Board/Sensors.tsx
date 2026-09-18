@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import type { SensorDef } from '../../data/layout'
-import type { EncoderSlot, PadSlot } from '../../data/types'
+import { TRACKBALL_COLOR_GRADIENT, type EncoderSlot, type PadSlot, type TrackballColor } from '../../data/types'
 
 interface Geo { totalW: number; totalH: number }
 
@@ -229,17 +229,19 @@ function PadTag({ glyph, active }: { glyph: string; active: boolean }) {
    トラックボール（右・19mm）
    ================================================================ */
 export function BallView({
-  def, geo, selected, onSelect, dpi, interactive = true,
+  def, geo, selected, onSelect, dpi, color = 'red', interactive = true,
 }: {
   def: SensorDef
   geo: Geo
   selected: boolean
   onSelect: () => void
   dpi: number
+  color?: TrackballColor
   interactive?: boolean
 }) {
   const [nudge, setNudge] = useState({ x: 0, y: 0 })
   const dragging = useRef(false)
+  const [hi, mid, lo] = TRACKBALL_COLOR_GRADIENT[color]
 
   return (
     <div
@@ -265,7 +267,7 @@ export function BallView({
         className="relative h-full w-full rounded-full"
         style={{
           border: `${selected ? 3.5 : 2.5}px solid var(--color-ink)`,
-          background: 'radial-gradient(circle at 32% 28%, #ff8a9b 0%, #d21f3c 42%, #6d0f1f 100%)',
+          background: `radial-gradient(circle at 32% 28%, ${hi} 0%, ${mid} 42%, ${lo} 100%)`,
           boxShadow: selected ? '3px 3px 0 var(--color-ink)' : '2px 2px 0 var(--color-ink)',
           transform: `translate(${nudge.x}px, ${nudge.y}px)`,
         }}

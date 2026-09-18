@@ -173,6 +173,7 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
               geo={{ totalW: ext.w, totalH: ext.h }}
               selected={selection?.kind === 'ball'}
               dpi={keymap.trackball.dpi}
+              color={keymap.trackball.color ?? 'white'}
               interactive={interactive}
               onSelect={() => doSelect({ kind: 'ball' })}
             />
