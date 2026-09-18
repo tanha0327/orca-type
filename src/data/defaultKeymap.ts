@@ -28,29 +28,29 @@ const noneEnc = (): EncoderConfig => enc(NONE, NONE)
 const BASE_KEYS: KeyMapPatch = {
   // 左 row0 — esc Q W E R T
   L00: bind('ESC'), L01: bind('Q'), L02: bind('W'), L03: bind('E'), L04: bind('R'), L05: bind('T'),
-  // 左 row1 — tab A S D F G（ホームロー修飾を長押しに）
+  // 左 row1 — tab A S D F G
   L10: bind('TAB'),
-  L11: bind('A', 'LGUI'), L12: bind('S', 'LALT'), L13: bind('D', 'LCTRL'), L14: bind('F', 'LSHFT'),
+  L11: bind('A'), L12: bind('S'), L13: bind('D'), L14: bind('F'),
   L15: bind('G'),
   // 左 row2 — shift Z X C V B fn2
   L20: bind('LSHFT'), L21: bind('Z'), L22: bind('X'), L23: bind('C'), L24: bind('V'), L25: bind('B'),
   L26: bind('FN_2'),
   // 左 row3 — ctrl _ opt ⌘ fn1
   L30: bind('LCTRL'), L31: NONE, L32: bind('LALT'), L33: bind('LGUI'), L34: bind('FN_1'),
-  // 左親指 — スペース長押しで NAV レイヤー
-  LT0: bind('SPACE', 'FN_3'),
+  // 左親指
+  LT0: bind('SPACE'),
 
   // 右 row0 — Y U I O P -
   R01: bind('Y'), R02: bind('U'), R03: bind('I'), R04: bind('O'), R05: bind('P'), R06: bind('MINUS'),
-  // 右 row1 — H J K L ; enter（ホームロー修飾）
+  // 右 row1 — H J K L ; enter
   R11: bind('H'),
-  R12: bind('J', 'RSHFT'), R13: bind('K', 'RCTRL'), R14: bind('L', 'RALT'), R15: bind('SEMI', 'RGUI'),
+  R12: bind('J'), R13: bind('K'), R14: bind('L'), R15: bind('SEMI'),
   R16: bind('ENTER'),
   // 右 row2 — B N M , . ( )
   R20: bind('B'), R21: bind('N'), R22: bind('M'), R23: bind('COMMA'), R24: bind('DOT'),
   R25: bind('LPAR'), R26: bind('RPAR'),
   // 右 row3 — 無線切替 / backspace / マクロ
-  R32: bind('OUT_TOG'), R33: bind('BSPC', 'DEL'),
+  R32: bind('OUT_TOG'), R33: bind('BSPC'),
   R34: bind('MACRO_1'), R35: bind('MACRO_2'), R36: bind('MACRO_3'),
 }
 
@@ -137,28 +137,7 @@ const SEEDS: LayerSeed[] = [
   },
 ]
 
-const DEFAULT_COMBOS: Combo[] = [
-  {
-    id: 'combo-esc', name: 'D + F で Escape',
-    keys: ['L13', 'L14'], binding: bind('ESC'), timeoutMs: 40, layers: [0], enabled: true,
-  },
-  {
-    id: 'combo-enter', name: 'J + K で Enter',
-    keys: ['R12', 'R13'], binding: bind('ENTER'), timeoutMs: 40, layers: [0], enabled: true,
-  },
-  {
-    id: 'combo-copy', name: 'X + C でコピー',
-    keys: ['L22', 'L23'], binding: bind('MACRO_1'), timeoutMs: 50, layers: [0], enabled: true,
-  },
-  {
-    id: 'combo-mute', name: 'I + O でミュート（ジェスチャー割当の例）',
-    keys: ['R03', 'R04'], binding: bind('C_MUTE'), timeoutMs: 50, layers: [0], enabled: true,
-  },
-  {
-    id: 'combo-layer', name: 'Z + X で NUM レイヤーをトグル',
-    keys: ['L21', 'L22'], binding: bind('TG_6'), timeoutMs: 50, layers: [0], enabled: true,
-  },
-]
+const DEFAULT_COMBOS: Combo[] = []
 
 export function createDefaultKeymap(): Keymap {
   const layers: Layer[] = SEEDS.map((seed, id) => ({
