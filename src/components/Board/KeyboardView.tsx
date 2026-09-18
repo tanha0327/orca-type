@@ -3,7 +3,7 @@ import { getKeycode } from '../../data/keycodes'
 import {
   halfExtent, KEYS, SENSORS, type Half, type KeyId,
 } from '../../data/layout'
-import { LAYER_COLOR_HEX, type EncoderSlot, type PadSlot } from '../../data/types'
+import { LAYER_COLOR_HEX, type EncoderSlot, type Keymap, type PadSlot } from '../../data/types'
 import { engine, useEngineSnapshot } from '../../engine/useEngine'
 import { resolveKey } from '../../engine/resolve'
 import { sameTarget, useKeymapStore, type Selection } from '../../store/keymapStore'
@@ -16,19 +16,34 @@ export interface KeyboardViewProps {
   /** 実機写真のように他レイヤーの印字を重ねる */
   subLegends?: boolean
   compact?: boolean
+  /**
+   * 指定すると、ストアの編集中の内容ではなく、このキーマップ・レイヤーを表示する
+   * （フィードの配列プレビューなど、他人のキーマップを覗き見るとき用）。
+   */
+  previewKeymap?: Keymap
+  previewLayer?: number
 }
 
-export function KeyboardView({ interactive = true, subLegends = false, compact = false }: KeyboardViewProps) {
-  const keymap = useKeymapStore((s) => s.keymap)
-  const editingLayer = useKeymapStore((s) => s.editingLayer)
-  const selection = useKeymapStore((s) => s.selection)
+export function KeyboardView({
+  interactive = true, subLegends = false, compact = false, previewKeymap, previewLayer,
+}: KeyboardViewProps) {
+  const storeKeymap = useKeymapStore((s) => s.keymap)
+  const storeEditingLayer = useKeymapStore((s) => s.editingLayer)
+  const storeSelection = useKeymapStore((s) => s.selection)
   const select = useKeymapStore((s) => s.select)
-  const comboPickId = useKeymapStore((s) => s.comboPickId)
+  const storeComboPickId = useKeymapStore((s) => s.comboPickId)
   const toggleComboKey = useKeymapStore((s) => s.toggleComboKey)
   const snap = useEngineSnapshot()
 
+  // プレビュー中は他人のキーマップを表示するので、いまの編集状態（選択・コンボ選択中・押下中）は一切持ち込まない
+  const isPreview = !!previewKeymap
+  const keymap = previewKeymap ?? storeKeymap
+  const editingLayer = previewLayer ?? storeEditingLayer
+  const selection = isPreview ? null : storeSelection
+  const comboPickId = isPreview ? null : storeComboPickId
+
   // 実際に入力を受けているときは、押下中に有効なレイヤーを映す
-  const viewLayer = snap.down.length > 0 ? snap.activeLayer : editingLayer
+  const viewLayer = !isPreview && snap.down.length > 0 ? snap.activeLayer : editingLayer
   const accent = LAYER_COLOR_HEX[keymap.layers[viewLayer]?.color ?? 'gray']
   const displayStack = useMemo(
     () => (viewLayer === 0 ? [0] : [0, viewLayer]),
@@ -36,8 +51,8 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
   )
 
   const pressByKey = useMemo(
-    () => new Map(snap.presses.map((p) => [p.keyId, p])),
-    [snap.presses],
+    () => (isPreview ? new Map() : new Map(snap.presses.map((p) => [p.keyId, p]))),
+    [snap.presses, isPreview],
   )
 
   // 参加キーを選んでいる最中は、そのコンボのキーだけに印を絞る。
@@ -57,7 +72,7 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
   }, [keymap.combos, viewLayer, comboPickId])
 
   const doSelect = (s: Selection) => {
-    if (!interactive) return
+    if (!interactive || isPreview) return
     // コンボのキーを選んでいる最中は、クリックを「参加キーの追加／解除」に回す
     if (comboPickId && s.kind === 'key') {
       toggleComboKey(comboPickId, s.keyId)
