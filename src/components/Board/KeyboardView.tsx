@@ -22,10 +22,12 @@ export interface KeyboardViewProps {
    */
   previewKeymap?: Keymap
   previewLayer?: number
+  /** プレビュー時、他方のキーマップと割当が違うキーの ID 集合（比較モーダル用） */
+  diffKeys?: ReadonlySet<KeyId>
 }
 
 export function KeyboardView({
-  interactive = true, subLegends = false, compact = false, previewKeymap, previewLayer,
+  interactive = true, subLegends = false, compact = false, previewKeymap, previewLayer, diffKeys,
 }: KeyboardViewProps) {
   const storeKeymap = useKeymapStore((s) => s.keymap)
   const storeEditingLayer = useKeymapStore((s) => s.editingLayer)
@@ -130,6 +132,7 @@ export function KeyboardView({
               }
               selectedTone={comboPickId ? 'var(--color-purple)' : undefined}
               dimmed={interactive && !comboPickId && selection?.kind === 'key' && selection.keyId !== k.id}
+              diff={diffKeys?.has(k.id) ?? false}
               press={pressByKey.get(k.id)}
               comboCount={comboCount.get(k.id) ?? 0}
               accent={accent}

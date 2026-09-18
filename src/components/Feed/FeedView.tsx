@@ -1,8 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { KEYS, type KeyId } from '../../data/layout'
 import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
+import { resolveKey } from '../../engine/resolve'
 import { fetchFeed, feedEnabled, shareKeymap, type SharedKeymap } from '../../lib/feed'
 import { useKeymapStore } from '../../store/keymapStore'
 import { KeyboardView } from '../Board/KeyboardView'
+
+/** 2 つのキーマップで、指定レイヤーの割当（単押し・長押し）が違うキーの ID 集合 */
+function diffKeysForLayer(a: Keymap, b: Keymap, layerIndex: number): Set<KeyId> {
+  const stack = layerIndex === 0 ? [0] : [0, layerIndex]
+  const diffs = new Set<KeyId>()
+  for (const k of KEYS) {
+    const ra = resolveKey(a, stack, k.id).binding
+    const rb = resolveKey(b, stack, k.id).binding
+    if (ra.tap !== rb.tap || ra.hold !== rb.hold) diffs.add(k.id)
+  }
+  return diffs
+}
 
 /**
  * Supabase のエラー（PostgrestError）は Error を継承していないので、
@@ -343,6 +357,11 @@ function CompareModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [item, onClose])
 
+  const diffByLayer = useMemo(() => {
+    if (!item) return []
+    return item.keymap.layers.map((_, i) => diffKeysForLayer(myKeymap, item.keymap, i))
+  }, [item, myKeymap])
+
   if (!item) return null
 
   return (
@@ -386,9 +405,21 @@ function CompareModal({
             </div>
           </div>
 
+          <p className="mb-3 flex items-center gap-1.5 text-[0.7rem] font-bold opacity-70">
+            <span
+              className="inline-block h-3 w-3 shrink-0 rounded-[3px]"
+              style={{
+                background: 'color-mix(in srgb, var(--color-pink) 20%, var(--color-paper))',
+                border: '2px solid var(--color-pink)',
+              }}
+            />
+            縁がピンクのキーは、あなたの配列と割当が違います
+          </p>
+
           <div className="space-y-4">
             {item.keymap.layers.map((theirLayer, i) => {
               const myLayer = myKeymap.layers[i]
+              const diffKeys = diffByLayer[i]
               return (
                 <div key={i} className="grid grid-cols-2 gap-3">
                   <div>
@@ -401,7 +432,11 @@ function CompareModal({
                       </span>
                     )}
                     {myLayer
-                      ? <KeyboardView interactive={false} compact previewKeymap={myKeymap} previewLayer={i} />
+                      ? (
+                        <KeyboardView
+                          interactive={false} compact previewKeymap={myKeymap} previewLayer={i} diffKeys={diffKeys}
+                        />
+                      )
                       : <p className="text-[0.72rem] font-bold opacity-50">このレイヤーはありません</p>}
                   </div>
                   <div>
@@ -411,7 +446,9 @@ function CompareModal({
                     >
                       L{theirLayer.id} {theirLayer.name}
                     </span>
-                    <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={i} />
+                    <KeyboardView
+                      interactive={false} compact previewKeymap={item.keymap} previewLayer={i} diffKeys={diffKeys}
+                    />
                   </div>
                 </div>
               )
