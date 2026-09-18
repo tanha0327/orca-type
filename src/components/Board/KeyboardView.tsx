@@ -178,6 +178,7 @@ export function KeyboardView({
                   selection?.kind === 'pad' && selection.sensor === sensorId ? selection.slot : null
                 }
                 glyphs={{ up: g('up'), down: g('down'), tap: g('tap') }}
+                color={keymap.trackball.color ?? 'white'}
                 interactive={interactive}
                 onSlot={(slot) => engine.pad(sensorId, slot)}
                 onSelect={(slot) => doSelect({ kind: 'pad', sensor: sensorId, slot })}

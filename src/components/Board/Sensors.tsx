@@ -1,7 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import type { SensorDef } from '../../data/layout'
-import { TRACKBALL_COLOR_GRADIENT, type EncoderSlot, type PadSlot, type TrackballColor } from '../../data/types'
+import {
+  TRACKBALL_COLOR_DARK, TRACKBALL_COLOR_GRADIENT, type EncoderSlot, type PadSlot, type TrackballColor,
+} from '../../data/types'
 
 interface Geo { totalW: number; totalH: number }
 
@@ -118,12 +120,13 @@ export function EncoderView({
    上下ドラッグ／ホイールでスワイプ、クリックでタップ。
    ================================================================ */
 export function PadView({
-  def, geo, selectedSlot, glyphs, onSlot, onSelect, interactive = true,
+  def, geo, selectedSlot, glyphs, color = 'white', onSlot, onSelect, interactive = true,
 }: {
   def: SensorDef
   geo: Geo
   selectedSlot: PadSlot | null
   glyphs: Record<PadSlot, string>
+  color?: TrackballColor
   onSlot: (slot: PadSlot) => void
   onSelect: (slot: PadSlot) => void
   interactive?: boolean
@@ -131,6 +134,9 @@ export function PadView({
   const start = useRef<{ x: number; y: number } | null>(null)
   const accum = useRef(0)
   const [flash, setFlash] = useState(0)
+  const [, mid] = TRACKBALL_COLOR_GRADIENT[color]
+  const dark = TRACKBALL_COLOR_DARK[color]
+  const dotColor = dark ? 'var(--color-paper)' : 'var(--color-ink)'
 
   const fire = (slot: PadSlot) => {
     setFlash((v) => v + 1)
@@ -184,7 +190,7 @@ export function PadView({
         style={{
           border: `${selectedSlot ? 3.5 : 2.5}px solid var(--color-ink)`,
           borderRadius: 'clamp(5px, 1.5cqw, 11px)',
-          background: 'var(--color-ink)',
+          background: mid,
           boxShadow: '2px 2px 0 var(--color-ink)',
           animation: flash ? 'orca-ring 420ms ease-out' : undefined,
         }}
@@ -193,30 +199,30 @@ export function PadView({
         <div
           className="absolute inset-[10%]"
           style={{
-            backgroundImage: 'radial-gradient(var(--color-paper) 38%, transparent 40%)',
+            backgroundImage: `radial-gradient(${dotColor} 38%, transparent 40%)`,
             backgroundSize: 'clamp(4px, 1.4cqw, 8px) clamp(4px, 1.4cqw, 8px)',
             opacity: 0.55,
           }}
         />
         {/* 割当の表示 */}
         <div className="absolute inset-0 flex flex-col items-center justify-between" style={{ padding: '6% 2%' }}>
-          <PadTag glyph={glyphs.up} active={selectedSlot === 'up'} />
-          <PadTag glyph={glyphs.tap} active={selectedSlot === 'tap'} />
-          <PadTag glyph={glyphs.down} active={selectedSlot === 'down'} />
+          <PadTag glyph={glyphs.up} active={selectedSlot === 'up'} dark={dark} />
+          <PadTag glyph={glyphs.tap} active={selectedSlot === 'tap'} dark={dark} />
+          <PadTag glyph={glyphs.down} active={selectedSlot === 'down'} dark={dark} />
         </div>
       </div>
     </div>
   )
 }
 
-function PadTag({ glyph, active }: { glyph: string; active: boolean }) {
+function PadTag({ glyph, active, dark }: { glyph: string; active: boolean; dark: boolean }) {
   if (!glyph) return <span style={{ fontSize: 'clamp(5px, 1.8cqw, 8px)' }} />
   return (
     <span
       className="whitespace-nowrap rounded-full px-[0.3em] font-black leading-tight"
       style={{
         fontSize: 'clamp(5px, 2.1cqw, 9px)',
-        color: active ? 'var(--color-ink)' : 'var(--color-paper)',
+        color: active ? 'var(--color-ink)' : dark ? 'var(--color-paper)' : 'var(--color-ink)',
         background: active ? 'var(--color-lime)' : 'transparent',
       }}
     >
@@ -229,7 +235,7 @@ function PadTag({ glyph, active }: { glyph: string; active: boolean }) {
    トラックボール（右・19mm）
    ================================================================ */
 export function BallView({
-  def, geo, selected, onSelect, dpi, color = 'red', interactive = true,
+  def, geo, selected, onSelect, dpi, color = 'white', interactive = true,
 }: {
   def: SensorDef
   geo: Geo

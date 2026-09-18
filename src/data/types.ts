@@ -54,7 +54,7 @@ export const ENCODER_SLOT_GLYPH: Record<EncoderSlot, string> = {
 export type PadConfig = Record<PadSlot, Binding>
 export type EncoderConfig = Record<EncoderSlot, Binding>
 
-/** 実機で選べる 19mm トラックボールの色（交換パーツ） */
+/** 実機で選べる 19mm トラックボール／スクロールパッドの色（交換パーツ、セットで揃う） */
 export type TrackballColor = 'white' | 'black' | 'red' | 'blue' | 'yellow'
 
 export const TRACKBALL_COLORS: TrackballColor[] = ['white', 'black', 'red', 'blue', 'yellow']
@@ -67,13 +67,23 @@ export const TRACKBALL_COLOR_LABEL: Record<TrackballColor, string> = {
   yellow: 'イエロー',
 }
 
-/** ボール描画用のグラデーション色（ハイライト → 中間 → 影）。実機写真の実際の色味から採取 */
+/** ボール描画用のグラデーション色（ハイライト → 中間 → 影）。実機写真の実際の色味から採取。
+    スクロールパッドの地色にも同じトーンを流用する */
 export const TRACKBALL_COLOR_GRADIENT: Record<TrackballColor, [string, string, string]> = {
   white: ['#ffffff', '#f2f1ee', '#d8d7d2'],
   black: ['#8f8f90', '#3a3a3c', '#0c0c0d'],
   red: ['#8a3934', '#5c1414', '#260404'],
   blue: ['#ccd6dd', '#7f93a2', '#3d4c58'],
   yellow: ['#f2e9d2', '#d6bb6c', '#8a7137'],
+}
+
+/** その色の地の上で、文字やドットを明るい色(paper)にすべきか暗い色(ink)にすべきか */
+export const TRACKBALL_COLOR_DARK: Record<TrackballColor, boolean> = {
+  white: false,
+  black: true,
+  red: true,
+  blue: false,
+  yellow: false,
 }
 
 /** トラックボールはデバイス設定なのでレイヤーではなくキーマップ全体で 1 つ持つ */

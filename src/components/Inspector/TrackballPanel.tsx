@@ -22,7 +22,7 @@ export function TrackballPanel() {
 
       <div className="space-y-4 p-3">
         <div>
-          <span className="nb-eyebrow">ボールの色</span>
+          <span className="nb-eyebrow">ボール／パッドの色</span>
           <div className="mt-1.5 flex flex-wrap gap-2">
             {TRACKBALL_COLORS.map((c) => (
               <ColorSwatch
@@ -34,7 +34,8 @@ export function TrackballPanel() {
             ))}
           </div>
           <p className="mt-1.5 text-[0.68rem] font-bold leading-relaxed opacity-60">
-            実機で交換できるボールの色に合わせた見た目のみの設定です。動作は変わりません。
+            実機で交換できるトラックボールとスクロールパッドの色（セット）に合わせた
+            見た目のみの設定です。動作は変わりません。
           </p>
         </div>
 
