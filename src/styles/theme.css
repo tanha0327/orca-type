@@ -236,3 +236,8 @@
   0%   { box-shadow: 0 0 0 0 var(--color-ink); opacity: 1; }
   100% { box-shadow: 0 0 0 14px transparent; opacity: 0; }
 }
+
+/* --- 読み込み中スピナーの回転 ------------------------------------ */
+@keyframes orca-spin {
+  to { transform: rotate(360deg); }
+}
