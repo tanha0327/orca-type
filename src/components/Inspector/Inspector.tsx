@@ -118,7 +118,7 @@ function EmptyState() {
   )
 }
 
-function targetTitle(target: BindingTarget): { title: string; sub: string } {
+export function targetTitle(target: BindingTarget): { title: string; sub: string } {
   switch (target.kind) {
     case 'key': {
       const k = getKey(target.keyId)

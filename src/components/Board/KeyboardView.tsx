@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import {
   halfExtent, KEYS, SENSORS, type Half, type KeyId,
@@ -8,6 +8,7 @@ import { engine, useEngineSnapshot } from '../../engine/useEngine'
 import { resolveKey } from '../../engine/resolve'
 import { sameTarget, useKeymapStore, type Selection } from '../../store/keymapStore'
 import { KeyCap } from './KeyCap'
+import { KeyMenu } from './KeyMenu'
 import { BallView, EncoderView, PadView, sensorGlyph } from './Sensors'
 
 export interface KeyboardViewProps {
@@ -75,6 +76,8 @@ export function KeyboardView({
     return m
   }, [keymap.combos, viewLayer, comboPickId])
 
+  const [menuAnchor, setMenuAnchor] = useState<{ keyId: KeyId; rect: DOMRect } | null>(null)
+
   const doSelect = (s: Selection) => {
     if (!interactive || isPreview) return
     // コンボのキーを選んでいる最中は、クリックを「参加キーの追加／解除」に回す
@@ -82,6 +85,7 @@ export function KeyboardView({
       toggleComboKey(comboPickId, s.keyId)
       return
     }
+    if (s.kind !== 'key') setMenuAnchor(null)
     select(s)
   }
 
@@ -143,7 +147,12 @@ export function KeyboardView({
               interactive={interactive}
               totalW={ext.w}
               totalH={ext.h}
-              onSelect={() => doSelect({ kind: 'key', keyId: k.id })}
+              onSelect={(e) => {
+                doSelect({ kind: 'key', keyId: k.id })
+                if (interactive && !isPreview && !comboPickId) {
+                  setMenuAnchor({ keyId: k.id, rect: e.currentTarget.getBoundingClientRect() })
+                }
+              }}
               onPulse={() => engine.pulse(k.id)}
             />
           )
@@ -206,10 +215,19 @@ export function KeyboardView({
     )
   }
 
+  // 別の方法（リストからキーを選ぶ等）で選択が変わったり、コンボ選択中に入ったら、古い位置のメニューは出さない
+  const showMenu = !!menuAnchor
+    && !comboPickId
+    && selection?.kind === 'key'
+    && selection.keyId === menuAnchor.keyId
+
   return (
     <div className={`flex w-full items-start ${compact ? 'gap-2' : 'gap-3 sm:gap-6'}`}>
       <div className="min-w-0 flex-1">{renderHalf('L')}</div>
       <div className="min-w-0 flex-1">{renderHalf('R')}</div>
+      {showMenu && menuAnchor && (
+        <KeyMenu keyId={menuAnchor.keyId} anchorRect={menuAnchor.rect} onClose={() => setMenuAnchor(null)} />
+      )}
     </div>
   )
 }
