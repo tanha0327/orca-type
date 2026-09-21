@@ -2,10 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { KEYS, type KeyId } from '../../data/layout'
 import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
-import { fetchFeed, feedEnabled, shareKeymap, type SharedKeymap } from '../../lib/feed'
+import { authEnabled, profileFromUser, signInWithGoogle } from '../../lib/auth'
+import {
+  deleteComment, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
+  shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
+} from '../../lib/feed'
+import { useAuthStore } from '../../store/authStore'
 import { useKeymapStore } from '../../store/keymapStore'
 import { KeyboardView } from '../Board/KeyboardView'
 import { Ring } from '../Ring'
+
+const EMPTY_EXTRAS: FeedExtras = { likeCounts: {}, likedByMe: new Set(), commentCounts: {} }
 
 /** 2 つのキーマップで、指定レイヤーの割当（単押し・長押し）が違うキーの ID 集合 */
 function diffKeysForLayer(a: Keymap, b: Keymap, layerIndex: number): Set<KeyId> {
@@ -38,7 +45,11 @@ export function FeedView() {
   const authorName = useKeymapStore((s) => s.authorName)
   const setAuthorName = useKeymapStore((s) => s.setAuthorName)
 
+  const user = useAuthStore((s) => s.user)
+  const profile = user ? profileFromUser(user) : null
+
   const [items, setItems] = useState<SharedKeymap[] | null>(null)
+  const [extras, setExtras] = useState<FeedExtras>(EMPTY_EXTRAS)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareName, setShareName] = useState('')
@@ -46,17 +57,25 @@ export function FeedView() {
   const [sharing, setSharing] = useState(false)
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [compareItem, setCompareItem] = useState<SharedKeymap | null>(null)
+  const [commentItem, setCommentItem] = useState<SharedKeymap | null>(null)
 
   const load = async () => {
     setLoadError(null)
     try {
-      setItems(await fetchFeed())
+      const rows = await fetchFeed()
+      setItems(rows)
+      // いいね・コメントのテーブルがまだ無い環境でも、配列一覧そのものは出したままにする
+      try {
+        setExtras(await fetchFeedExtras(rows.map((r) => r.id), user?.id ?? null))
+      } catch {
+        setExtras(EMPTY_EXTRAS)
+      }
     } catch (e) {
       setLoadError(`読み込みに失敗しました: ${errorMessage(e)}`)
     }
   }
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => { void load() }, [user?.id])
 
   if (!feedEnabled()) {
     return (
@@ -69,15 +88,20 @@ export function FeedView() {
     )
   }
 
+  // ログインしていれば Google の表示名・アイコンで、していなければ手入力の名前で投稿する
+  const postAuthor = profile ? profile.name : authorName.trim()
+
   const doShare = async () => {
-    if (!shareName.trim() || !authorName.trim()) return
+    if (!shareName.trim() || !postAuthor) return
     setSharing(true)
     try {
       await shareKeymap({
         name: shareName.trim(),
-        author: authorName.trim(),
+        author: postAuthor,
         description: shareDesc.trim(),
         keymap,
+        userId: user?.id ?? null,
+        avatarUrl: profile?.avatarUrl ?? null,
       })
       setShareMsg('共有しました！')
       setShareName('')
@@ -97,6 +121,47 @@ export function FeedView() {
     if (!confirm(`「${item.name}」を読み込みますか？ 今編集中の内容は上書きされます。`)) return
     importKeymap(item.keymap)
     setView('edit')
+  }
+
+  const doToggleLike = async (item: SharedKeymap) => {
+    if (!user) {
+      setShareMsg('いいねするには Google でログインしてください')
+      window.setTimeout(() => setShareMsg(null), 3000)
+      return
+    }
+    const liked = extras.likedByMe.has(item.id)
+    // 先に画面を更新して、失敗したら戻す
+    setExtras((prev) => {
+      const likedByMe = new Set(prev.likedByMe)
+      if (liked) likedByMe.delete(item.id)
+      else likedByMe.add(item.id)
+      return {
+        ...prev,
+        likedByMe,
+        likeCounts: {
+          ...prev.likeCounts,
+          [item.id]: Math.max(0, (prev.likeCounts[item.id] ?? 0) + (liked ? -1 : 1)),
+        },
+      }
+    })
+    try {
+      await toggleLike(item.id, user.id, liked)
+    } catch (e) {
+      setExtras((prev) => {
+        const likedByMe = new Set(prev.likedByMe)
+        if (liked) likedByMe.add(item.id)
+        else likedByMe.delete(item.id)
+        return {
+          ...prev,
+          likedByMe,
+          likeCounts: {
+            ...prev.likeCounts,
+            [item.id]: Math.max(0, (prev.likeCounts[item.id] ?? 0) + (liked ? 1 : -1)),
+          },
+        }
+      })
+      setShareMsg(`いいねに失敗しました: ${errorMessage(e)}`)
+    }
   }
 
   return (
@@ -121,8 +186,13 @@ export function FeedView() {
           <FeedCard
             key={item.id}
             item={item}
+            likeCount={extras.likeCounts[item.id] ?? 0}
+            liked={extras.likedByMe.has(item.id)}
+            commentCount={extras.commentCounts[item.id] ?? 0}
             onImport={() => doImport(item)}
             onCompare={() => setCompareItem(item)}
+            onLike={() => void doToggleLike(item)}
+            onComments={() => setCommentItem(item)}
           />
         ))}
         <AddTile onClick={() => setShareOpen(true)} />
@@ -152,6 +222,19 @@ export function FeedView() {
         sharing={sharing}
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
+        profile={profile}
+      />
+
+      <CommentsModal
+        item={commentItem}
+        onClose={() => setCommentItem(null)}
+        onCountChange={(keymapId, delta) => setExtras((prev) => ({
+          ...prev,
+          commentCounts: {
+            ...prev.commentCounts,
+            [keymapId]: Math.max(0, (prev.commentCounts[keymapId] ?? 0) + delta),
+          },
+        }))}
       />
 
       <CompareModal
@@ -182,12 +265,35 @@ function AddTile({ onClick }: { onClick: () => void }) {
   )
 }
 
+function Avatar({ url, name, size = 22 }: { url: string | null; name: string; size?: number }) {
+  const style = {
+    width: size, height: size,
+    border: '2px solid var(--color-ink)',
+  } as const
+  if (url) {
+    return <img src={url} alt="" className="shrink-0 rounded-full object-cover" style={style} />
+  }
+  return (
+    <span
+      className="flex shrink-0 items-center justify-center rounded-full font-black"
+      style={{ ...style, background: 'var(--color-lime)', fontSize: size * 0.45 }}
+    >
+      {name.slice(0, 1)}
+    </span>
+  )
+}
+
 function FeedCard({
-  item, onImport, onCompare,
+  item, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments,
 }: {
   item: SharedKeymap
+  likeCount: number
+  liked: boolean
+  commentCount: number
   onImport: () => void
   onCompare: () => void
+  onLike: () => void
+  onComments: () => void
 }) {
   const [hovered, setHovered] = useState(false)
   const peekLayers = item.keymap.layers.slice(0, 3)
@@ -199,16 +305,40 @@ function FeedCard({
       onMouseLeave={() => setHovered(false)}
     >
       <div className="nb nb-flat flex h-full min-h-[9rem] flex-col gap-2 p-3">
-        <div className="min-w-0">
-          <p className="truncate text-[0.95rem] font-black">{item.name}</p>
-          <p className="truncate text-[0.72rem] font-bold opacity-60">
-            {item.author} ・ {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
-          </p>
+        <div className="flex min-w-0 items-start gap-2">
+          <Avatar url={item.avatar_url} name={item.author} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[0.95rem] font-black">{item.name}</p>
+            <p className="truncate text-[0.72rem] font-bold opacity-60">
+              {item.author} ・ {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
+            </p>
+          </div>
         </div>
         {item.description && (
           <p className="line-clamp-3 text-[0.76rem] font-bold opacity-80">{item.description}</p>
         )}
         <span className="flex-1" />
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            className="nb-btn !py-1.5 !px-2 text-[0.78rem]"
+            style={liked ? { background: 'var(--color-pink)' } : undefined}
+            aria-pressed={liked}
+            aria-label="いいね"
+            onClick={onLike}
+          >
+            {liked ? '♥' : '♡'} {likeCount}
+          </button>
+          <button
+            type="button"
+            className="nb-btn !py-1.5 !px-2 text-[0.78rem]"
+            aria-label="コメントを見る"
+            onClick={onComments}
+          >
+            💬 {commentCount}
+          </button>
+          <span className="flex-1" />
+        </div>
         <div className="flex gap-1.5">
           <button type="button" className="nb-btn flex-1 !py-1.5 text-[0.78rem]" onClick={onCompare}>
             比較する
@@ -249,7 +379,7 @@ function FeedCard({
 
 function ShareModal({
   open, onClose, shareName, onShareName, authorName, onAuthorName,
-  shareDesc, onShareDesc, sharing, onSubmit, shareMsg,
+  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile,
 }: {
   open: boolean
   onClose: () => void
@@ -262,6 +392,7 @@ function ShareModal({
   sharing: boolean
   onSubmit: () => void
   shareMsg: string | null
+  profile: { name: string; avatarUrl: string | null } | null
 }) {
   useEffect(() => {
     if (!open) return
@@ -272,7 +403,7 @@ function ShareModal({
 
   if (!open) return null
 
-  const canSubmit = !!shareName.trim() && !!authorName.trim() && !sharing
+  const canSubmit = !!shareName.trim() && (!!profile || !!authorName.trim()) && !sharing
 
   return (
     <div
@@ -308,16 +439,40 @@ function ShareModal({
               autoFocus
             />
           </label>
-          <label className="block">
-            <span className="nb-eyebrow">あなたの名前</span>
-            <input
-              className="nb-input mt-1"
-              value={authorName}
-              maxLength={30}
-              onChange={(e) => onAuthorName(e.target.value)}
-              placeholder="例: たなか"
-            />
-          </label>
+          {profile
+            ? (
+              <div>
+                <span className="nb-eyebrow">投稿者</span>
+                <div className="nb nb-flat mt-1 flex items-center gap-2 p-2">
+                  <Avatar url={profile.avatarUrl} name={profile.name} size={26} />
+                  <span className="min-w-0 flex-1 truncate text-[0.85rem] font-black">{profile.name}</span>
+                  <span className="nb-chip shrink-0" style={{ background: 'var(--color-lime)' }}>ログイン中</span>
+                </div>
+              </div>
+            )
+            : (
+              <>
+                <label className="block">
+                  <span className="nb-eyebrow">あなたの名前</span>
+                  <input
+                    className="nb-input mt-1"
+                    value={authorName}
+                    maxLength={30}
+                    onChange={(e) => onAuthorName(e.target.value)}
+                    placeholder="例: たなか"
+                  />
+                </label>
+                {authEnabled() && (
+                  <button
+                    type="button"
+                    className="nb-btn w-full !py-1.5 text-[0.76rem]"
+                    onClick={() => void signInWithGoogle()}
+                  >
+                    G Google でログインして、自分の名前とアイコンで投稿する
+                  </button>
+                )}
+              </>
+            )}
           <label className="block">
             <span className="nb-eyebrow">説明（任意）</span>
             <input
@@ -470,6 +625,180 @@ function CompareModal({
           >
             「{item.name}」を読み込む
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CommentsModal({
+  item, onClose, onCountChange,
+}: {
+  item: SharedKeymap | null
+  onClose: () => void
+  onCountChange: (keymapId: string, delta: number) => void
+}) {
+  const user = useAuthStore((s) => s.user)
+  const profile = user ? profileFromUser(user) : null
+
+  const [comments, setComments] = useState<KeymapComment[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [body, setBody] = useState('')
+  const [posting, setPosting] = useState(false)
+
+  useEffect(() => {
+    if (!item) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [item, onClose])
+
+  useEffect(() => {
+    if (!item) { setComments(null); return }
+    let cancelled = false
+    setComments(null)
+    setError(null)
+    fetchComments(item.id)
+      .then((rows) => { if (!cancelled) setComments(rows) })
+      .catch((e) => { if (!cancelled) setError(`コメントを読み込めませんでした: ${errorMessage(e)}`) })
+    return () => { cancelled = true }
+  }, [item])
+
+  if (!item) return null
+
+  const doPost = async () => {
+    if (!user || !profile || !body.trim()) return
+    setPosting(true)
+    setError(null)
+    try {
+      await postComment({
+        keymapId: item.id,
+        userId: user.id,
+        authorName: profile.name,
+        avatarUrl: profile.avatarUrl,
+        body: body.trim(),
+      })
+      setBody('')
+      setComments(await fetchComments(item.id))
+      onCountChange(item.id, 1)
+    } catch (e) {
+      setError(`コメントの投稿に失敗しました: ${errorMessage(e)}`)
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  const doDelete = async (comment: KeymapComment) => {
+    if (!confirm('このコメントを削除しますか？')) return
+    try {
+      await deleteComment(comment.id)
+      setComments((prev) => prev?.filter((c) => c.id !== comment.id) ?? null)
+      onCountChange(item.id, -1)
+    } catch (e) {
+      setError(`コメントの削除に失敗しました: ${errorMessage(e)}`)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center"
+      style={{ background: 'color-mix(in srgb, var(--color-ink) 45%, transparent)' }}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${item.name} のコメント`}
+        className="nb nb-lg flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden"
+      >
+        <header
+          className="flex items-center gap-2 border-b-[3px] border-[var(--color-ink)] p-3"
+          style={{ background: 'var(--color-purple)' }}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="nb-eyebrow !opacity-80">コメント</p>
+            <h3 className="truncate text-[1.05rem]">{item.name}</h3>
+          </div>
+          <button type="button" className="nb-btn shrink-0 !py-1.5 text-[0.78rem]" onClick={onClose}>
+            閉じる
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+          {comments === null && !error && (
+            <p className="flex items-center justify-center gap-2 py-6 text-[0.85rem] font-bold opacity-60">
+              <Ring size={15} />
+              読み込み中…
+            </p>
+          )}
+          {comments?.length === 0 && (
+            <p className="py-6 text-center text-[0.82rem] font-bold opacity-60">
+              まだコメントがありません。最初の一言をどうぞ。
+            </p>
+          )}
+          {comments?.map((c) => (
+            <div key={c.id} className="nb nb-flat flex gap-2 p-2.5">
+              <Avatar url={c.avatar_url} name={c.author_name} size={26} />
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-1.5">
+                  <span className="truncate text-[0.8rem] font-black">{c.author_name}</span>
+                  <span className="shrink-0 text-[0.68rem] font-bold opacity-50">
+                    {new Date(c.created_at).toLocaleDateString('ja-JP')}
+                  </span>
+                </p>
+                <p className="whitespace-pre-wrap break-words text-[0.8rem] font-bold opacity-85">{c.body}</p>
+              </div>
+              {user?.id === c.user_id && (
+                <button
+                  type="button"
+                  className="nb-btn shrink-0 self-start !py-0.5 !px-1.5 text-[0.68rem]"
+                  onClick={() => void doDelete(c)}
+                >
+                  削除
+                </button>
+              )}
+            </div>
+          ))}
+          {error && (
+            <p className="text-[0.78rem] font-bold" style={{ color: 'var(--color-pink)' }}>{error}</p>
+          )}
+        </div>
+
+        <div className="border-t-[3px] border-[var(--color-ink)] p-3">
+          {profile
+            ? (
+              <div className="flex items-end gap-2">
+                <Avatar url={profile.avatarUrl} name={profile.name} size={26} />
+                <input
+                  className="nb-input min-w-0 flex-1"
+                  value={body}
+                  maxLength={500}
+                  placeholder="この配列にコメントする"
+                  onChange={(e) => setBody(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void doPost() }}
+                />
+                <button
+                  type="button"
+                  className="nb-btn flex shrink-0 items-center gap-1.5 !py-2 text-[0.78rem]"
+                  style={{ background: 'var(--color-lime)' }}
+                  disabled={!body.trim() || posting}
+                  onClick={() => void doPost()}
+                >
+                  {posting && <Ring size={13} />}
+                  送信
+                </button>
+              </div>
+            )
+            : (
+              <button
+                type="button"
+                className="nb-btn w-full !py-2 text-[0.8rem]"
+                onClick={() => void signInWithGoogle()}
+                disabled={!authEnabled()}
+              >
+                G Google でログインしてコメントする
+              </button>
+            )}
         </div>
       </div>
     </div>
