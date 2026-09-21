@@ -1,17 +1,14 @@
 import { useEffect, useState } from 'react'
 import { KeyboardView } from './components/Board/KeyboardView'
-import { ComboList } from './components/Combos/ComboList'
 import { ExportView } from './components/Export/ExportView'
 import { FeedView } from './components/Feed/FeedView'
-import { GestureView } from './components/Gestures/GestureView'
 import { Hud } from './components/Hud/Hud'
-import { Inspector } from './components/Inspector/Inspector'
 import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
 import { CODE_TO_KEY } from './data/layout'
 import { BODY_COLOR_LABEL, TRACKBALL_COLOR_GRADIENT, type BodyColor } from './data/types'
-import { engine, isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
 import { authEnabled, profileFromUser, signInWithGoogle, signOut } from './lib/auth'
 import { useAuthStore } from './store/authStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
@@ -64,7 +61,9 @@ export function App() {
     if (view !== 'edit' || capture || comboPickId) return
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || isTypingTarget(e.target)) return
-      const { editingLayer, keymap, setEditingLayer } = useKeymapStore.getState()
+      const { editingLayer, keymap, setEditingLayer, keyMenuOpen } = useKeymapStore.getState()
+      // キーのクイック編集メニューを開いている間は、数字キーを編集内容の入力に使うのでレイヤー切替はしない
+      if (keyMenuOpen) return
       const layerCount = keymap.layers.length
       if (e.key === 'ArrowRight') { setEditingLayer((editingLayer + 1) % layerCount); return }
       if (e.key === 'ArrowLeft') { setEditingLayer((editingLayer - 1 + layerCount) % layerCount); return }
@@ -118,50 +117,43 @@ export function App() {
       <main className="mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-4">
           {view === 'edit' && (
-            <>
-              <section className="nb nb-lg p-4">
-                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-                  <div className="min-w-0">
-                    <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
-                    <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
-                      キーをクリックで選択・ダブルクリックで試し打ち。
-                      ホイールとパッドはドラッグ／スクロールで動かせます。
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <div className="flex items-center gap-1" role="group" aria-label="キーボード本体の色">
-                      {BODY_COLORS.map((c) => (
-                        <BodyColorSwatch
-                          key={c}
-                          color={c}
-                          active={bodyColor === c}
-                          onClick={() => setSettings({ bodyColor: c })}
-                        />
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
-                      data-active={subLegends}
-                      onClick={() => setSubLegends((v) => !v)}
-                    >
-                      重ね印字
-                    </button>
-                  </div>
+            <section className="nb nb-lg p-4">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                <div className="min-w-0">
+                  <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
+                  <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
+                    キーをクリックで選択・ダブルクリックで試し打ち。
+                    ホイールとパッドはドラッグ／スクロールで動かせます。
+                  </p>
                 </div>
-                <div className="overflow-x-auto">
-                  <div className="min-w-[520px]">
-                    <KeyboardView subLegends={subLegends} />
+                <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex items-center gap-1" role="group" aria-label="キーボード本体の色">
+                    {BODY_COLORS.map((c) => (
+                      <BodyColorSwatch
+                        key={c}
+                        color={c}
+                        active={bodyColor === c}
+                        onClick={() => setSettings({ bodyColor: c })}
+                      />
+                    ))}
                   </div>
+                  <button
+                    type="button"
+                    className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
+                    data-active={subLegends}
+                    onClick={() => setSubLegends((v) => !v)}
+                  >
+                    重ね印字
+                  </button>
                 </div>
-                <Legend />
-              </section>
-
-              <Inspector />
-              <ComboList />
-              <GestureView />
-              <HowTo />
-            </>
+              </div>
+              <div className="overflow-x-auto">
+                <div className="min-w-[520px]">
+                  <KeyboardView subLegends={subLegends} />
+                </div>
+              </div>
+              <Legend />
+            </section>
           )}
           {view === 'feed' && <FeedView />}
           {view === 'export' && <ExportView />}
@@ -378,51 +370,5 @@ function Legend() {
         </li>
       ))}
     </ul>
-  )
-}
-
-function HowTo() {
-  const setCapture = useKeymapStore((s) => s.setCapture)
-  const capture = useKeymapStore((s) => s.captureEnabled)
-  const steps: [string, string][] = [
-    ['1', '盤面のキーをクリックして、右のインスペクタで単押しと長押しを決めます。'],
-    ['2', '「入力キャプチャ ON」で、手元のキーボードの打鍵を Orca echo の配列として読み替えます。'],
-    ['3', 'HUD に「いま何が出力されたか」「単押しか長押しか」が常に表示されます。'],
-    ['4', 'PiP で常時表示すれば、他のアプリを使いながらでも確認できます。'],
-  ]
-  return (
-    <section className="nb nb-lg p-4">
-      <h2 className="text-[1.35rem]">使い方</h2>
-      <ol className="mt-3 space-y-2">
-        {steps.map(([n, text]) => (
-          <li key={n} className="flex items-start gap-2.5">
-            <span
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] font-mono text-[0.85rem] font-black"
-              style={{ background: 'var(--color-lime)', border: '3px solid var(--color-ink)' }}
-            >
-              {n}
-            </span>
-            <span className="pt-1 text-[0.82rem] font-bold leading-relaxed">{text}</span>
-          </li>
-        ))}
-      </ol>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="nb-btn !py-2 text-[0.82rem]"
-          style={{ background: capture ? 'var(--color-lime)' : 'var(--color-paper)' }}
-          onClick={() => setCapture(!capture)}
-        >
-          入力キャプチャを {capture ? 'OFF にする' : 'ON にする'}
-        </button>
-        <button type="button" className="nb-btn !py-2 text-[0.82rem]" onClick={() => engine.clearLog()}>
-          HUD のログを消す
-        </button>
-      </div>
-      <p className="mt-3 text-[0.72rem] font-bold leading-relaxed opacity-60">
-        キャプチャ中は、ブラウザのショートカットを除くほとんどのキーがこのページに取り込まれます。
-        文字を入力したいときは OFF に戻してください。
-      </p>
-    </section>
   )
 }
