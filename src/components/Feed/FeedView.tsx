@@ -353,6 +353,19 @@ function PostCard({
     setPeekLayerIdx(0)
   }
 
+  // ホバー中は ← → か数字キーでもチラ見のレイヤーを切り替えられるようにする
+  useEffect(() => {
+    if (!hovered || peekLayers.length === 0) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') { setPeekLayerIdx((i) => (i + 1) % peekLayers.length); return }
+      if (e.key === 'ArrowLeft') { setPeekLayerIdx((i) => (i - 1 + peekLayers.length) % peekLayers.length); return }
+      const n = Number(e.key)
+      if (Number.isInteger(n) && n >= 0 && n < peekLayers.length) setPeekLayerIdx(n)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [hovered, peekLayers.length])
+
   return (
     <article
       ref={articleRef}
@@ -711,7 +724,14 @@ function PostDetailModal({
   useEffect(() => {
     if (!item) return
     setLayerIdx(0)
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const layerCount = item.keymap.layers.length
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return }
+      if (e.key === 'ArrowRight') { setLayerIdx((i) => (i + 1) % layerCount); return }
+      if (e.key === 'ArrowLeft') { setLayerIdx((i) => (i - 1 + layerCount) % layerCount); return }
+      const n = Number(e.key)
+      if (Number.isInteger(n) && n >= 0 && n < layerCount) setLayerIdx(n)
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [item, onClose])
@@ -752,7 +772,7 @@ function PostDetailModal({
             </p>
           )}
 
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {item.keymap.layers.map((l, i) => (
               <button
                 key={l.id}
@@ -767,6 +787,7 @@ function PostDetailModal({
                 L{l.id} {l.name}
               </button>
             ))}
+            <span className="ml-1 text-[0.68rem] font-bold opacity-45">← → か数字キーでも切り替え可</span>
           </div>
 
           <div className="mt-3 overflow-x-auto">
