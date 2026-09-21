@@ -38,6 +38,20 @@ function errorMessage(e: unknown): string {
   return '不明なエラー'
 }
 
+/** Twitter のタイムラインのような相対時刻表示（1週間を超えたら日付） */
+function relativeTime(iso: string): string {
+  const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (diffSec < 60) return 'たった今'
+  const min = Math.floor(diffSec / 60)
+  if (min < 60) return `${min}分前`
+  const hour = Math.floor(min / 60)
+  if (hour < 24) return `${hour}時間前`
+  const day = Math.floor(hour / 24)
+  if (day < 7) return `${day}日前`
+  const d = new Date(iso)
+  return `${d.getMonth() + 1}月${d.getDate()}日`
+}
+
 export function FeedView() {
   const keymap = useKeymapStore((s) => s.keymap)
   const importKeymap = useKeymapStore((s) => s.importKeymap)
@@ -165,38 +179,40 @@ export function FeedView() {
   }
 
   return (
-    <section className="nb nb-lg p-4">
-      <div>
+    <section className="nb nb-lg overflow-hidden">
+      <div className="p-4 pb-3">
         <h2 className="text-[1.35rem]">みんなの配列</h2>
         <p className="mt-1 text-[0.78rem] font-bold leading-relaxed opacity-70">
-          みんなが共有したキーマップを見たり、読み込んだりできます。
-          カードにマウスを乗せると、上位 3 レイヤーをチラ見できます。
+          みんなが共有したキーマップのタイムライン。いいね・コメントで反応できます。
         </p>
       </div>
 
-      {shareMsg && (
-        <p className="nb-chip mt-3" style={{ background: 'var(--color-lime)' }}>{shareMsg}</p>
-      )}
-      {loadError && (
-        <p className="mt-3 text-[0.8rem] font-bold" style={{ color: 'var(--color-pink)' }}>{loadError}</p>
+      {(shareMsg || loadError) && (
+        <div className="space-y-2 px-4 pb-3">
+          {shareMsg && (
+            <p className="nb-chip" style={{ background: 'var(--color-lime)' }}>{shareMsg}</p>
+          )}
+          {loadError && (
+            <p className="text-[0.8rem] font-bold" style={{ color: 'var(--color-pink)' }}>{loadError}</p>
+          )}
+        </div>
       )}
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {items?.map((item) => (
-          <FeedCard
-            key={item.id}
-            item={item}
-            likeCount={extras.likeCounts[item.id] ?? 0}
-            liked={extras.likedByMe.has(item.id)}
-            commentCount={extras.commentCounts[item.id] ?? 0}
-            onImport={() => doImport(item)}
-            onCompare={() => setCompareItem(item)}
-            onLike={() => void doToggleLike(item)}
-            onComments={() => setCommentItem(item)}
-          />
-        ))}
-        <AddTile onClick={() => setShareOpen(true)} />
-      </div>
+      <Composer profile={profile} onOpen={() => setShareOpen(true)} />
+
+      {items?.map((item) => (
+        <PostCard
+          key={item.id}
+          item={item}
+          likeCount={extras.likeCounts[item.id] ?? 0}
+          liked={extras.likedByMe.has(item.id)}
+          commentCount={extras.commentCounts[item.id] ?? 0}
+          onImport={() => doImport(item)}
+          onCompare={() => setCompareItem(item)}
+          onLike={() => void doToggleLike(item)}
+          onComments={() => setCommentItem(item)}
+        />
+      ))}
 
       {items === null && !loadError && (
         <p className="flex items-center justify-center gap-2 py-6 text-[0.85rem] font-bold opacity-60">
@@ -205,8 +221,8 @@ export function FeedView() {
         </p>
       )}
       {items?.length === 0 && (
-        <p className="py-6 text-center text-[0.85rem] font-bold opacity-60">
-          まだ共有された配列がありません。「＋」から最初の 1 つを投稿してみてください。
+        <p className="py-8 text-center text-[0.85rem] font-bold opacity-60">
+          まだ共有された配列がありません。上の投稿欄から最初の 1 つをどうぞ。
         </p>
       )}
 
@@ -251,16 +267,28 @@ export function FeedView() {
   )
 }
 
-function AddTile({ onClick }: { onClick: () => void }) {
+function Composer({
+  profile, onOpen,
+}: {
+  profile: { name: string; avatarUrl: string | null } | null
+  onOpen: () => void
+}) {
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="nb flex min-h-[9rem] flex-col items-center justify-center gap-1.5 p-4 text-center"
-      style={{ background: 'transparent', borderStyle: 'dashed' }}
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 border-y-[3px] border-[var(--color-ink)] p-3 text-left"
     >
-      <span className="text-[1.8rem] leading-none">＋</span>
-      <span className="text-[0.85rem] font-black">今の配列を投稿する</span>
+      <Avatar url={profile?.avatarUrl ?? null} name={profile?.name ?? '?'} size={36} />
+      <span
+        className="flex-1 truncate rounded-[var(--radius-btn)] border-[3px] border-[var(--color-ink)] px-3 py-2 text-[0.85rem] font-bold opacity-60"
+        style={{ background: 'var(--color-paper)' }}
+      >
+        今の配列を投稿する…
+      </span>
+      <span className="nb-btn shrink-0 !py-2 text-[0.8rem]" style={{ background: 'var(--color-lime)' }}>
+        投稿
+      </span>
     </button>
   )
 }
@@ -283,7 +311,7 @@ function Avatar({ url, name, size = 22 }: { url: string | null; name: string; si
   )
 }
 
-function FeedCard({
+function PostCard({
   item, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments,
 }: {
   item: SharedKeymap
@@ -299,29 +327,44 @@ function FeedCard({
   const peekLayers = item.keymap.layers.slice(0, 3)
 
   return (
-    <div
-      className="relative"
+    <article
+      className="relative flex gap-3 border-b-[3px] border-[var(--color-ink)] p-3"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div className="nb nb-flat flex h-full min-h-[9rem] flex-col gap-2 p-3">
-        <div className="flex min-w-0 items-start gap-2">
-          <Avatar url={item.avatar_url} name={item.author} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[0.95rem] font-black">{item.name}</p>
-            <p className="truncate text-[0.72rem] font-bold opacity-60">
-              {item.author} ・ {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
-            </p>
-          </div>
+      <Avatar url={item.avatar_url} name={item.author} size={40} />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate text-[0.85rem] font-black">{item.author}</span>
+          <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
         </div>
+
+        <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
         {item.description && (
-          <p className="line-clamp-3 text-[0.76rem] font-bold opacity-80">{item.description}</p>
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
+            {item.description}
+          </p>
         )}
-        <span className="flex-1" />
-        <div className="flex gap-1.5">
+        <p className="mt-1 text-[0.7rem] font-bold opacity-50">
+          {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
+        </p>
+
+        <div className="mt-2 flex items-center gap-1.5">
           <button
             type="button"
-            className="nb-btn !py-1.5 !px-2 text-[0.78rem]"
+            className="nb-btn !py-1 !px-2 text-[0.76rem]"
+            aria-label="コメントを見る"
+            onClick={onComments}
+          >
+            💬 {commentCount}
+          </button>
+          <button type="button" className="nb-btn !py-1 !px-2 text-[0.76rem]" onClick={onCompare}>
+            ⇄ 比較
+          </button>
+          <button
+            type="button"
+            className="nb-btn !py-1 !px-2 text-[0.76rem]"
             style={liked ? { background: 'var(--color-pink)' } : undefined}
             aria-pressed={liked}
             aria-label="いいね"
@@ -329,23 +372,10 @@ function FeedCard({
           >
             {liked ? '♥' : '♡'} {likeCount}
           </button>
-          <button
-            type="button"
-            className="nb-btn !py-1.5 !px-2 text-[0.78rem]"
-            aria-label="コメントを見る"
-            onClick={onComments}
-          >
-            💬 {commentCount}
-          </button>
           <span className="flex-1" />
-        </div>
-        <div className="flex gap-1.5">
-          <button type="button" className="nb-btn flex-1 !py-1.5 text-[0.78rem]" onClick={onCompare}>
-            比較する
-          </button>
           <button
             type="button"
-            className="nb-btn flex-1 !py-1.5 text-[0.78rem]"
+            className="nb-btn shrink-0 !py-1 !px-2.5 text-[0.76rem]"
             style={{ background: 'var(--color-lime)' }}
             onClick={onImport}
           >
@@ -356,7 +386,7 @@ function FeedCard({
 
       {hovered && peekLayers.length > 0 && (
         <div
-          className="nb nb-lg absolute left-1/2 top-full z-20 mt-2 w-[19rem] max-w-[85vw] -translate-x-1/2 space-y-2 p-3"
+          className="nb nb-lg absolute left-12 top-full z-20 mt-1 w-[19rem] max-w-[85vw] space-y-2 p-3"
           style={{ background: 'var(--color-paper)' }}
         >
           <p className="nb-eyebrow">上位 3 レイヤーをチラ見</p>
@@ -373,7 +403,7 @@ function FeedCard({
           ))}
         </div>
       )}
-    </div>
+    </article>
   )
 }
 
