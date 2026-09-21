@@ -4,7 +4,7 @@ import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
 import { authEnabled, profileFromUser, signInWithGoogle } from '../../lib/auth'
 import {
-  deleteComment, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
+  deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
   shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
 import { useAuthStore } from '../../store/authStore'
@@ -179,6 +179,19 @@ export function FeedView() {
     }
   }
 
+  const doDeletePost = async (item: SharedKeymap) => {
+    if (!confirm(`「${item.name}」を削除しますか？ この操作は取り消せません。`)) return
+    try {
+      await deleteKeymap(item.id)
+      setItems((prev) => prev?.filter((i) => i.id !== item.id) ?? null)
+      if (compareItem?.id === item.id) setCompareItem(null)
+      if (commentItem?.id === item.id) setCommentItem(null)
+      if (detailItem?.id === item.id) setDetailItem(null)
+    } catch (e) {
+      setShareMsg(`削除に失敗しました: ${errorMessage(e)}`)
+    }
+  }
+
   return (
     <section className="nb nb-lg overflow-hidden">
       <div className="p-4 pb-3">
@@ -205,6 +218,7 @@ export function FeedView() {
         <PostCard
           key={item.id}
           item={item}
+          canDelete={!!user && user.id === item.user_id}
           likeCount={extras.likeCounts[item.id] ?? 0}
           liked={extras.likedByMe.has(item.id)}
           commentCount={extras.commentCounts[item.id] ?? 0}
@@ -213,6 +227,7 @@ export function FeedView() {
           onLike={() => void doToggleLike(item)}
           onComments={() => setCommentItem(item)}
           onOpenDetail={() => setDetailItem(item)}
+          onDelete={() => void doDeletePost(item)}
         />
       ))}
 
@@ -268,11 +283,16 @@ export function FeedView() {
 
       <PostDetailModal
         item={detailItem}
+        canDelete={!!user && !!detailItem && user.id === detailItem.user_id}
         onClose={() => setDetailItem(null)}
         onEdit={() => {
           if (!detailItem) return
           doImport(detailItem)
           setDetailItem(null)
+        }}
+        onDelete={() => {
+          if (!detailItem) return
+          void doDeletePost(detailItem)
         }}
       />
     </section>
@@ -324,9 +344,10 @@ function Avatar({ url, name, size = 22 }: { url: string | null; name: string; si
 }
 
 function PostCard({
-  item, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments, onOpenDetail,
+  item, canDelete, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments, onOpenDetail, onDelete,
 }: {
   item: SharedKeymap
+  canDelete: boolean
   likeCount: number
   liked: boolean
   commentCount: number
@@ -335,6 +356,7 @@ function PostCard({
   onLike: () => void
   onComments: () => void
   onOpenDetail: () => void
+  onDelete: () => void
 }) {
   const [previewLayerIdx, setPreviewLayerIdx] = useState(0)
   const previewLayers = item.keymap.layers.slice(0, 2)
@@ -411,6 +433,17 @@ function PostCard({
             {liked ? '♥' : '♡'} {likeCount}
           </button>
           <span className="flex-1" />
+          {canDelete && (
+            <button
+              type="button"
+              className="nb-btn shrink-0 !py-1 !px-2 text-[0.76rem]"
+              style={{ background: 'var(--color-pink)' }}
+              aria-label="投稿を削除"
+              onClick={onDelete}
+            >
+              削除
+            </button>
+          )}
           <button
             type="button"
             className="nb-btn shrink-0 !py-1 !px-2.5 text-[0.76rem]"
@@ -680,11 +713,13 @@ function CompareModal({
 }
 
 function PostDetailModal({
-  item, onClose, onEdit,
+  item, canDelete, onClose, onEdit, onDelete,
 }: {
   item: SharedKeymap | null
+  canDelete: boolean
   onClose: () => void
   onEdit: () => void
+  onDelete: () => void
 }) {
   const [layerIdx, setLayerIdx] = useState(0)
 
@@ -770,15 +805,25 @@ function PostDetailModal({
           )}
         </div>
 
-        <div className="border-t-[3px] border-[var(--color-ink)] p-3">
+        <div className="flex gap-2 border-t-[3px] border-[var(--color-ink)] p-3">
           <button
             type="button"
-            className="nb-btn w-full !py-2 text-[0.82rem]"
+            className="nb-btn flex-1 !py-2 text-[0.82rem]"
             style={{ background: 'var(--color-lime)' }}
             onClick={onEdit}
           >
             この配列を編集する
           </button>
+          {canDelete && (
+            <button
+              type="button"
+              className="nb-btn shrink-0 !py-2 text-[0.82rem]"
+              style={{ background: 'var(--color-pink)' }}
+              onClick={onDelete}
+            >
+              削除
+            </button>
+          )}
         </div>
       </div>
     </div>
