@@ -58,6 +58,23 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [comboPickId, toggleComboKey])
 
+  // 編集画面では ← → と数字キーで編集中のレイヤーを切り替えられる
+  // （入力キャプチャ中は数字キーが M1〜M3 の打鍵テストと被るので、キャプチャ OFF のときだけ）
+  useEffect(() => {
+    if (view !== 'edit' || capture || comboPickId) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || isTypingTarget(e.target)) return
+      const { editingLayer, keymap, setEditingLayer } = useKeymapStore.getState()
+      const layerCount = keymap.layers.length
+      if (e.key === 'ArrowRight') { setEditingLayer((editingLayer + 1) % layerCount); return }
+      if (e.key === 'ArrowLeft') { setEditingLayer((editingLayer - 1 + layerCount) % layerCount); return }
+      const n = Number(e.key)
+      if (Number.isInteger(n) && n >= 0 && n < layerCount) setEditingLayer(n)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view, capture, comboPickId])
+
   // PiP を開いたら自動でキャプチャを入れる（HUD が空だと意味がないので）
   useEffect(() => { if (pip.win && !capture) setCapture(true) }, [pip.win, capture, setCapture])
 
