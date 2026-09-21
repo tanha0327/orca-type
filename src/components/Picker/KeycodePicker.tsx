@@ -156,7 +156,7 @@ export function BindingSlot({
       <button
         type="button"
         onClick={onClick}
-        className="nb-btn !min-h-[3.1rem] !flex-1 !items-center !justify-start !gap-2.5 !p-2"
+        className="nb-btn !min-h-[3.1rem] !min-w-0 !flex-1 !items-center !justify-start !gap-2.5 !p-2"
       >
         <span
           className="flex h-9 min-w-9 shrink-0 items-center justify-center rounded-[8px] px-1.5 font-mono text-[0.95rem] font-black"
