@@ -28,7 +28,7 @@ export interface KeyCapProps {
   interactive?: boolean
   totalW: number
   totalH: number
-  onSelect: () => void
+  onSelect: (e: React.MouseEvent<HTMLElement>) => void
   onPulse: () => void
 }
 
@@ -66,7 +66,7 @@ export function KeyCap({
     ? {
         type: 'button' as const,
         'aria-label': `${keyDef.id} ${kc.name}`,
-        onClick: (e: React.MouseEvent) => { onSelect(); if (e.altKey) onPulse() },
+        onClick: (e: React.MouseEvent<HTMLElement>) => { onSelect(e); if (e.altKey) onPulse() },
         onDoubleClick: onPulse,
       }
     : { 'aria-hidden': true }
