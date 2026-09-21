@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { KEYS, type KeyId } from '../../data/layout'
 import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
@@ -72,6 +73,7 @@ export function FeedView() {
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [compareItem, setCompareItem] = useState<SharedKeymap | null>(null)
   const [commentItem, setCommentItem] = useState<SharedKeymap | null>(null)
+  const [detailItem, setDetailItem] = useState<SharedKeymap | null>(null)
 
   const load = async () => {
     setLoadError(null)
@@ -211,6 +213,7 @@ export function FeedView() {
           onCompare={() => setCompareItem(item)}
           onLike={() => void doToggleLike(item)}
           onComments={() => setCommentItem(item)}
+          onOpenDetail={() => setDetailItem(item)}
         />
       ))}
 
@@ -263,6 +266,16 @@ export function FeedView() {
           setCompareItem(null)
         }}
       />
+
+      <PostDetailModal
+        item={detailItem}
+        onClose={() => setDetailItem(null)}
+        onEdit={() => {
+          if (!detailItem) return
+          doImport(detailItem)
+          setDetailItem(null)
+        }}
+      />
     </section>
   )
 }
@@ -312,7 +325,7 @@ function Avatar({ url, name, size = 22 }: { url: string | null; name: string; si
 }
 
 function PostCard({
-  item, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments,
+  item, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments, onOpenDetail,
 }: {
   item: SharedKeymap
   likeCount: number
@@ -322,33 +335,50 @@ function PostCard({
   onCompare: () => void
   onLike: () => void
   onComments: () => void
+  onOpenDetail: () => void
 }) {
   const [hovered, setHovered] = useState(false)
-  const peekLayers = item.keymap.layers.slice(0, 3)
+  const [peekLayerIdx, setPeekLayerIdx] = useState(0)
+  const [peekPos, setPeekPos] = useState<{ left: number; top: number } | null>(null)
+  const peekLayers = item.keymap.layers.slice(0, 2)
+  const articleRef = useRef<HTMLElement>(null)
+
+  const openPeek = () => {
+    const rect = articleRef.current?.getBoundingClientRect()
+    if (rect) setPeekPos({ left: rect.left + 52, top: rect.bottom + 4 })
+    setHovered(true)
+  }
+  const closePeek = () => {
+    setHovered(false)
+    setPeekLayerIdx(0)
+  }
 
   return (
     <article
+      ref={articleRef}
       className="relative flex gap-3 border-b-[3px] border-[var(--color-ink)] p-3"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={openPeek}
+      onMouseLeave={closePeek}
     >
       <Avatar url={item.avatar_url} name={item.author} size={40} />
 
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-baseline gap-1.5">
-          <span className="truncate text-[0.85rem] font-black">{item.author}</span>
-          <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
-        </div>
+        <button type="button" className="block w-full text-left" onClick={onOpenDetail}>
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <span className="truncate text-[0.85rem] font-black">{item.author}</span>
+            <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
+          </div>
 
-        <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
-        {item.description && (
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
-            {item.description}
+          <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
+          {item.description && (
+            <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
+              {item.description}
+            </p>
+          )}
+          <p className="mt-1 text-[0.7rem] font-bold opacity-50">
+            {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
           </p>
-        )}
-        <p className="mt-1 text-[0.7rem] font-bold opacity-50">
-          {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
-        </p>
+        </button>
 
         <div className="mt-2 flex items-center gap-1.5">
           <button
@@ -384,24 +414,32 @@ function PostCard({
         </div>
       </div>
 
-      {hovered && peekLayers.length > 0 && (
+      {hovered && peekLayers.length > 0 && peekPos && createPortal(
         <div
-          className="nb nb-lg absolute left-12 top-full z-20 mt-1 w-[19rem] max-w-[85vw] space-y-2 p-3"
-          style={{ background: 'var(--color-paper)' }}
+          className="nb nb-lg fixed z-50 w-[19rem] max-w-[85vw] space-y-2 p-3"
+          style={{ background: 'var(--color-paper)', left: peekPos.left, top: peekPos.top }}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={closePeek}
         >
-          <p className="nb-eyebrow">上位 3 レイヤーをチラ見</p>
-          {peekLayers.map((layer, i) => (
-            <div key={layer.id}>
-              <span
-                className="nb-chip mb-1"
-                style={{ background: LAYER_COLOR_HEX[layer.color] }}
+          <div className="flex flex-wrap gap-1.5">
+            {peekLayers.map((layer, i) => (
+              <button
+                key={layer.id}
+                type="button"
+                className="nb-chip"
+                style={{
+                  background: peekLayerIdx === i ? LAYER_COLOR_HEX[layer.color] : 'var(--color-paper)',
+                  opacity: peekLayerIdx === i ? 1 : 0.55,
+                }}
+                onClick={() => setPeekLayerIdx(i)}
               >
                 L{layer.id} {layer.name}
-              </span>
-              <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={i} />
-            </div>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+          <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={peekLayerIdx} />
+        </div>,
+        document.body,
       )}
     </article>
   )
@@ -654,6 +692,104 @@ function CompareModal({
             onClick={onImport}
           >
             「{item.name}」を読み込む
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PostDetailModal({
+  item, onClose, onEdit,
+}: {
+  item: SharedKeymap | null
+  onClose: () => void
+  onEdit: () => void
+}) {
+  const [layerIdx, setLayerIdx] = useState(0)
+
+  useEffect(() => {
+    if (!item) return
+    setLayerIdx(0)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [item, onClose])
+
+  if (!item) return null
+
+  const layer = item.keymap.layers[layerIdx]
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center"
+      style={{ background: 'color-mix(in srgb, var(--color-ink) 45%, transparent)' }}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={item.name}
+        className="nb nb-lg flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden"
+      >
+        <header
+          className="flex items-center gap-2 border-b-[3px] border-[var(--color-ink)] p-3"
+          style={{ background: 'var(--color-purple)' }}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="nb-eyebrow !opacity-80">{item.author}</p>
+            <h3 className="truncate text-[1.05rem]">{item.name}</h3>
+          </div>
+          <button type="button" className="nb-btn shrink-0 !py-1.5 text-[0.78rem]" onClick={onClose}>
+            閉じる
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {item.description && (
+            <p className="mb-3 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
+              {item.description}
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-1.5">
+            {item.keymap.layers.map((l, i) => (
+              <button
+                key={l.id}
+                type="button"
+                className="nb-chip"
+                style={{
+                  background: layerIdx === i ? LAYER_COLOR_HEX[l.color] : 'var(--color-paper)',
+                  opacity: layerIdx === i ? 1 : 0.55,
+                }}
+                onClick={() => setLayerIdx(i)}
+              >
+                L{l.id} {l.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-3 overflow-x-auto">
+            <div className="min-w-[520px]">
+              <KeyboardView interactive={false} previewKeymap={item.keymap} previewLayer={layerIdx} />
+            </div>
+          </div>
+
+          {layer && (
+            <p className="mt-2 text-[0.72rem] font-bold opacity-60">
+              {layer.name} ・ このレイヤーは編集中の配列には反映されません（プレビューのみ）
+            </p>
+          )}
+        </div>
+
+        <div className="border-t-[3px] border-[var(--color-ink)] p-3">
+          <button
+            type="button"
+            className="nb-btn w-full !py-2 text-[0.82rem]"
+            style={{ background: 'var(--color-lime)' }}
+            onClick={onEdit}
+          >
+            この配列を編集する
           </button>
         </div>
       </div>
