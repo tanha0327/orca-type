@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useMemo, useState } from 'react'
 import { KEYS, type KeyId } from '../../data/layout'
 import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
@@ -337,42 +336,11 @@ function PostCard({
   onComments: () => void
   onOpenDetail: () => void
 }) {
-  const [hovered, setHovered] = useState(false)
-  const [peekLayerIdx, setPeekLayerIdx] = useState(0)
-  const [peekPos, setPeekPos] = useState<{ left: number; top: number } | null>(null)
-  const peekLayers = item.keymap.layers.slice(0, 2)
-  const articleRef = useRef<HTMLElement>(null)
-
-  const openPeek = () => {
-    const rect = articleRef.current?.getBoundingClientRect()
-    if (rect) setPeekPos({ left: rect.left + 52, top: rect.bottom + 4 })
-    setHovered(true)
-  }
-  const closePeek = () => {
-    setHovered(false)
-    setPeekLayerIdx(0)
-  }
-
-  // ホバー中は ← → か数字キーでもチラ見のレイヤーを切り替えられるようにする
-  useEffect(() => {
-    if (!hovered || peekLayers.length === 0) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') { setPeekLayerIdx((i) => (i + 1) % peekLayers.length); return }
-      if (e.key === 'ArrowLeft') { setPeekLayerIdx((i) => (i - 1 + peekLayers.length) % peekLayers.length); return }
-      const n = Number(e.key)
-      if (Number.isInteger(n) && n >= 0 && n < peekLayers.length) setPeekLayerIdx(n)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [hovered, peekLayers.length])
+  const [previewLayerIdx, setPreviewLayerIdx] = useState(0)
+  const previewLayers = item.keymap.layers.slice(0, 2)
 
   return (
-    <article
-      ref={articleRef}
-      className="relative flex gap-3 border-b-[3px] border-[var(--color-ink)] p-3"
-      onMouseEnter={openPeek}
-      onMouseLeave={closePeek}
-    >
+    <article className="relative flex gap-3 border-b-[3px] border-[var(--color-ink)] p-3">
       <Avatar url={item.avatar_url} name={item.author} size={40} />
 
       <div className="min-w-0 flex-1">
@@ -392,6 +360,33 @@ function PostCard({
             {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
           </p>
         </button>
+
+        {previewLayers.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            <div className="flex flex-wrap gap-1.5">
+              {previewLayers.map((layer, i) => (
+                <button
+                  key={layer.id}
+                  type="button"
+                  className="nb-chip"
+                  style={{
+                    background: previewLayerIdx === i ? LAYER_COLOR_HEX[layer.color] : 'var(--color-paper)',
+                    opacity: previewLayerIdx === i ? 1 : 0.55,
+                  }}
+                  onClick={() => setPreviewLayerIdx(i)}
+                >
+                  L{layer.id} {layer.name}
+                </button>
+              ))}
+              {item.keymap.layers.length > previewLayers.length && (
+                <button type="button" className="nb-chip opacity-55" onClick={onOpenDetail}>
+                  他 {item.keymap.layers.length - previewLayers.length} レイヤー…
+                </button>
+              )}
+            </div>
+            <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={previewLayerIdx} />
+          </div>
+        )}
 
         <div className="mt-2 flex items-center gap-1.5">
           <button
@@ -426,34 +421,6 @@ function PostCard({
           </button>
         </div>
       </div>
-
-      {hovered && peekLayers.length > 0 && peekPos && createPortal(
-        <div
-          className="nb nb-lg fixed z-50 w-[19rem] max-w-[85vw] space-y-2 p-3"
-          style={{ background: 'var(--color-paper)', left: peekPos.left, top: peekPos.top }}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={closePeek}
-        >
-          <div className="flex flex-wrap gap-1.5">
-            {peekLayers.map((layer, i) => (
-              <button
-                key={layer.id}
-                type="button"
-                className="nb-chip"
-                style={{
-                  background: peekLayerIdx === i ? LAYER_COLOR_HEX[layer.color] : 'var(--color-paper)',
-                  opacity: peekLayerIdx === i ? 1 : 0.55,
-                }}
-                onClick={() => setPeekLayerIdx(i)}
-              >
-                L{layer.id} {layer.name}
-              </button>
-            ))}
-          </div>
-          <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={peekLayerIdx} />
-        </div>,
-        document.body,
-      )}
     </article>
   )
 }
