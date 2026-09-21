@@ -12,6 +12,8 @@ import { usePipWindow } from './components/PipHost/usePipWindow'
 import { CODE_TO_KEY } from './data/layout'
 import { BODY_COLOR_LABEL, TRACKBALL_COLOR_GRADIENT, type BodyColor } from './data/types'
 import { engine, isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { authEnabled, profileFromUser, signInWithGoogle, signOut } from './lib/auth'
+import { useAuthStore } from './store/authStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 
 const BODY_COLORS: BodyColor[] = ['white', 'black']
@@ -33,11 +35,14 @@ export function App() {
   const bodyColor = useKeymapStore((s) => s.keymap.settings.bodyColor) ?? 'white'
   const setSettings = useKeymapStore((s) => s.setSettings)
   const [subLegends, setSubLegends] = useState(false)
+  const initAuth = useAuthStore((s) => s.init)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
   useKeyCapture(typeof document !== 'undefined' ? document : null)
   useResetOnCaptureOff()
+
+  useEffect(() => { initAuth() }, [initAuth])
 
   // コンボの参加キーを選んでいる間は、手元のキーボードのキーでも盤面のキーを追加／解除できる
   useEffect(() => {
@@ -210,6 +215,8 @@ function Header({
 
         <span className="flex-1" />
 
+        <AuthButton />
+
         <button
           type="button"
           className="nb-btn !py-2 text-[0.82rem]"
@@ -236,6 +243,58 @@ function Header({
         </button>
       </div>
     </header>
+  )
+}
+
+function AuthButton() {
+  const user = useAuthStore((s) => s.user)
+  const initializing = useAuthStore((s) => s.initializing)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  if (!authEnabled() || initializing) return null
+
+  const doSignIn = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      await signInWithGoogle()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ログインに失敗しました')
+      setBusy(false)
+    }
+  }
+
+  if (!user) {
+    return (
+      <div className="relative">
+        <button type="button" className="nb-btn !py-2 text-[0.82rem]" onClick={() => void doSignIn()} disabled={busy}>
+          G Google でログイン
+        </button>
+        {error && (
+          <p
+            className="nb absolute right-0 top-full z-20 mt-1.5 w-56 p-2 text-[0.72rem] font-bold"
+            style={{ background: 'var(--color-pink)' }}
+          >
+            {error}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  const { name, avatarUrl } = profileFromUser(user)
+
+  return (
+    <div className="nb flex items-center gap-2 !py-1 !px-2">
+      {avatarUrl
+        ? <img src={avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full" style={{ border: '2px solid var(--color-ink)' }} />
+        : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-black" style={{ background: 'var(--color-lime)', border: '2px solid var(--color-ink)' }}>{name.slice(0, 1)}</span>}
+      <span className="max-w-[8rem] truncate text-[0.78rem] font-bold">{name}</span>
+      <button type="button" className="nb-btn !py-1 !px-2 text-[0.72rem]" onClick={() => void signOut()}>
+        ログアウト
+      </button>
+    </div>
   )
 }
 
