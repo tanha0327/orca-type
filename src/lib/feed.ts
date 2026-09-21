@@ -32,16 +32,30 @@ export function feedEnabled(): boolean {
   return supabase !== null
 }
 
-/** 新しい順に最大 50 件。壊れた形の keymap が紛れ込んでいても落ちないよう弾く */
+/**
+ * 新しい順に最大 50 件。壊れた形の keymap が紛れ込んでいても落ちないよう弾く。
+ * user_id / avatar_url をまだ持たないテーブルでも一覧は出せるよう、列は * で取って埋める。
+ */
 export async function fetchFeed(): Promise<SharedKeymap[]> {
   if (!supabase) throw new Error('共有フィードは設定されていません')
   const { data, error } = await supabase
     .from('shared_keymaps')
-    .select('id, name, author, description, keymap, created_at, user_id, avatar_url')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) throw error
-  return (data ?? []).filter((row): row is SharedKeymap => isValidKeymapShape(row.keymap))
+  return (data ?? [])
+    .filter((row) => isValidKeymapShape(row.keymap))
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      author: row.author,
+      description: row.description ?? null,
+      keymap: row.keymap,
+      created_at: row.created_at,
+      user_id: row.user_id ?? null,
+      avatar_url: row.avatar_url ?? null,
+    }))
 }
 
 /** 一覧に出す投稿分の、いいね数・自分がいいね済みか・コメント数をまとめて取得する */
@@ -85,8 +99,8 @@ export async function shareKeymap(input: {
     author: input.author,
     description: input.description || null,
     keymap: input.keymap,
-    user_id: input.userId,
-    avatar_url: input.avatarUrl,
+    // 未ログインの投稿では列ごと省く（列を追加する前のテーブルでも今まで通り投稿できる）
+    ...(input.userId ? { user_id: input.userId, avatar_url: input.avatarUrl } : {}),
   })
   if (error) throw error
 }
