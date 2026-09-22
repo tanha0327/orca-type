@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { LoginModal } from './components/Auth/LoginModal'
 import { KeyboardView } from './components/Board/KeyboardView'
 import { ComboList } from './components/Combos/ComboList'
 import { ExportView } from './components/Export/ExportView'
@@ -10,7 +11,7 @@ import { usePipWindow } from './components/PipHost/usePipWindow'
 import { CODE_TO_KEY } from './data/layout'
 import { BODY_COLOR_LABEL, TRACKBALL_COLOR_GRADIENT, type BodyColor } from './data/types'
 import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
-import { authEnabled, profileFromUser, signInWithGoogle, signOut } from './lib/auth'
+import { authEnabled, profileFromUser, signOut } from './lib/auth'
 import { useAuthStore } from './store/authStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 
@@ -180,6 +181,8 @@ export function App() {
         <Hud variant="pip" />
       </PipPortal>
 
+      <LoginModal />
+
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
           ORCA TYPE は Keychron Orca echo のキーマップを設計するための非公式のコンセプトサイトです。
@@ -263,37 +266,15 @@ function Header({
 function AuthButton() {
   const user = useAuthStore((s) => s.user)
   const initializing = useAuthStore((s) => s.initializing)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const openLoginModal = useAuthStore((s) => s.openLoginModal)
 
   if (!authEnabled() || initializing) return null
 
-  const doSignIn = async () => {
-    setError(null)
-    setBusy(true)
-    try {
-      await signInWithGoogle()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'ログインに失敗しました')
-      setBusy(false)
-    }
-  }
-
   if (!user) {
     return (
-      <div className="relative">
-        <button type="button" className="nb-btn !py-2 text-[0.82rem]" onClick={() => void doSignIn()} disabled={busy}>
-          G Google でログイン
-        </button>
-        {error && (
-          <p
-            className="nb absolute right-0 top-full z-20 mt-1.5 w-56 p-2 text-[0.72rem] font-bold"
-            style={{ background: 'var(--color-pink)' }}
-          >
-            {error}
-          </p>
-        )}
-      </div>
+      <button type="button" className="nb-btn !py-2 text-[0.82rem]" onClick={openLoginModal}>
+        ログイン
+      </button>
     )
   }
 
