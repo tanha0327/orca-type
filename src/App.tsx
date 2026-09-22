@@ -332,6 +332,15 @@ function AuthButton() {
           : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-black" style={{ background: 'var(--color-lime)', border: '2px solid var(--color-ink)' }}>{name.slice(0, 1)}</span>}
         <span className="max-w-[8rem] truncate text-[0.78rem] font-bold">{name}</span>
       </button>
+      <button
+        type="button"
+        className="nb-btn !py-1 !px-2 text-[0.72rem]"
+        title="プロフィールを編集"
+        aria-label="プロフィールを編集"
+        onClick={openProfileEditor}
+      >
+        ✎ 編集
+      </button>
       <button type="button" className="nb-btn !py-1 !px-2 text-[0.72rem]" onClick={() => void signOut()}>
         ログアウト
       </button>
