@@ -5,6 +5,7 @@ import {
 import { errorMessage } from '../../lib/errors'
 import { useAuthStore } from '../../store/authStore'
 import { Ring } from '../Ring'
+import { KeyswitchIllustration } from './KeyswitchIllustration'
 
 type Mode = 'signin' | 'signup'
 
@@ -68,6 +69,10 @@ function LoginHero() {
       <span
         className="pointer-events-none absolute left-10 top-24 h-4 w-4 rounded-full"
         style={{ background: 'var(--color-paper)', border: '2px solid var(--color-ink)' }}
+      />
+
+      <KeyswitchIllustration
+        className="pointer-events-none absolute -bottom-6 -right-10 h-56 w-56 rotate-[8deg] opacity-90"
       />
 
       <div className="relative z-10">
