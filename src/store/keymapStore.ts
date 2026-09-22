@@ -42,8 +42,6 @@ interface EditorState {
   hud: HudOptions
   /** HUD をページ内にドッキング表示するか */
   hudDocked: boolean
-  /** 共有フィードに投稿するときの表示名（一度入れたら覚えておく） */
-  authorName: string
 
   setEditingLayer: (n: number) => void
   select: (s: Selection | null) => void
@@ -53,7 +51,6 @@ interface EditorState {
   setView: (v: ViewId) => void
   setHud: (patch: Partial<HudOptions>) => void
   setHudDocked: (on: boolean) => void
-  setAuthorName: (name: string) => void
 
   setBinding: (layerId: number, target: BindingTarget, binding: Binding) => void
   patchBinding: (layerId: number, target: BindingTarget, patch: Partial<Binding>) => void
@@ -194,7 +191,6 @@ export const useKeymapStore = create<EditorState>()(
       view: 'edit',
       hud: DEFAULT_HUD,
       hudDocked: true,
-      authorName: '',
 
       setEditingLayer: (n) => set({ editingLayer: n }),
       select: (s) => set({ selection: s }),
@@ -212,7 +208,6 @@ export const useKeymapStore = create<EditorState>()(
       setView: (v) => set({ view: v }),
       setHud: (patch) => set({ hud: { ...get().hud, ...patch } }),
       setHudDocked: (on) => set({ hudDocked: on }),
-      setAuthorName: (name) => set({ authorName: name }),
 
       setBinding: (layerId, target, binding) =>
         set({ keymap: writeBinding(get().keymap, layerId, target, binding) }),
@@ -303,7 +298,7 @@ export const useKeymapStore = create<EditorState>()(
       version: 2,
       migrate: (persisted, version) => {
         const state = persisted as Partial<
-          Pick<EditorState, 'keymap' | 'hud' | 'hudDocked' | 'editingLayer' | 'authorName'>
+          Pick<EditorState, 'keymap' | 'hud' | 'hudDocked' | 'editingLayer'>
         >
         if (version < 2 && state?.keymap) {
           return { ...state, keymap: remapLegacyKeymap(state.keymap) } as EditorState
@@ -315,7 +310,6 @@ export const useKeymapStore = create<EditorState>()(
         hud: s.hud,
         hudDocked: s.hudDocked,
         editingLayer: s.editingLayer,
-        authorName: s.authorName,
       }),
     },
   ),

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { KEYS, type KeyId } from '../../data/layout'
 import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
-import { authEnabled, profileFromUser, signInWithGoogle } from '../../lib/auth'
+import { profileFromUser } from '../../lib/auth'
+import { errorMessage } from '../../lib/errors'
 import {
   deleteComment, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
   shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
@@ -26,18 +27,6 @@ function diffKeysForLayer(a: Keymap, b: Keymap, layerIndex: number): Set<KeyId> 
   return diffs
 }
 
-/**
- * Supabase のエラー（PostgrestError）は Error を継承していないので、
- * instanceof Error だけで見るとメッセージが拾えない。
- */
-function errorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string' && e.message) {
-    return e.message
-  }
-  return '不明なエラー'
-}
-
 /** Twitter のタイムラインのような相対時刻表示（1週間を超えたら日付） */
 function relativeTime(iso: string): string {
   const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -56,10 +45,9 @@ export function FeedView() {
   const keymap = useKeymapStore((s) => s.keymap)
   const importKeymap = useKeymapStore((s) => s.importKeymap)
   const setView = useKeymapStore((s) => s.setView)
-  const authorName = useKeymapStore((s) => s.authorName)
-  const setAuthorName = useKeymapStore((s) => s.setAuthorName)
 
   const user = useAuthStore((s) => s.user)
+  const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = user ? profileFromUser(user) : null
 
   const [items, setItems] = useState<SharedKeymap[] | null>(null)
@@ -103,20 +91,17 @@ export function FeedView() {
     )
   }
 
-  // ログインしていれば Google の表示名・アイコンで、していなければ手入力の名前で投稿する
-  const postAuthor = profile ? profile.name : authorName.trim()
-
   const doShare = async () => {
-    if (!shareName.trim() || !postAuthor) return
+    if (!shareName.trim() || !user || !profile) return
     setSharing(true)
     try {
       await shareKeymap({
         name: shareName.trim(),
-        author: postAuthor,
+        author: profile.name,
         description: shareDesc.trim(),
         keymap,
-        userId: user?.id ?? null,
-        avatarUrl: profile?.avatarUrl ?? null,
+        userId: user.id,
+        avatarUrl: profile.avatarUrl,
       })
       setShareMsg('共有しました！')
       setShareName('')
@@ -140,8 +125,7 @@ export function FeedView() {
 
   const doToggleLike = async (item: SharedKeymap) => {
     if (!user) {
-      setShareMsg('いいねするには Google でログインしてください')
-      window.setTimeout(() => setShareMsg(null), 3000)
+      openLoginModal()
       return
     }
     const liked = extras.likedByMe.has(item.id)
@@ -199,7 +183,11 @@ export function FeedView() {
         </div>
       )}
 
-      <Composer profile={profile} onOpen={() => setShareOpen(true)} />
+      <Composer
+        profile={profile}
+        loggedIn={!!user}
+        onOpen={() => (user ? setShareOpen(true) : openLoginModal())}
+      />
 
       {items?.map((item) => (
         <PostCard
@@ -233,14 +221,13 @@ export function FeedView() {
         onClose={() => setShareOpen(false)}
         shareName={shareName}
         onShareName={setShareName}
-        authorName={authorName}
-        onAuthorName={setAuthorName}
         shareDesc={shareDesc}
         onShareDesc={setShareDesc}
         sharing={sharing}
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
         profile={profile}
+        onRequireLogin={() => { setShareOpen(false); openLoginModal() }}
       />
 
       <CommentsModal
@@ -280,9 +267,10 @@ export function FeedView() {
 }
 
 function Composer({
-  profile, onOpen,
+  profile, loggedIn, onOpen,
 }: {
   profile: { name: string; avatarUrl: string | null } | null
+  loggedIn: boolean
   onOpen: () => void
 }) {
   return (
@@ -296,10 +284,10 @@ function Composer({
         className="flex-1 truncate rounded-[var(--radius-btn)] border-[3px] border-[var(--color-ink)] px-3 py-2 text-[0.85rem] font-bold opacity-60"
         style={{ background: 'var(--color-paper)' }}
       >
-        今の配列を投稿する…
+        {loggedIn ? '今の配列を投稿する…' : '投稿するにはログインしてください'}
       </span>
       <span className="nb-btn shrink-0 !py-2 text-[0.8rem]" style={{ background: 'var(--color-lime)' }}>
-        投稿
+        {loggedIn ? '投稿' : 'ログイン'}
       </span>
     </button>
   )
@@ -426,21 +414,20 @@ function PostCard({
 }
 
 function ShareModal({
-  open, onClose, shareName, onShareName, authorName, onAuthorName,
-  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile,
+  open, onClose, shareName, onShareName,
+  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile, onRequireLogin,
 }: {
   open: boolean
   onClose: () => void
   shareName: string
   onShareName: (v: string) => void
-  authorName: string
-  onAuthorName: (v: string) => void
   shareDesc: string
   onShareDesc: (v: string) => void
   sharing: boolean
   onSubmit: () => void
   shareMsg: string | null
   profile: { name: string; avatarUrl: string | null } | null
+  onRequireLogin: () => void
 }) {
   useEffect(() => {
     if (!open) return
@@ -451,7 +438,7 @@ function ShareModal({
 
   if (!open) return null
 
-  const canSubmit = !!shareName.trim() && (!!profile || !!authorName.trim()) && !sharing
+  const canSubmit = !!shareName.trim() && !!profile && !sharing
 
   return (
     <div
@@ -499,27 +486,12 @@ function ShareModal({
               </div>
             )
             : (
-              <>
-                <label className="block">
-                  <span className="nb-eyebrow">あなたの名前</span>
-                  <input
-                    className="nb-input mt-1"
-                    value={authorName}
-                    maxLength={30}
-                    onChange={(e) => onAuthorName(e.target.value)}
-                    placeholder="例: たなか"
-                  />
-                </label>
-                {authEnabled() && (
-                  <button
-                    type="button"
-                    className="nb-btn w-full !py-1.5 text-[0.76rem]"
-                    onClick={() => void signInWithGoogle()}
-                  >
-                    G Google でログインして、自分の名前とアイコンで投稿する
-                  </button>
-                )}
-              </>
+              <div className="nb nb-flat p-3 text-center">
+                <p className="text-[0.82rem] font-bold opacity-70">投稿にはログインが必要です</p>
+                <button type="button" className="nb-btn mt-2 !py-1.5 text-[0.78rem]" onClick={onRequireLogin}>
+                  ログインする
+                </button>
+              </div>
             )}
           <label className="block">
             <span className="nb-eyebrow">説明（任意）</span>
@@ -793,6 +765,7 @@ function CommentsModal({
   onCountChange: (keymapId: string, delta: number) => void
 }) {
   const user = useAuthStore((s) => s.user)
+  const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = user ? profileFromUser(user) : null
 
   const [comments, setComments] = useState<KeymapComment[] | null>(null)
@@ -947,10 +920,9 @@ function CommentsModal({
               <button
                 type="button"
                 className="nb-btn w-full !py-2 text-[0.8rem]"
-                onClick={() => void signInWithGoogle()}
-                disabled={!authEnabled()}
+                onClick={openLoginModal}
               >
-                G Google でログインしてコメントする
+                ログインしてコメントする
               </button>
             )}
         </div>
