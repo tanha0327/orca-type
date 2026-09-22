@@ -9,12 +9,14 @@ import { Inspector } from './components/Inspector/Inspector'
 import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
+import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
 import { CODE_TO_KEY } from './data/layout'
 import { BODY_COLOR_LABEL, TRACKBALL_COLOR_GRADIENT, type BodyColor } from './data/types'
 import { engine, isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
-import { authEnabled, profileFromUser, signInWithGoogle, signOut } from './lib/auth'
+import { authEnabled, signInWithGoogle, signOut } from './lib/auth'
 import { useAuthStore } from './store/authStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
+import { useProfileStore } from './store/profileStore'
 
 const BODY_COLORS: BodyColor[] = ['white', 'black']
 
@@ -36,6 +38,9 @@ export function App() {
   const setSettings = useKeymapStore((s) => s.setSettings)
   const [subLegends, setSubLegends] = useState(false)
   const initAuth = useAuthStore((s) => s.init)
+  const user = useAuthStore((s) => s.user)
+  const loadProfile = useProfileStore((s) => s.load)
+  const resetProfile = useProfileStore((s) => s.reset)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
@@ -43,6 +48,13 @@ export function App() {
   useResetOnCaptureOff()
 
   useEffect(() => { initAuth() }, [initAuth])
+
+  // ログインしたら、そのユーザーのプロフィール（表示名・アイコン）を読み込む。
+  // 行がまだ無ければ初回サインイン扱いで、編集モーダルが自動で開く。
+  useEffect(() => {
+    if (user) void loadProfile(user)
+    else resetProfile()
+  }, [user, loadProfile, resetProfile])
 
   // コンボの参加キーを選んでいる間は、手元のキーボードのキーでも盤面のキーを追加／解除できる
   useEffect(() => {
@@ -183,6 +195,8 @@ export function App() {
         <Hud variant="pip" />
       </PipPortal>
 
+      <ProfileSetupModal />
+
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
           ORCA TYPE は Keychron Orca echo のキーマップを設計するための非公式のコンセプトサイトです。
@@ -266,6 +280,8 @@ function Header({
 function AuthButton() {
   const user = useAuthStore((s) => s.user)
   const initializing = useAuthStore((s) => s.initializing)
+  const profile = useProfileStore((s) => s.profile)
+  const openProfileEditor = useProfileStore((s) => s.openEditor)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -300,14 +316,22 @@ function AuthButton() {
     )
   }
 
-  const { name, avatarUrl } = profileFromUser(user)
+  const name = profile?.name ?? user.email ?? '名無しさん'
+  const avatarUrl = profile?.avatarUrl ?? null
 
   return (
     <div className="nb flex items-center gap-2 !py-1 !px-2">
-      {avatarUrl
-        ? <img src={avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full" style={{ border: '2px solid var(--color-ink)' }} />
-        : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-black" style={{ background: 'var(--color-lime)', border: '2px solid var(--color-ink)' }}>{name.slice(0, 1)}</span>}
-      <span className="max-w-[8rem] truncate text-[0.78rem] font-bold">{name}</span>
+      <button
+        type="button"
+        className="flex min-w-0 items-center gap-2"
+        title="プロフィールを編集"
+        onClick={openProfileEditor}
+      >
+        {avatarUrl
+          ? <img src={avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full" style={{ border: '2px solid var(--color-ink)' }} />
+          : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-black" style={{ background: 'var(--color-lime)', border: '2px solid var(--color-ink)' }}>{name.slice(0, 1)}</span>}
+        <span className="max-w-[8rem] truncate text-[0.78rem] font-bold">{name}</span>
+      </button>
       <button type="button" className="nb-btn !py-1 !px-2 text-[0.72rem]" onClick={() => void signOut()}>
         ログアウト
       </button>

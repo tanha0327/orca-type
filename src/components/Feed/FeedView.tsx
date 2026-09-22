@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { KEYS, type KeyId } from '../../data/layout'
 import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
-import { authEnabled, profileFromUser, signInWithGoogle } from '../../lib/auth'
+import { authEnabled, signInWithGoogle } from '../../lib/auth'
 import {
   deleteComment, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
   shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
 import { useAuthStore } from '../../store/authStore'
 import { useKeymapStore } from '../../store/keymapStore'
+import { useProfileStore } from '../../store/profileStore'
 import { KeyboardView } from '../Board/KeyboardView'
 import { Ring } from '../Ring'
 
@@ -60,7 +61,7 @@ export function FeedView() {
   const setAuthorName = useKeymapStore((s) => s.setAuthorName)
 
   const user = useAuthStore((s) => s.user)
-  const profile = user ? profileFromUser(user) : null
+  const profile = useProfileStore((s) => s.profile)
 
   const [items, setItems] = useState<SharedKeymap[] | null>(null)
   const [extras, setExtras] = useState<FeedExtras>(EMPTY_EXTRAS)
@@ -793,7 +794,7 @@ function CommentsModal({
   onCountChange: (keymapId: string, delta: number) => void
 }) {
   const user = useAuthStore((s) => s.user)
-  const profile = user ? profileFromUser(user) : null
+  const profile = useProfileStore((s) => s.profile)
 
   const [comments, setComments] = useState<KeymapComment[] | null>(null)
   const [error, setError] = useState<string | null>(null)
