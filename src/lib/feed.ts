@@ -158,3 +158,10 @@ export async function deleteComment(commentId: string): Promise<void> {
   const { error } = await supabase.from('keymap_comments').delete().eq('id', commentId)
   if (error) throw error
 }
+
+/** 自分の投稿を削除する（RLS により本人以外は削除できない） */
+export async function deleteKeymap(keymapId: string): Promise<void> {
+  if (!supabase) throw new Error('共有フィードは設定されていません')
+  const { error } = await supabase.from('shared_keymaps').delete().eq('id', keymapId)
+  if (error) throw error
+}
