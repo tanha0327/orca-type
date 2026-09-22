@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { KEYS, type KeyId } from '../../data/layout'
 import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
-import { authEnabled, profileFromUser, signInWithGoogle } from '../../lib/auth'
+import { errorMessage } from '../../lib/errors'
 import {
-  deleteComment, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
+  deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
   shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
 import { useAuthStore } from '../../store/authStore'
 import { useKeymapStore } from '../../store/keymapStore'
+import { useProfileStore } from '../../store/profileStore'
 import { KeyboardView } from '../Board/KeyboardView'
 import { Ring } from '../Ring'
 
@@ -24,18 +25,6 @@ function diffKeysForLayer(a: Keymap, b: Keymap, layerIndex: number): Set<KeyId> 
     if (ra.tap !== rb.tap || ra.hold !== rb.hold) diffs.add(k.id)
   }
   return diffs
-}
-
-/**
- * Supabase のエラー（PostgrestError）は Error を継承していないので、
- * instanceof Error だけで見るとメッセージが拾えない。
- */
-function errorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message
-  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string' && e.message) {
-    return e.message
-  }
-  return '不明なエラー'
 }
 
 /** Twitter のタイムラインのような相対時刻表示（1週間を超えたら日付） */
@@ -56,11 +45,10 @@ export function FeedView() {
   const keymap = useKeymapStore((s) => s.keymap)
   const importKeymap = useKeymapStore((s) => s.importKeymap)
   const setView = useKeymapStore((s) => s.setView)
-  const authorName = useKeymapStore((s) => s.authorName)
-  const setAuthorName = useKeymapStore((s) => s.setAuthorName)
 
   const user = useAuthStore((s) => s.user)
-  const profile = user ? profileFromUser(user) : null
+  const openLoginModal = useAuthStore((s) => s.openLoginModal)
+  const profile = useProfileStore((s) => s.profile)
 
   const [items, setItems] = useState<SharedKeymap[] | null>(null)
   const [extras, setExtras] = useState<FeedExtras>(EMPTY_EXTRAS)
@@ -103,20 +91,17 @@ export function FeedView() {
     )
   }
 
-  // ログインしていれば Google の表示名・アイコンで、していなければ手入力の名前で投稿する
-  const postAuthor = profile ? profile.name : authorName.trim()
-
   const doShare = async () => {
-    if (!shareName.trim() || !postAuthor) return
+    if (!shareName.trim() || !user || !profile) return
     setSharing(true)
     try {
       await shareKeymap({
         name: shareName.trim(),
-        author: postAuthor,
+        author: profile.name,
         description: shareDesc.trim(),
         keymap,
-        userId: user?.id ?? null,
-        avatarUrl: profile?.avatarUrl ?? null,
+        userId: user.id,
+        avatarUrl: profile.avatarUrl,
       })
       setShareMsg('共有しました！')
       setShareName('')
@@ -140,8 +125,7 @@ export function FeedView() {
 
   const doToggleLike = async (item: SharedKeymap) => {
     if (!user) {
-      setShareMsg('いいねするには Google でログインしてください')
-      window.setTimeout(() => setShareMsg(null), 3000)
+      openLoginModal()
       return
     }
     const liked = extras.likedByMe.has(item.id)
@@ -179,6 +163,19 @@ export function FeedView() {
     }
   }
 
+  const doDeletePost = async (item: SharedKeymap) => {
+    if (!confirm(`「${item.name}」を削除しますか？ この操作は取り消せません。`)) return
+    try {
+      await deleteKeymap(item.id)
+      setItems((prev) => prev?.filter((i) => i.id !== item.id) ?? null)
+      if (compareItem?.id === item.id) setCompareItem(null)
+      if (commentItem?.id === item.id) setCommentItem(null)
+      if (detailItem?.id === item.id) setDetailItem(null)
+    } catch (e) {
+      setShareMsg(`削除に失敗しました: ${errorMessage(e)}`)
+    }
+  }
+
   return (
     <section className="nb nb-lg overflow-hidden">
       <div className="p-4 pb-3">
@@ -199,12 +196,17 @@ export function FeedView() {
         </div>
       )}
 
-      <Composer profile={profile} onOpen={() => setShareOpen(true)} />
+      <Composer
+        profile={profile}
+        loggedIn={!!user}
+        onOpen={() => (user ? setShareOpen(true) : openLoginModal())}
+      />
 
       {items?.map((item) => (
         <PostCard
           key={item.id}
           item={item}
+          canDelete={!!user && user.id === item.user_id}
           likeCount={extras.likeCounts[item.id] ?? 0}
           liked={extras.likedByMe.has(item.id)}
           commentCount={extras.commentCounts[item.id] ?? 0}
@@ -213,6 +215,7 @@ export function FeedView() {
           onLike={() => void doToggleLike(item)}
           onComments={() => setCommentItem(item)}
           onOpenDetail={() => setDetailItem(item)}
+          onDelete={() => void doDeletePost(item)}
         />
       ))}
 
@@ -233,14 +236,13 @@ export function FeedView() {
         onClose={() => setShareOpen(false)}
         shareName={shareName}
         onShareName={setShareName}
-        authorName={authorName}
-        onAuthorName={setAuthorName}
         shareDesc={shareDesc}
         onShareDesc={setShareDesc}
         sharing={sharing}
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
         profile={profile}
+        onRequireLogin={() => { setShareOpen(false); openLoginModal() }}
       />
 
       <CommentsModal
@@ -268,11 +270,16 @@ export function FeedView() {
 
       <PostDetailModal
         item={detailItem}
+        canDelete={!!user && !!detailItem && user.id === detailItem.user_id}
         onClose={() => setDetailItem(null)}
         onEdit={() => {
           if (!detailItem) return
           doImport(detailItem)
           setDetailItem(null)
+        }}
+        onDelete={() => {
+          if (!detailItem) return
+          void doDeletePost(detailItem)
         }}
       />
     </section>
@@ -280,9 +287,10 @@ export function FeedView() {
 }
 
 function Composer({
-  profile, onOpen,
+  profile, loggedIn, onOpen,
 }: {
   profile: { name: string; avatarUrl: string | null } | null
+  loggedIn: boolean
   onOpen: () => void
 }) {
   return (
@@ -296,10 +304,10 @@ function Composer({
         className="flex-1 truncate rounded-[var(--radius-btn)] border-[3px] border-[var(--color-ink)] px-3 py-2 text-[0.85rem] font-bold opacity-60"
         style={{ background: 'var(--color-paper)' }}
       >
-        今の配列を投稿する…
+        {loggedIn ? '今の配列を投稿する…' : '投稿するにはログインしてください'}
       </span>
       <span className="nb-btn shrink-0 !py-2 text-[0.8rem]" style={{ background: 'var(--color-lime)' }}>
-        投稿
+        {loggedIn ? '投稿' : 'ログイン'}
       </span>
     </button>
   )
@@ -324,9 +332,10 @@ function Avatar({ url, name, size = 22 }: { url: string | null; name: string; si
 }
 
 function PostCard({
-  item, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments, onOpenDetail,
+  item, canDelete, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments, onOpenDetail, onDelete,
 }: {
   item: SharedKeymap
+  canDelete: boolean
   likeCount: number
   liked: boolean
   commentCount: number
@@ -335,6 +344,7 @@ function PostCard({
   onLike: () => void
   onComments: () => void
   onOpenDetail: () => void
+  onDelete: () => void
 }) {
   const [previewLayerIdx, setPreviewLayerIdx] = useState(0)
   const previewLayers = item.keymap.layers.slice(0, 2)
@@ -411,6 +421,17 @@ function PostCard({
             {liked ? '♥' : '♡'} {likeCount}
           </button>
           <span className="flex-1" />
+          {canDelete && (
+            <button
+              type="button"
+              className="nb-btn shrink-0 !py-1 !px-2 text-[0.76rem]"
+              style={{ background: 'var(--color-pink)' }}
+              aria-label="投稿を削除"
+              onClick={onDelete}
+            >
+              削除
+            </button>
+          )}
           <button
             type="button"
             className="nb-btn shrink-0 !py-1 !px-2.5 text-[0.76rem]"
@@ -426,21 +447,20 @@ function PostCard({
 }
 
 function ShareModal({
-  open, onClose, shareName, onShareName, authorName, onAuthorName,
-  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile,
+  open, onClose, shareName, onShareName,
+  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile, onRequireLogin,
 }: {
   open: boolean
   onClose: () => void
   shareName: string
   onShareName: (v: string) => void
-  authorName: string
-  onAuthorName: (v: string) => void
   shareDesc: string
   onShareDesc: (v: string) => void
   sharing: boolean
   onSubmit: () => void
   shareMsg: string | null
   profile: { name: string; avatarUrl: string | null } | null
+  onRequireLogin: () => void
 }) {
   useEffect(() => {
     if (!open) return
@@ -451,7 +471,7 @@ function ShareModal({
 
   if (!open) return null
 
-  const canSubmit = !!shareName.trim() && (!!profile || !!authorName.trim()) && !sharing
+  const canSubmit = !!shareName.trim() && !!profile && !sharing
 
   return (
     <div
@@ -499,27 +519,12 @@ function ShareModal({
               </div>
             )
             : (
-              <>
-                <label className="block">
-                  <span className="nb-eyebrow">あなたの名前</span>
-                  <input
-                    className="nb-input mt-1"
-                    value={authorName}
-                    maxLength={30}
-                    onChange={(e) => onAuthorName(e.target.value)}
-                    placeholder="例: たなか"
-                  />
-                </label>
-                {authEnabled() && (
-                  <button
-                    type="button"
-                    className="nb-btn w-full !py-1.5 text-[0.76rem]"
-                    onClick={() => void signInWithGoogle()}
-                  >
-                    G Google でログインして、自分の名前とアイコンで投稿する
-                  </button>
-                )}
-              </>
+              <div className="nb nb-flat p-3 text-center">
+                <p className="text-[0.82rem] font-bold opacity-70">投稿にはログインが必要です</p>
+                <button type="button" className="nb-btn mt-2 !py-1.5 text-[0.78rem]" onClick={onRequireLogin}>
+                  ログインする
+                </button>
+              </div>
             )}
           <label className="block">
             <span className="nb-eyebrow">説明（任意）</span>
@@ -680,11 +685,13 @@ function CompareModal({
 }
 
 function PostDetailModal({
-  item, onClose, onEdit,
+  item, canDelete, onClose, onEdit, onDelete,
 }: {
   item: SharedKeymap | null
+  canDelete: boolean
   onClose: () => void
   onEdit: () => void
+  onDelete: () => void
 }) {
   const [layerIdx, setLayerIdx] = useState(0)
 
@@ -770,15 +777,25 @@ function PostDetailModal({
           )}
         </div>
 
-        <div className="border-t-[3px] border-[var(--color-ink)] p-3">
+        <div className="flex gap-2 border-t-[3px] border-[var(--color-ink)] p-3">
           <button
             type="button"
-            className="nb-btn w-full !py-2 text-[0.82rem]"
+            className="nb-btn flex-1 !py-2 text-[0.82rem]"
             style={{ background: 'var(--color-lime)' }}
             onClick={onEdit}
           >
             この配列を編集する
           </button>
+          {canDelete && (
+            <button
+              type="button"
+              className="nb-btn shrink-0 !py-2 text-[0.82rem]"
+              style={{ background: 'var(--color-pink)' }}
+              onClick={onDelete}
+            >
+              削除
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -793,7 +810,8 @@ function CommentsModal({
   onCountChange: (keymapId: string, delta: number) => void
 }) {
   const user = useAuthStore((s) => s.user)
-  const profile = user ? profileFromUser(user) : null
+  const openLoginModal = useAuthStore((s) => s.openLoginModal)
+  const profile = useProfileStore((s) => s.profile)
 
   const [comments, setComments] = useState<KeymapComment[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -947,10 +965,9 @@ function CommentsModal({
               <button
                 type="button"
                 className="nb-btn w-full !py-2 text-[0.8rem]"
-                onClick={() => void signInWithGoogle()}
-                disabled={!authEnabled()}
+                onClick={openLoginModal}
               >
-                G Google でログインしてコメントする
+                ログインしてコメントする
               </button>
             )}
         </div>

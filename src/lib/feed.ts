@@ -85,12 +85,13 @@ export async function fetchFeedExtras(keymapIds: string[], myUserId: string | nu
   return { likeCounts, likedByMe, commentCounts }
 }
 
+/** 投稿にはログインが必要（RLS 側でも auth.uid() = user_id を要求している） */
 export async function shareKeymap(input: {
   name: string
   author: string
   description: string
   keymap: Keymap
-  userId: string | null
+  userId: string
   avatarUrl: string | null
 }): Promise<void> {
   if (!supabase) throw new Error('共有フィードは設定されていません')
@@ -99,8 +100,8 @@ export async function shareKeymap(input: {
     author: input.author,
     description: input.description || null,
     keymap: input.keymap,
-    // 未ログインの投稿では列ごと省く（列を追加する前のテーブルでも今まで通り投稿できる）
-    ...(input.userId ? { user_id: input.userId, avatar_url: input.avatarUrl } : {}),
+    user_id: input.userId,
+    avatar_url: input.avatarUrl,
   })
   if (error) throw error
 }
@@ -155,5 +156,12 @@ export async function postComment(input: {
 export async function deleteComment(commentId: string): Promise<void> {
   if (!supabase) throw new Error('コメント機能は設定されていません')
   const { error } = await supabase.from('keymap_comments').delete().eq('id', commentId)
+  if (error) throw error
+}
+
+/** 自分の投稿を削除する（RLS により本人以外は削除できない） */
+export async function deleteKeymap(keymapId: string): Promise<void> {
+  if (!supabase) throw new Error('共有フィードは設定されていません')
+  const { error } = await supabase.from('shared_keymaps').delete().eq('id', keymapId)
   if (error) throw error
 }
