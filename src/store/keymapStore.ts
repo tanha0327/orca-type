@@ -38,6 +38,8 @@ interface EditorState {
   captureEnabled: boolean
   /** 盤面クリックでコンボのキーを選んでいる最中なら、そのコンボ ID */
   comboPickId: string | null
+  /** キーのクイック編集メニューを開いている最中か（開いている間はレイヤー切替のショートカットを止める） */
+  keyMenuOpen: boolean
   view: ViewId
   hud: HudOptions
   /** HUD をページ内にドッキング表示するか */
@@ -49,6 +51,7 @@ interface EditorState {
   select: (s: Selection | null) => void
   setCapture: (on: boolean) => void
   setComboPick: (id: string | null) => void
+  setKeyMenuOpen: (open: boolean) => void
   toggleComboKey: (comboId: string, keyId: KeyId) => void
   setView: (v: ViewId) => void
   setHud: (patch: Partial<HudOptions>) => void
@@ -191,6 +194,7 @@ export const useKeymapStore = create<EditorState>()(
       selection: null,
       captureEnabled: false,
       comboPickId: null,
+      keyMenuOpen: false,
       view: 'edit',
       hud: DEFAULT_HUD,
       hudDocked: true,
@@ -200,6 +204,7 @@ export const useKeymapStore = create<EditorState>()(
       select: (s) => set({ selection: s }),
       setCapture: (on) => set({ captureEnabled: on }),
       setComboPick: (id) => set({ comboPickId: id }),
+      setKeyMenuOpen: (open) => set({ keyMenuOpen: open }),
 
       toggleComboKey: (comboId, keyId) => {
         const combo = get().keymap.combos.find((c) => c.id === comboId)

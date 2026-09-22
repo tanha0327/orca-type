@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import {
   halfExtent, KEYS, SENSORS, type Half, type KeyId,
@@ -36,6 +36,7 @@ export function KeyboardView({
   const select = useKeymapStore((s) => s.select)
   const storeComboPickId = useKeymapStore((s) => s.comboPickId)
   const toggleComboKey = useKeymapStore((s) => s.toggleComboKey)
+  const setKeyMenuOpen = useKeymapStore((s) => s.setKeyMenuOpen)
   const snap = useEngineSnapshot()
 
   // プレビュー中は他人のキーマップを表示するので、いまの編集状態（選択・コンボ選択中・押下中）は一切持ち込まない
@@ -220,6 +221,12 @@ export function KeyboardView({
     && !comboPickId
     && selection?.kind === 'key'
     && selection.keyId === menuAnchor.keyId
+
+  // このメニューが開いている間は、盤面の下の「1」等のレイヤー切替ショートカットを止める
+  useEffect(() => {
+    setKeyMenuOpen(showMenu)
+    return () => setKeyMenuOpen(false)
+  }, [showMenu, setKeyMenuOpen])
 
   return (
     <div className={`flex w-full items-start ${compact ? 'gap-2' : 'gap-3 sm:gap-6'}`}>

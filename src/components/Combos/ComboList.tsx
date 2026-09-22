@@ -2,6 +2,7 @@ import { getKeycode } from '../../data/keycodes'
 import { LAYER_COLOR_HEX } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
 import { sameTarget, useKeymapStore } from '../../store/keymapStore'
+import { ComboEditor } from './ComboEditor'
 
 export function ComboList() {
   const keymap = useKeymapStore((s) => s.keymap)
@@ -9,6 +10,10 @@ export function ComboList() {
   const select = useKeymapStore((s) => s.select)
   const addCombo = useKeymapStore((s) => s.addCombo)
   const setComboPick = useKeymapStore((s) => s.setComboPick)
+
+  const selectedCombo = selection?.kind === 'combo'
+    ? keymap.combos.find((c) => c.id === selection.comboId)
+    : undefined
 
   return (
     <section className="nb nb-lg p-4">
@@ -81,6 +86,12 @@ export function ComboList() {
             )
           })}
         </ul>
+      )}
+
+      {selectedCombo && (
+        <div className="mt-3">
+          <ComboEditor combo={selectedCombo} />
+        </div>
       )}
     </section>
   )
