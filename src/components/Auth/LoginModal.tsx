@@ -71,9 +71,14 @@ function LoginHero() {
         style={{ background: 'var(--color-paper)', border: '2px solid var(--color-ink)' }}
       />
 
-      <KeyswitchIllustration
-        className="pointer-events-none absolute -bottom-6 -right-10 h-56 w-56 rotate-[8deg] opacity-90"
-      />
+      <div className="pointer-events-none absolute -bottom-8 -right-8 rotate-[-4deg]">
+        <div
+          className="nb nb-lg flex items-center justify-center p-3"
+          style={{ width: '11.5rem', height: '12rem', color: 'var(--color-ink)' }}
+        >
+          <KeyswitchIllustration className="h-full w-full" />
+        </div>
+      </div>
 
       <div className="relative z-10">
         <p className="nb-eyebrow" style={{ color: 'var(--color-paper)', opacity: 0.85 }}>ORCA TYPE</p>
