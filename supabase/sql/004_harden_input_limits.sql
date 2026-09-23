@@ -21,9 +21,12 @@ alter table public.shared_keymaps drop constraint if exists shared_keymaps_keyma
 alter table public.shared_keymaps
   add constraint shared_keymaps_keymap_size check (octet_length(keymap::text) <= 300000);
 
+-- avatar_url は、アップロード画像の公開URLだけでなく、プロフィール設定の
+-- サンプルアイコン（インラインSVGをまるごと data: URI に埋め込んだもの。
+-- 最大で switchAvatar() 由来の約15,525文字）も入るため、余裕を見て上限を設定する
 alter table public.shared_keymaps drop constraint if exists shared_keymaps_avatar_url_length;
 alter table public.shared_keymaps
-  add constraint shared_keymaps_avatar_url_length check (avatar_url is null or char_length(avatar_url) <= 2048);
+  add constraint shared_keymaps_avatar_url_length check (avatar_url is null or char_length(avatar_url) <= 20000);
 
 -- 2) keymap_comments: author_name / avatar_url にも上限を付ける（body は既に 003 で制約済み）
 alter table public.keymap_comments drop constraint if exists keymap_comments_author_name_length;
@@ -32,7 +35,7 @@ alter table public.keymap_comments
 
 alter table public.keymap_comments drop constraint if exists keymap_comments_avatar_url_length;
 alter table public.keymap_comments
-  add constraint keymap_comments_avatar_url_length check (avatar_url is null or char_length(avatar_url) <= 2048);
+  add constraint keymap_comments_avatar_url_length check (avatar_url is null or char_length(avatar_url) <= 20000);
 
 -- 3) profiles: 表示名・アイコン URL にも上限を付ける
 alter table public.profiles drop constraint if exists profiles_display_name_length;
@@ -41,7 +44,7 @@ alter table public.profiles
 
 alter table public.profiles drop constraint if exists profiles_avatar_url_length;
 alter table public.profiles
-  add constraint profiles_avatar_url_length check (char_length(avatar_url) <= 2048);
+  add constraint profiles_avatar_url_length check (char_length(avatar_url) <= 20000);
 
 -- 4) avatars ストレージバケット: アプリ側は「2MB 以下・image/* のみ」を
 -- チェックしているが、これも UI 側だけの制限で API を直接叩けば回避できる。
