@@ -403,18 +403,17 @@ function PostCard({
   onDelete: () => void
 }) {
   const [previewLayerIdx, setPreviewLayerIdx] = useState(0)
-  const [captureMode, setCaptureMode] = useState<'save' | 'share' | null>(null)
+  const [saving, setSaving] = useState(false)
   const fullCaptureRef = useRef<HTMLDivElement>(null)
   const previewLayers = item.keymap.layers.slice(0, 2)
 
   const captureFilename = () => `orca-${item.name.replace(/\s+/g, '-')}.png`
 
-  // レイヤー切替 UI は「今見えているレイヤー」しか写さないので、共有・保存用の画像は
+  // レイヤー切替 UI は「今見えているレイヤー」しか写さないので、保存用の画像は
   // 全レイヤーを画面外に一度だけ描画してからまとめてキャプチャする
   useEffect(() => {
-    if (!captureMode) return
+    if (!saving) return
     let cancelled = false
-    const mode = captureMode
     void (async () => {
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
@@ -422,33 +421,24 @@ function PostCard({
       if (cancelled || !fullCaptureRef.current) return
       try {
         const blob = await captureAsPng(fullCaptureRef.current)
-        if (cancelled) return
-        if (mode === 'save') {
-          downloadBlob(blob, captureFilename())
-        } else {
-          const text = `${item.name}（by ${item.author}） #Orcaecho`
-          const file = new File([blob], captureFilename(), { type: 'image/png' })
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], text })
-          } else {
-            downloadBlob(blob, captureFilename())
-            const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
-            window.open(intent, '_blank', 'noopener,noreferrer')
-          }
-        }
+        if (!cancelled) downloadBlob(blob, captureFilename())
       } catch (e) {
-        if (!cancelled && !(e instanceof DOMException && e.name === 'AbortError')) {
-          alert(mode === 'save'
-            ? `画像の保存に失敗しました: ${errorMessage(e)}`
-            : `シェアに失敗しました: ${errorMessage(e)}`)
-        }
+        if (!cancelled) alert(`画像の保存に失敗しました: ${errorMessage(e)}`)
       } finally {
-        if (!cancelled) setCaptureMode(null)
+        if (!cancelled) setSaving(false)
       }
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [captureMode])
+  }, [saving])
+
+  // 寿司打の「Xで結果をシェア」のように、その場で文面入りの投稿画面を開くだけにする
+  // （画像を毎回添付する凝った作りにはせず、クリックした瞬間に開かないと大抵ポップアップブロックに引っかかる）
+  const onShareX = () => {
+    const text = `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を Orca echo で共有中 #Orcaecho`
+    const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.origin)}`
+    window.open(intent, '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <article className="relative border-b-[3px] border-[var(--color-ink)] p-3">
@@ -506,7 +496,7 @@ function PostCard({
         </div>
       </div>
 
-      {captureMode && (
+      {saving && (
         <div
           ref={fullCaptureRef}
           aria-hidden
@@ -566,20 +556,19 @@ function PostCard({
         <button
           type="button"
           className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
-          disabled={captureMode !== null}
+          disabled={saving}
           aria-label="画像を保存（全レイヤー）"
-          onClick={() => setCaptureMode('save')}
+          onClick={() => setSaving(true)}
         >
-          {captureMode === 'save' ? <Ring size={14} /> : '⬇'} 画像
+          {saving ? <Ring size={14} /> : '⬇'} 画像
         </button>
         <button
           type="button"
           className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
-          disabled={captureMode !== null}
-          aria-label="Xでシェア（全レイヤー）"
-          onClick={() => setCaptureMode('share')}
+          aria-label="Xでシェア"
+          onClick={onShareX}
         >
-          {captureMode === 'share' ? <Ring size={14} /> : '𝕏'} シェア
+          𝕏 シェア
         </button>
         <span className="flex-1" />
         {canDelete && (
