@@ -202,6 +202,21 @@
     border: 3px solid var(--color-ink);
     border-radius: 8px 8px 0 0;
   }
+
+  /* --- ログインのキースイッチ線画: キーを押している間ステムが沈む --- */
+  .ks-stem,
+  .ks-spring {
+    transform-box: view-box;
+    transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1);
+  }
+  [data-pressed="true"] .ks-stem {
+    transform: translateY(var(--ks-travel));
+    transition-duration: 40ms;
+  }
+  [data-pressed="true"] .ks-spring {
+    transform: scaleY(var(--ks-spring-scale));
+    transition-duration: 40ms;
+  }
 }
 
 /* 画面遷移のないシングルページなので、モーション量は控えめに */
@@ -209,6 +224,10 @@
   * {
     transition-duration: 1ms !important;
     animation-duration: 1ms !important;
+  }
+  [data-pressed="true"] .ks-stem,
+  [data-pressed="true"] .ks-spring {
+    transform: none;
   }
 }
 
