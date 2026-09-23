@@ -55,9 +55,12 @@ export function KeyCap({
   const borderDefault = capTone?.border ?? (dark ? 'var(--color-paper)' : 'var(--color-ink)')
   const textDefault = capTone?.text ?? (dark ? 'var(--color-paper)' : 'var(--color-ink)')
   const selectedBorder = selectedTone ?? borderDefault
-  const selectedFace = dark
-    ? 'color-mix(in srgb, var(--color-ink) 55%, #000)'
-    : 'color-mix(in srgb, var(--color-paper) 70%, #fff)'
+  // esc のように本体と別色のキーキャップは、選択中も色を変えない（選択は太い縁と影で示す）
+  const selectedFace = capTone
+    ? capTone.face
+    : dark
+      ? 'color-mix(in srgb, var(--color-ink) 55%, #000)'
+      : 'color-mix(in srgb, var(--color-paper) 70%, #fff)'
   const diffFace = dark
     ? 'color-mix(in srgb, var(--color-pink) 28%, var(--color-ink))'
     : 'color-mix(in srgb, var(--color-pink) 20%, var(--color-paper))'

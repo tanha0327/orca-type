@@ -144,8 +144,8 @@ export function App() {
                   <div className="min-w-0">
                     <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
                     <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
-                      キーをクリックで選択・ダブルクリックで試し打ち。
-                      ホイールとパッドはドラッグ／スクロールで動かせます。
+                      キー・ホイール・パッドはクリックで割当を編集、キーはダブルクリックで試し打ち。
+                      ホイールとパッドはドラッグ／スクロールでも試せます。
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
