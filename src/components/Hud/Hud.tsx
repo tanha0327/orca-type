@@ -163,7 +163,7 @@ function Header({
         }}
         title={capture ? 'キャプチャ中' : 'キャプチャ停止中'}
       />
-      {!pip && <span className="nb-eyebrow !text-[0.58rem] !opacity-50">ORCA TYPE HUD</span>}
+      {!pip && <span className="nb-eyebrow !text-[0.58rem] !opacity-50">ORCA MAP HUD</span>}
       <button
         type="button"
         onClick={onToggleOptions}

@@ -131,7 +131,7 @@ export function toZmkKeymap(keymap: Keymap): string {
   return [
     '/*',
     ` * ${keymap.name} — Keychron Orca echo`,
-    ' * ORCA TYPE で書き出したキーマップのプレビューです。',
+    ' * ORCA MAP で書き出したキーマップのプレビューです。',
     ` * タッピングターム ${keymap.settings.tappingTermMs}ms / フレーバー ${keymap.settings.flavor}`,
     ` * トラックボール ${keymap.trackball.dpi}dpi / 角度 ${keymap.trackball.angle}° / 精密 ${Math.round(keymap.trackball.snipeRatio * 100)}%`,
     ' */',

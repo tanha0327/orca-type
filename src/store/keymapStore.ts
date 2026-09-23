@@ -184,6 +184,24 @@ const DEFAULT_HUD: HudOptions = {
   showMiniMap: true,
 }
 
+const STORAGE_KEY = 'orca-map/keymap'
+const LEGACY_STORAGE_KEY = 'orca-type/keymap'
+
+/** ORCA TYPE 時代の保存データを一度だけ新しいキーへ引き継ぐ */
+function migrateLegacyStorage() {
+  try {
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
+    if (legacy !== null && localStorage.getItem(STORAGE_KEY) === null) {
+      localStorage.setItem(STORAGE_KEY, legacy)
+    }
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
+  } catch {
+    /* localStorage が使えない環境では何もしない */
+  }
+}
+
+migrateLegacyStorage()
+
 export const useKeymapStore = create<EditorState>()(
   persist(
     (set, get) => ({
@@ -311,7 +329,7 @@ export const useKeymapStore = create<EditorState>()(
       resetKeymap: () => set({ keymap: createDefaultKeymap(), selection: null, editingLayer: 0 }),
     }),
     {
-      name: 'orca-type/keymap',
+      name: STORAGE_KEY,
       version: 2,
       migrate: (persisted, version) => {
         const state = persisted as Partial<

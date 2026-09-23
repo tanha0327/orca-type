@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { KEYS, type KeyId } from '../../data/layout'
 import {
   BODY_COLOR_LABEL, LAYER_COLOR_HEX, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL,
@@ -42,6 +42,25 @@ function relativeTime(iso: string): string {
   if (day < 7) return `${day}日前`
   const d = new Date(iso)
   return `${d.getMonth() + 1}月${d.getDate()}日`
+}
+
+/** カード要素を PNG 画像（Blob）に変換する（保存・シェア共通） */
+async function captureAsPng(el: HTMLElement): Promise<Blob> {
+  const { default: html2canvas } = await import('html2canvas')
+  const paper = getComputedStyle(document.documentElement).getPropertyValue('--color-paper').trim()
+  const canvas = await html2canvas(el, { backgroundColor: paper || '#ffffff', scale: 2 })
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+  if (!blob) throw new Error('画像の生成に失敗しました')
+  return blob
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export function FeedView() {
@@ -384,104 +403,163 @@ function PostCard({
   onDelete: () => void
 }) {
   const [previewLayerIdx, setPreviewLayerIdx] = useState(0)
+  const [busy, setBusy] = useState<'save' | 'share' | null>(null)
+  const captureRef = useRef<HTMLDivElement>(null)
   const previewLayers = item.keymap.layers.slice(0, 2)
 
+  const captureFilename = () => `orca-${item.name.replace(/\s+/g, '-')}.png`
+
+  const onSaveImage = async () => {
+    if (!captureRef.current || busy) return
+    setBusy('save')
+    try {
+      const blob = await captureAsPng(captureRef.current)
+      downloadBlob(blob, captureFilename())
+    } catch (e) {
+      alert(`画像の保存に失敗しました: ${errorMessage(e)}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const onShareX = async () => {
+    if (!captureRef.current || busy) return
+    setBusy('share')
+    try {
+      const blob = await captureAsPng(captureRef.current)
+      const text = `${item.name}（by ${item.author}） #Orcaecho`
+      const file = new File([blob], captureFilename(), { type: 'image/png' })
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], text })
+      } else {
+        downloadBlob(blob, captureFilename())
+        const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
+        window.open(intent, '_blank', 'noopener,noreferrer')
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      alert(`シェアに失敗しました: ${errorMessage(e)}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
-    <article className="relative flex gap-3 border-b-[3px] border-[var(--color-ink)] p-3">
-      <Avatar url={item.avatar_url} name={item.author} size={40} />
+    <article className="relative border-b-[3px] border-[var(--color-ink)] p-3">
+      <div ref={captureRef} className="flex gap-3" style={{ background: 'var(--color-paper)' }}>
+        <Avatar url={item.avatar_url} name={item.author} size={40} />
 
-      <div className="min-w-0 flex-1">
-        <button type="button" className="block w-full text-left" onClick={onOpenDetail}>
-          <div className="flex min-w-0 items-baseline gap-1.5">
-            <span className="truncate text-[0.85rem] font-black">{item.author}</span>
-            <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
-          </div>
-
-          <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
-          {item.description && (
-            <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
-              {item.description}
-            </p>
-          )}
-          <p className="mt-1 text-[0.7rem] font-bold opacity-50">
-            {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
-          </p>
-        </button>
-
-        <div className="mt-1.5">
-          <DeviceColors keymap={item.keymap} />
-        </div>
-
-        {previewLayers.length > 0 && (
-          <div className="mt-2 space-y-1.5">
-            <div className="flex flex-wrap gap-1.5">
-              {previewLayers.map((layer, i) => (
-                <button
-                  key={layer.id}
-                  type="button"
-                  className="nb-chip"
-                  style={{
-                    background: previewLayerIdx === i ? LAYER_COLOR_HEX[layer.color] : 'var(--color-paper)',
-                    opacity: previewLayerIdx === i ? 1 : 0.55,
-                  }}
-                  onClick={() => setPreviewLayerIdx(i)}
-                >
-                  L{layer.id} {layer.name}
-                </button>
-              ))}
-              {item.keymap.layers.length > previewLayers.length && (
-                <button type="button" className="nb-chip opacity-55" onClick={onOpenDetail}>
-                  他 {item.keymap.layers.length - previewLayers.length} レイヤー…
-                </button>
-              )}
+        <div className="min-w-0 flex-1">
+          <button type="button" className="block w-full text-left" onClick={onOpenDetail}>
+            <div className="flex min-w-0 items-baseline gap-1.5">
+              <span className="truncate text-[0.85rem] font-black">{item.author}</span>
+              <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
             </div>
-            <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={previewLayerIdx} />
-          </div>
-        )}
 
-        <div className="mt-2 flex items-center gap-1.5">
-          <button
-            type="button"
-            className="nb-btn !py-1 !px-2 text-[0.76rem]"
-            aria-label="コメントを見る"
-            onClick={onComments}
-          >
-            💬 {commentCount}
+            <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
+            {item.description && (
+              <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
+                {item.description}
+              </p>
+            )}
+            <p className="mt-1 text-[0.7rem] font-bold opacity-50">
+              {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
+            </p>
           </button>
-          <button type="button" className="nb-btn !py-1 !px-2 text-[0.76rem]" onClick={onCompare}>
-            ⇄ 比較
-          </button>
-          <button
-            type="button"
-            className="nb-btn !py-1 !px-2 text-[0.76rem]"
-            style={liked ? { background: 'var(--color-pink)' } : undefined}
-            aria-pressed={liked}
-            aria-label="いいね"
-            onClick={onLike}
-          >
-            {liked ? '♥' : '♡'} {likeCount}
-          </button>
-          <span className="flex-1" />
-          {canDelete && (
-            <button
-              type="button"
-              className="nb-btn shrink-0 !py-1 !px-2 text-[0.76rem]"
-              style={{ background: 'var(--color-pink)' }}
-              aria-label="投稿を削除"
-              onClick={onDelete}
-            >
-              削除
-            </button>
+
+          <div className="mt-1.5">
+            <DeviceColors keymap={item.keymap} />
+          </div>
+
+          {previewLayers.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              <div className="flex flex-wrap gap-1.5">
+                {previewLayers.map((layer, i) => (
+                  <button
+                    key={layer.id}
+                    type="button"
+                    className="nb-chip"
+                    style={{
+                      background: previewLayerIdx === i ? LAYER_COLOR_HEX[layer.color] : 'var(--color-paper)',
+                      opacity: previewLayerIdx === i ? 1 : 0.55,
+                    }}
+                    onClick={() => setPreviewLayerIdx(i)}
+                  >
+                    L{layer.id} {layer.name}
+                  </button>
+                ))}
+                {item.keymap.layers.length > previewLayers.length && (
+                  <button type="button" className="nb-chip opacity-55" onClick={onOpenDetail}>
+                    他 {item.keymap.layers.length - previewLayers.length} レイヤー…
+                  </button>
+                )}
+              </div>
+              <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={previewLayerIdx} />
+            </div>
           )}
+        </div>
+      </div>
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
+          aria-label="コメントを見る"
+          onClick={onComments}
+        >
+          💬 {commentCount}
+        </button>
+        <button type="button" className="nb-btn !py-1.5 !px-3 text-[0.85rem]" onClick={onCompare}>
+          ⇄ 比較
+        </button>
+        <button
+          type="button"
+          className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
+          style={liked ? { background: 'var(--color-pink)' } : undefined}
+          aria-pressed={liked}
+          aria-label="いいね"
+          onClick={onLike}
+        >
+          {liked ? '♥' : '♡'} {likeCount}
+        </button>
+        <button
+          type="button"
+          className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
+          disabled={busy !== null}
+          aria-label="画像を保存"
+          onClick={() => void onSaveImage()}
+        >
+          {busy === 'save' ? <Ring size={14} /> : '⬇'} 画像
+        </button>
+        <button
+          type="button"
+          className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
+          disabled={busy !== null}
+          aria-label="Xでシェア"
+          onClick={() => void onShareX()}
+        >
+          {busy === 'share' ? <Ring size={14} /> : '𝕏'} シェア
+        </button>
+        <span className="flex-1" />
+        {canDelete && (
           <button
             type="button"
-            className="nb-btn shrink-0 !py-1 !px-2.5 text-[0.76rem]"
-            style={{ background: 'var(--color-lime)' }}
-            onClick={onImport}
+            className="nb-btn shrink-0 !py-1.5 !px-3 text-[0.85rem]"
+            style={{ background: 'var(--color-pink)' }}
+            aria-label="投稿を削除"
+            onClick={onDelete}
           >
-            読み込む
+            削除
           </button>
-        </div>
+        )}
+        <button
+          type="button"
+          className="nb-btn shrink-0 !py-1.5 !px-3.5 text-[0.85rem]"
+          style={{ background: 'var(--color-lime)' }}
+          onClick={onImport}
+        >
+          読み込む
+        </button>
       </div>
     </article>
   )
