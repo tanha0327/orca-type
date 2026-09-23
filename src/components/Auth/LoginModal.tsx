@@ -65,7 +65,7 @@ function LoginHero() {
 
       <div
         className="pointer-events-none absolute top-1/2 -translate-y-1/2"
-        style={{ right: '-11rem', width: '22rem', aspectRatio: '34.9 / 36.4', color: 'var(--color-ink)' }}
+        style={{ right: '-11rem', width: '22rem', aspectRatio: '34.25 / 35.75', color: 'var(--color-ink)' }}
       >
         <KeyswitchIllustration className="h-full w-full" />
       </div>
