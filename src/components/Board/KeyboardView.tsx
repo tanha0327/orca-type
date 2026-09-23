@@ -4,7 +4,8 @@ import {
   halfExtent, KEYS, SENSORS, type Half, type KeyId,
 } from '../../data/layout'
 import {
-  DEFAULT_ESC_COLOR, LAYER_COLOR_HEX, type EncoderSlot, type EscColor, type Keymap, type PadSlot,
+  DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_TEXT, LAYER_COLOR_HEX,
+  type EncoderSlot, type EscColor, type Keymap, type PadSlot,
 } from '../../data/types'
 import { engine, useEngineSnapshot } from '../../engine/useEngine'
 import { resolveKey } from '../../engine/resolve'
@@ -29,16 +30,16 @@ export interface KeyboardViewProps {
   diffKeys?: ReadonlySet<KeyId>
 }
 
-/** esc キーキャップの色を、本体色の上での地色・文字色・縁の色にする */
+/**
+ * esc キーキャップの色を、本体色の上での地色・文字色・縁の色にする。
+ * 縁は黒が基本。黒本体に黒い esc のときだけ、他のキーと同じ白い縁にそろえる
+ * （色付きのキーに白い縁を付けると、背景に溶けて輪郭が消える）。
+ */
 function escCapTone(esc: EscColor, dark: boolean): CapTone {
-  const bodyBorder = dark ? 'var(--color-paper)' : 'var(--color-ink)'
-  switch (esc) {
-    case 'white':
-      return { face: 'var(--color-paper)', text: 'var(--color-ink)', border: 'var(--color-ink)' }
-    case 'black':
-      return { face: 'var(--color-ink)', text: 'var(--color-paper)', border: bodyBorder }
-    case 'orange':
-      return { face: 'var(--color-orange)', text: 'var(--color-ink)', border: bodyBorder }
+  return {
+    face: ESC_COLOR_FACE[esc],
+    text: ESC_COLOR_TEXT[esc],
+    border: esc === 'black' && dark ? 'var(--color-paper)' : 'var(--color-ink)',
   }
 }
 
