@@ -49,12 +49,14 @@ export function LoginModal() {
   )
 }
 
-// スイッチ本体の幅を 22rem にし、その中心線がヒーロー右端にくる（ちょうど半分見切れる）ように置く
-const REM_PER_UNIT = 22 / KEYSWITCH_GEOMETRY.width
+// ヒーロー列の内幅（デスクトップで約 20.8rem）を基準に全体を拡縮し、狭い画面でも見出しと重ならないようにする。
+// デスクトップではキーキャップ込みの高さがおよそ 28rem。スイッチの中心線はヒーロー右端（ちょうど半分見切れる位置）。
+const HERO_INNER_REM = 20.8
+const UNIT = `${(28 / HERO_INNER_REM / KEYSWITCH_GEOMETRY.height) * 100}cqw`
 const ILLUSTRATION_WIDTH = KEYSWITCH_GEOMETRY.width + KEYSWITCH_CALLOUT_GUTTER
 const ILLUSTRATION_STYLE: CSSProperties = {
-  right: `${-(KEYSWITCH_GEOMETRY.width / 2) * REM_PER_UNIT}rem`,
-  width: `${ILLUSTRATION_WIDTH * REM_PER_UNIT}rem`,
+  right: `calc(${UNIT} * ${-KEYSWITCH_GEOMETRY.width / 2})`,
+  width: `calc(${UNIT} * ${ILLUSTRATION_WIDTH})`,
   aspectRatio: `${ILLUSTRATION_WIDTH} / ${KEYSWITCH_GEOMETRY.height}`,
   color: 'var(--color-ink)',
 }
@@ -68,21 +70,20 @@ const GRID_STYLE: CSSProperties = {
   WebkitMaskImage: 'linear-gradient(to left, #000 25%, transparent 85%)',
 }
 
+const HIGHLIGHT_STYLE: CSSProperties = {
+  background: 'var(--color-lime)',
+  color: 'var(--color-ink)',
+  padding: '0 0.2em',
+  whiteSpace: 'nowrap',
+}
+
 function LoginHero() {
   return (
     <div
       className="relative hidden min-h-[30rem] flex-col justify-between overflow-hidden p-6 sm:flex"
-      style={{ background: 'var(--color-paper)', color: 'var(--color-ink)' }}
+      style={{ background: 'var(--color-paper)', color: 'var(--color-ink)', containerType: 'inline-size' }}
     >
       <div className="pointer-events-none absolute inset-0" style={GRID_STYLE} />
-      <span
-        className="pointer-events-none absolute -bottom-10 -left-8 h-32 w-32 rounded-full"
-        style={{ background: 'var(--color-lime)', border: '3px solid var(--color-ink)' }}
-      />
-      <span
-        className="pointer-events-none absolute -right-10 top-8 h-24 w-24 rounded-full"
-        style={{ background: 'var(--color-orange)', border: '3px solid var(--color-ink)' }}
-      />
 
       <div className="pointer-events-none absolute top-1/2 -translate-y-1/2" style={ILLUSTRATION_STYLE}>
         <KeyswitchIllustration className="h-full w-full" />
@@ -90,7 +91,7 @@ function LoginHero() {
 
       <div className="relative z-10">
         <p className="nb-eyebrow" style={{ color: 'var(--color-ink)', opacity: 0.7 }}>ORCA TYPE</p>
-        <h2 className="mt-2 text-[2.6rem]">
+        <h2 className="mt-2" style={{ fontSize: `min(2.6rem, ${(2.6 / HERO_INNER_REM) * 100}cqw)` }}>
           ようこそ
           <br />
           みんなの
@@ -99,8 +100,12 @@ function LoginHero() {
         </h2>
       </div>
 
-      <p className="relative z-10 max-w-[16rem] text-[0.8rem] font-bold leading-relaxed opacity-70">
-        ログインすると、今の配列を投稿したり、他の人の投稿にいいね・コメントで反応できます。
+      <p
+        className="relative z-10 text-[0.8rem] font-bold leading-relaxed"
+        style={{ maxWidth: `min(14rem, ${(14 / HERO_INNER_REM) * 100}cqw)`, color: 'color-mix(in srgb, var(--color-ink) 72%, transparent)' }}
+      >
+        ログインすると、今の配列を<mark style={HIGHLIGHT_STYLE}>投稿</mark>したり、他の人の投稿に
+        <mark style={HIGHLIGHT_STYLE}>いいね・コメント</mark>で反応できます。
       </p>
     </div>
   )

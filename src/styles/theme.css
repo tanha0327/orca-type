@@ -217,6 +217,13 @@
     transform: scaleY(var(--ks-spring-scale));
     transition-duration: 40ms;
   }
+  /* 入力が始まるまでは、ときどき自分で2回タップして「押せる」ことを見せる */
+  [data-idle="true"] .ks-stem {
+    animation: ks-idle-stem 3.6s ease-in-out infinite;
+  }
+  [data-idle="true"] .ks-spring {
+    animation: ks-idle-spring 3.6s ease-in-out infinite;
+  }
 }
 
 /* 画面遷移のないシングルページなので、モーション量は控えめに */
@@ -229,6 +236,20 @@
   [data-pressed="true"] .ks-spring {
     transform: none;
   }
+  [data-idle="true"] .ks-stem,
+  [data-idle="true"] .ks-spring {
+    animation: none;
+  }
+}
+
+/* --- ログインのキースイッチ線画: 待機中のダブルタップ ------------ */
+@keyframes ks-idle-stem {
+  0%, 62%, 70%, 78%, 100% { transform: translateY(0); }
+  66%, 74% { transform: translateY(var(--ks-travel)); }
+}
+@keyframes ks-idle-spring {
+  0%, 62%, 70%, 78%, 100% { transform: scaleY(1); }
+  66%, 74% { transform: scaleY(var(--ks-spring-scale)); }
 }
 
 /* --- キー押下時の「長押し判定まで」の進行バー -------------------- */
