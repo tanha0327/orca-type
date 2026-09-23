@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { FLAVOR_HELP, FLAVOR_LABEL, type Flavor, type Keymap } from '../../data/types'
+import { FLAVOR_HELP, FLAVOR_LABEL, isValidKeymapShape, type Flavor } from '../../data/types'
 import { toZmkKeymap } from '../../engine/zmk'
 import { useKeymapStore } from '../../store/keymapStore'
 
@@ -40,8 +40,8 @@ export function ExportView() {
 
   const loadFile = async (file: File) => {
     try {
-      const parsed = JSON.parse(await file.text()) as Keymap
-      if (!parsed?.layers || !Array.isArray(parsed.layers)) throw new Error('形式が違います')
+      const parsed: unknown = JSON.parse(await file.text())
+      if (!isValidKeymapShape(parsed)) throw new Error('形式が違います')
       importKeymap(parsed)
       flash('キーマップを読み込みました')
     } catch (e) {
