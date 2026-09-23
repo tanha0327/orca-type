@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { KEYS, type KeyId } from '../../data/layout'
-import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
+import {
+  BODY_COLOR_LABEL, LAYER_COLOR_HEX, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL,
+  type BodyColor, type Keymap, type TrackballColor,
+} from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
 import { errorMessage } from '../../lib/errors'
 import {
@@ -313,6 +316,40 @@ function Composer({
   )
 }
 
+/** 本体色・トラックボール色の小さな丸スウォッチ（本体色は 'white' | 'black' で TRACKBALL_COLOR_GRADIENT のキーを共有） */
+function ColorDot({ color, size = 14 }: { color: TrackballColor | BodyColor; size?: number }) {
+  const [hi, mid, lo] = TRACKBALL_COLOR_GRADIENT[color]
+  return (
+    <span
+      className="inline-block shrink-0 rounded-full"
+      style={{
+        width: size,
+        height: size,
+        background: `radial-gradient(circle at 32% 28%, ${hi} 0%, ${mid} 42%, ${lo} 100%)`,
+        border: '2px solid var(--color-ink)',
+      }}
+    />
+  )
+}
+
+/** 投稿主が設定した本体色・トラックボール色をまとめて表示する */
+function DeviceColors({ keymap }: { keymap: Keymap }) {
+  const bodyColor = keymap.settings.bodyColor ?? 'white'
+  const ballColor = keymap.trackball.color ?? 'white'
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="nb-chip flex items-center gap-1.5" style={{ background: 'var(--color-paper)' }}>
+        <ColorDot color={bodyColor} />
+        本体: {BODY_COLOR_LABEL[bodyColor]}
+      </span>
+      <span className="nb-chip flex items-center gap-1.5" style={{ background: 'var(--color-paper)' }}>
+        <ColorDot color={ballColor} />
+        ボール: {TRACKBALL_COLOR_LABEL[ballColor]}
+      </span>
+    </div>
+  )
+}
+
 function Avatar({ url, name, size = 22 }: { url: string | null; name: string; size?: number }) {
   const style = {
     width: size, height: size,
@@ -370,6 +407,10 @@ function PostCard({
             {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
           </p>
         </button>
+
+        <div className="mt-1.5">
+          <DeviceColors keymap={item.keymap} />
+        </div>
 
         {previewLayers.length > 0 && (
           <div className="mt-2 space-y-1.5">
@@ -745,6 +786,10 @@ function PostDetailModal({
               {item.description}
             </p>
           )}
+
+          <div className="mb-3">
+            <DeviceColors keymap={item.keymap} />
+          </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
             {item.keymap.layers.map((l, i) => (
