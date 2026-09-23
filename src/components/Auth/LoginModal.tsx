@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import {
   authEnabled, resetPasswordForEmail, signInWithEmail, signInWithGoogle, signUpWithEmail,
 } from '../../lib/auth'
 import { errorMessage } from '../../lib/errors'
 import { useAuthStore } from '../../store/authStore'
 import { Ring } from '../Ring'
-import { KeyswitchIllustration } from './KeyswitchIllustration'
+import { KEYSWITCH_GEOMETRY } from '../../data/keyswitchLineart'
+import { KEYSWITCH_CALLOUT_GUTTER, KeyswitchIllustration } from './KeyswitchIllustration'
 
 type Mode = 'signin' | 'signup'
 
@@ -48,12 +49,32 @@ export function LoginModal() {
   )
 }
 
+// スイッチ本体の幅を 22rem にし、その中心線がヒーロー右端にくる（ちょうど半分見切れる）ように置く
+const REM_PER_UNIT = 22 / KEYSWITCH_GEOMETRY.width
+const ILLUSTRATION_WIDTH = KEYSWITCH_GEOMETRY.width + KEYSWITCH_CALLOUT_GUTTER
+const ILLUSTRATION_STYLE: CSSProperties = {
+  right: `${-(KEYSWITCH_GEOMETRY.width / 2) * REM_PER_UNIT}rem`,
+  width: `${ILLUSTRATION_WIDTH * REM_PER_UNIT}rem`,
+  aspectRatio: `${ILLUSTRATION_WIDTH} / ${KEYSWITCH_GEOMETRY.height}`,
+  color: 'var(--color-ink)',
+}
+
+const GRID_LINE = 'color-mix(in srgb, var(--color-ink) 8%, transparent)'
+const GRID_STYLE: CSSProperties = {
+  backgroundImage: `linear-gradient(to right, ${GRID_LINE} 1px, transparent 1px), linear-gradient(to bottom, ${GRID_LINE} 1px, transparent 1px)`,
+  backgroundSize: '1.25rem 1.25rem',
+  backgroundPosition: 'right top',
+  maskImage: 'linear-gradient(to left, #000 25%, transparent 85%)',
+  WebkitMaskImage: 'linear-gradient(to left, #000 25%, transparent 85%)',
+}
+
 function LoginHero() {
   return (
     <div
-      className="relative hidden min-h-[26rem] flex-col justify-between overflow-hidden p-6 sm:flex"
+      className="relative hidden min-h-[30rem] flex-col justify-between overflow-hidden p-6 sm:flex"
       style={{ background: 'var(--color-paper)', color: 'var(--color-ink)' }}
     >
+      <div className="pointer-events-none absolute inset-0" style={GRID_STYLE} />
       <span
         className="pointer-events-none absolute -bottom-10 -left-8 h-32 w-32 rounded-full"
         style={{ background: 'var(--color-lime)', border: '3px solid var(--color-ink)' }}
@@ -63,10 +84,7 @@ function LoginHero() {
         style={{ background: 'var(--color-orange)', border: '3px solid var(--color-ink)' }}
       />
 
-      <div
-        className="pointer-events-none absolute top-1/2 -translate-y-1/2"
-        style={{ right: '-11rem', width: '22rem', aspectRatio: '34.25 / 35.75', color: 'var(--color-ink)' }}
-      >
+      <div className="pointer-events-none absolute top-1/2 -translate-y-1/2" style={ILLUSTRATION_STYLE}>
         <KeyswitchIllustration className="h-full w-full" />
       </div>
 
