@@ -87,7 +87,7 @@ export function usePipWindow(size: { width: number; height: number }): PipContro
         height: sizeRef.current.height,
       })
       cloneStyles(w)
-      w.document.title = 'ORCA TYPE — 出力 HUD'
+      w.document.title = 'ORCA MAP — 出力 HUD'
       w.addEventListener('pagehide', () => setWin(null), { once: true })
       setError(null)
       setWin(w)
