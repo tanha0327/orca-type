@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import type { SensorDef } from '../../data/layout'
 import {
@@ -26,7 +26,8 @@ function place(def: SensorDef, { totalW, totalH }: Geo) {
 
 /* ================================================================
    ロータリーエンコーダー（左）
-   ホイール操作・上下ドラッグで回転。
+   実機は横向きのホイールなので、左右ドラッグ・横スクロール・← → で回す。
+   縦ホイールしかないマウスでも回せるよう、縦スクロールも受け付ける。
    ================================================================ */
 export function EncoderView({
   def, geo, selected, glyphs, color = 'white', onSlot, onSelect, interactive = true,
@@ -40,13 +41,15 @@ export function EncoderView({
   onSelect: (slot: EncoderSlot) => void
   interactive?: boolean
 }) {
+  const rootRef = useRef<HTMLDivElement>(null)
   const accum = useRef(0)
   const dragging = useRef(false)
-  const lastY = useRef(0)
+  const lastX = useRef(0)
   const [spin, setSpin] = useState(0)
   const [, mid] = TRACKBALL_COLOR_GRADIENT[color]
   const knurlColor = TRACKBALL_COLOR_DARK[color] ? 'var(--color-paper)' : 'var(--color-ink)'
 
+  // 右へ回す = 時計回り (cw)、左へ回す = 反時計回り (ccw)
   const step = useCallback((dir: 1 | -1) => {
     setSpin((v) => v + dir * 18)
     onSlot(dir > 0 ? 'cw' : 'ccw')
@@ -61,28 +64,45 @@ export function EncoderView({
     }
   }, [step])
 
+  // React の onWheel は passive なので preventDefault が効かず、回すたびにページもスクロールしてしまう。
+  // ネイティブのリスナーを passive: false で付ける
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el || !interactive) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      feed(Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [feed, interactive])
+
   return (
     <div
+      ref={rootRef}
       {...inertProps(interactive, '左ロータリーエンコーダー')}
-      title="ホイール／上下ドラッグで回す・クリックで選択"
+      title="左右ドラッグ／ホイールで回す・クリックで選択"
       className="absolute touch-none"
-      style={{ ...place(def, geo), cursor: interactive ? 'ns-resize' : 'default', pointerEvents: interactive ? undefined : 'none' }}
-      onWheel={(e) => { e.preventDefault(); feed(e.deltaY) }}
+      style={{ ...place(def, geo), cursor: interactive ? 'ew-resize' : 'default', pointerEvents: interactive ? undefined : 'none' }}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture(e.pointerId)
         dragging.current = true
-        lastY.current = e.clientY
+        lastX.current = e.clientX
         onSelect('cw')
       }}
       onPointerMove={(e) => {
         if (!dragging.current) return
-        feed(e.clientY - lastY.current)
-        lastY.current = e.clientY
+        feed(e.clientX - lastX.current)
+        lastX.current = e.clientX
       }}
       onPointerUp={() => { dragging.current = false }}
       onKeyDown={(e) => {
-        if (e.key === 'ArrowUp') { e.preventDefault(); step(-1) }
-        if (e.key === 'ArrowDown') { e.preventDefault(); step(1) }
+        const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+        if (!dir) return
+        // ← → はレイヤー切替のショートカットでもあるので、ホイールを操作中はそちらに流さない
+        e.preventDefault()
+        e.stopPropagation()
+        step(dir)
       }}
     >
       <div
@@ -94,22 +114,28 @@ export function EncoderView({
           boxShadow: '2px 2px 0 var(--color-ink)',
         }}
       >
-        {/* ローレット（刻み） */}
+        {/* ローレット（刻み）。横に転がるので刻みは縦線で、回すと左右に流れる */}
         <div
-          className="absolute inset-0"
+          className="absolute inset-y-0"
           style={{
+            left: '-5px',
+            right: '-5px',
             backgroundImage:
-              `repeating-linear-gradient(to bottom, ${knurlColor} 0 1.5px, transparent 1.5px 5px)`,
-            transform: `translateY(${spin % 5}px)`,
+              `repeating-linear-gradient(to right, ${knurlColor} 0 1.5px, transparent 1.5px 5px)`,
+            transform: `translateX(${spin % 5}px)`,
             opacity: 0.75,
           }}
         />
-        <div className="absolute inset-x-0 top-0 h-[22%]" style={{ background: 'linear-gradient(#0000 0%, #0008 100%)' }} />
+        {/* 円筒の左右の端に影を落として、横向きのホイールに見せる */}
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(to right, #0007 0%, #0000 28%, #0000 72%, #0007 100%)' }}
+        />
       </div>
-      {/* 回転方向の割当を脇に出す */}
+      {/* 回転方向の割当を脇に出す（左に回す／右に回す の並び） */}
       <div
         className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-black"
-        style={{ top: '102%', fontSize: 'clamp(5px, 2cqw, 9px)' }}
+        style={{ top: '104%', fontSize: 'clamp(5px, 2cqw, 9px)' }}
       >
         <span style={{ color: 'var(--color-pink)' }}>↺{glyphs.ccw}</span>
         <span className="opacity-30"> / </span>

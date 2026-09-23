@@ -148,11 +148,29 @@ export const BODY_COLOR_LABEL: Record<BodyColor, string> = {
   black: 'ブラック',
 }
 
+/**
+ * esc キーキャップの色（付属の交換用キーキャップ。見た目のみ）。
+ * white / black は通常のキーキャップと同じ色、orange は製品写真で esc に付いているアクセント色。
+ */
+export type EscColor = 'white' | 'black' | 'orange'
+
+export const ESC_COLORS: EscColor[] = ['white', 'black', 'orange']
+
+export const DEFAULT_ESC_COLOR: EscColor = 'orange'
+
+export const ESC_COLOR_LABEL: Record<EscColor, string> = {
+  white: 'ホワイト',
+  black: 'ブラック',
+  orange: 'オレンジ',
+}
+
 export interface KeymapSettings {
   tappingTermMs: number
   flavor: Flavor
-  /** キーボード本体の色（見た目のみ。トラックボールの色とは独立） */
+  /** キーボード本体の色（見た目のみ）。白↔黒を切り替えると、同じ色だったボールと esc も追従する */
   bodyColor: BodyColor
+  /** esc キーキャップの色（見た目のみ）。古い保存データには無いので DEFAULT_ESC_COLOR で補う */
+  escColor?: EscColor
 }
 
 export interface Keymap {

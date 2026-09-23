@@ -3,9 +3,10 @@ import { persist } from 'zustand/middleware'
 import { createDefaultKeymap } from '../data/defaultKeymap'
 import type { KeyId } from '../data/layout'
 import type { Keycode } from '../data/keycodes'
-import type {
-  Binding, Combo, EncoderSlot, Keymap, KeymapSettings,
-  LayerColor, PadSlot, TrackballConfig,
+import {
+  DEFAULT_ESC_COLOR,
+  type Binding, type Combo, type EncoderSlot, type Keymap, type KeymapSettings,
+  type LayerColor, type PadSlot, type TrackballConfig,
 } from '../data/types'
 
 export type PadSensor = 'pad-l' | 'pad-r'
@@ -291,8 +292,19 @@ export const useKeymapStore = create<EditorState>()(
       setTrackball: (patch) =>
         set({ keymap: { ...get().keymap, trackball: { ...get().keymap.trackball, ...patch } } }),
 
-      setSettings: (patch) =>
-        set({ keymap: { ...get().keymap, settings: { ...get().keymap.settings, ...patch } } }),
+      setSettings: (patch) => {
+        const keymap = get().keymap
+        const prevBody = keymap.settings.bodyColor ?? 'white'
+        const nextBody = patch.bodyColor
+        let { trackball } = keymap
+        const linked: Partial<KeymapSettings> = {}
+        // 本体を白↔黒で切り替えたら、本体と同じ色だったボールと esc も一緒に切り替える（他の色はそのまま）
+        if (nextBody && nextBody !== prevBody) {
+          if ((trackball.color ?? 'white') === prevBody) trackball = { ...trackball, color: nextBody }
+          if ((keymap.settings.escColor ?? DEFAULT_ESC_COLOR) === prevBody) linked.escColor = nextBody
+        }
+        set({ keymap: { ...keymap, trackball, settings: { ...keymap.settings, ...linked, ...patch } } })
+      },
 
       importKeymap: (km) => set({ keymap: km, selection: null, editingLayer: 0 }),
 

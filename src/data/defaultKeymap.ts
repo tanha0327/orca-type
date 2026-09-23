@@ -1,6 +1,6 @@
 import { KEYS, type KeyId } from './layout'
 import {
-  bind, TRANS, NONE,
+  bind, DEFAULT_ESC_COLOR, TRANS, NONE,
   type Binding, type Combo, type EncoderConfig, type Keymap,
   type Layer, type LayerColor, type PadConfig,
 } from './types'
@@ -169,6 +169,7 @@ export function createDefaultKeymap(): Keymap {
       tappingTermMs: 200,
       flavor: 'balanced',
       bodyColor: 'white',
+      escColor: DEFAULT_ESC_COLOR,
     },
   }
 }
