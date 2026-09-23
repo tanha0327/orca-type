@@ -403,50 +403,56 @@ function PostCard({
   onDelete: () => void
 }) {
   const [previewLayerIdx, setPreviewLayerIdx] = useState(0)
-  const [busy, setBusy] = useState<'save' | 'share' | null>(null)
-  const captureRef = useRef<HTMLDivElement>(null)
+  const [captureMode, setCaptureMode] = useState<'save' | 'share' | null>(null)
+  const fullCaptureRef = useRef<HTMLDivElement>(null)
   const previewLayers = item.keymap.layers.slice(0, 2)
 
   const captureFilename = () => `orca-${item.name.replace(/\s+/g, '-')}.png`
 
-  const onSaveImage = async () => {
-    if (!captureRef.current || busy) return
-    setBusy('save')
-    try {
-      const blob = await captureAsPng(captureRef.current)
-      downloadBlob(blob, captureFilename())
-    } catch (e) {
-      alert(`画像の保存に失敗しました: ${errorMessage(e)}`)
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const onShareX = async () => {
-    if (!captureRef.current || busy) return
-    setBusy('share')
-    try {
-      const blob = await captureAsPng(captureRef.current)
-      const text = `${item.name}（by ${item.author}） #Orcaecho`
-      const file = new File([blob], captureFilename(), { type: 'image/png' })
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], text })
-      } else {
-        downloadBlob(blob, captureFilename())
-        const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
-        window.open(intent, '_blank', 'noopener,noreferrer')
+  // レイヤー切替 UI は「今見えているレイヤー」しか写さないので、共有・保存用の画像は
+  // 全レイヤーを画面外に一度だけ描画してからまとめてキャプチャする
+  useEffect(() => {
+    if (!captureMode) return
+    let cancelled = false
+    const mode = captureMode
+    void (async () => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      })
+      if (cancelled || !fullCaptureRef.current) return
+      try {
+        const blob = await captureAsPng(fullCaptureRef.current)
+        if (cancelled) return
+        if (mode === 'save') {
+          downloadBlob(blob, captureFilename())
+        } else {
+          const text = `${item.name}（by ${item.author}） #Orcaecho`
+          const file = new File([blob], captureFilename(), { type: 'image/png' })
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ files: [file], text })
+          } else {
+            downloadBlob(blob, captureFilename())
+            const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
+            window.open(intent, '_blank', 'noopener,noreferrer')
+          }
+        }
+      } catch (e) {
+        if (!cancelled && !(e instanceof DOMException && e.name === 'AbortError')) {
+          alert(mode === 'save'
+            ? `画像の保存に失敗しました: ${errorMessage(e)}`
+            : `シェアに失敗しました: ${errorMessage(e)}`)
+        }
+      } finally {
+        if (!cancelled) setCaptureMode(null)
       }
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return
-      alert(`シェアに失敗しました: ${errorMessage(e)}`)
-    } finally {
-      setBusy(null)
-    }
-  }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captureMode])
 
   return (
     <article className="relative border-b-[3px] border-[var(--color-ink)] p-3">
-      <div ref={captureRef} className="flex gap-3" style={{ background: 'var(--color-paper)' }}>
+      <div className="flex gap-3">
         <Avatar url={item.avatar_url} name={item.author} size={40} />
 
         <div className="min-w-0 flex-1">
@@ -500,6 +506,41 @@ function PostCard({
         </div>
       </div>
 
+      {captureMode && (
+        <div
+          ref={fullCaptureRef}
+          aria-hidden
+          className="fixed left-[-9999px] top-0 w-[520px]"
+          style={{ background: 'var(--color-paper)' }}
+        >
+          <div className="flex gap-3 p-3">
+            <Avatar url={item.avatar_url} name={item.author} size={40} />
+            <div className="min-w-0 flex-1">
+              <span className="truncate text-[0.85rem] font-black">{item.author}</span>
+              <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
+              {item.description && (
+                <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
+                  {item.description}
+                </p>
+              )}
+              <div className="mt-1.5">
+                <DeviceColors keymap={item.keymap} />
+              </div>
+            </div>
+          </div>
+          <div className="space-y-3 p-3 pt-0">
+            {item.keymap.layers.map((layer, i) => (
+              <div key={layer.id}>
+                <span className="nb-chip mb-1" style={{ background: LAYER_COLOR_HEX[layer.color] }}>
+                  L{layer.id} {layer.name}
+                </span>
+                <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={i} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -525,20 +566,20 @@ function PostCard({
         <button
           type="button"
           className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
-          disabled={busy !== null}
-          aria-label="画像を保存"
-          onClick={() => void onSaveImage()}
+          disabled={captureMode !== null}
+          aria-label="画像を保存（全レイヤー）"
+          onClick={() => setCaptureMode('save')}
         >
-          {busy === 'save' ? <Ring size={14} /> : '⬇'} 画像
+          {captureMode === 'save' ? <Ring size={14} /> : '⬇'} 画像
         </button>
         <button
           type="button"
           className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
-          disabled={busy !== null}
-          aria-label="Xでシェア"
-          onClick={() => void onShareX()}
+          disabled={captureMode !== null}
+          aria-label="Xでシェア（全レイヤー）"
+          onClick={() => setCaptureMode('share')}
         >
-          {busy === 'share' ? <Ring size={14} /> : '𝕏'} シェア
+          {captureMode === 'share' ? <Ring size={14} /> : '𝕏'} シェア
         </button>
         <span className="flex-1" />
         {canDelete && (
