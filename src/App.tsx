@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AppLogo } from './components/AppLogo'
 import { LoginModal } from './components/Auth/LoginModal'
 import { KeyboardView } from './components/Board/KeyboardView'
 import { ComboList } from './components/Combos/ComboList'
@@ -258,7 +259,8 @@ function Header({
       style={{ background: 'var(--color-bg)' }}
     >
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-3 gap-y-2 p-3">
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-center gap-2">
+          <AppLogo className="h-8 w-8 shrink-0" />
           <h1 className="text-[1.5rem] leading-none">ORCA MAP</h1>
           <span className="nb-eyebrow hidden sm:inline">KEYMAP STUDIO</span>
         </div>
