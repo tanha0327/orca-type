@@ -90,7 +90,7 @@ function LoginHero() {
       </div>
 
       <div className="relative z-10">
-        <p className="nb-eyebrow" style={{ color: 'var(--color-ink)', opacity: 0.7 }}>ORCA TYPE</p>
+        <p className="nb-eyebrow" style={{ color: 'var(--color-ink)', opacity: 0.7 }}>ORCA MAP</p>
         <h2 className="mt-2" style={{ fontSize: `min(2.6rem, ${(2.6 / HERO_INNER_REM) * 100}cqw)` }}>
           ようこそ
           <br />

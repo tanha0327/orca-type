@@ -311,7 +311,7 @@ export const useKeymapStore = create<EditorState>()(
       resetKeymap: () => set({ keymap: createDefaultKeymap(), selection: null, editingLayer: 0 }),
     }),
     {
-      name: 'orca-type/keymap',
+      name: 'orca-map/keymap',
       version: 2,
       migrate: (persisted, version) => {
         const state = persisted as Partial<
