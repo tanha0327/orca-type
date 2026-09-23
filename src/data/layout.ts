@@ -106,10 +106,10 @@ export const SENSORS: readonly SensorDef[] = [
     x: 6, y: 0.46, w: 1, h: 1.9,
   },
   {
-    // 実機のホイールは横向きに埋まっていて、左右に転がして回す
+    // 実機のホイールは横向きに埋まっていて、左右に転がして回す（見た目は気持ち縦長の正方形）
     id: 'enc-l', half: 'L', kind: 'encoder',
     name: '左ロータリーエンコーダー', short: 'ENC',
-    x: 5.9, y: 4.36, w: 1.05, h: 0.62,
+    x: 5.9, y: 4.36, w: 0.68, h: 0.78,
   },
   {
     id: 'pad-r', half: 'R', kind: 'pad',
