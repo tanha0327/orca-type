@@ -38,13 +38,15 @@ export function EncoderView({
   glyphs: Record<EncoderSlot, string>
   color?: BodyColor
   onSlot: (slot: EncoderSlot) => void
-  onSelect: (slot: EncoderSlot) => void
+  /** クリック（ドラッグせずに離した）で呼ぶ。rect は編集メニューを出す位置 */
+  onSelect: (slot: EncoderSlot, rect: DOMRect) => void
   interactive?: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const accum = useRef(0)
   const dragging = useRef(false)
   const lastX = useRef(0)
+  const dragDistance = useRef(0)
   const [spin, setSpin] = useState(0)
   const [, mid] = TRACKBALL_COLOR_GRADIENT[color]
   const knurlColor = TRACKBALL_COLOR_DARK[color] ? 'var(--color-paper)' : 'var(--color-ink)'
@@ -81,22 +83,34 @@ export function EncoderView({
     <div
       ref={rootRef}
       {...inertProps(interactive, '左ロータリーエンコーダー')}
-      title="左右ドラッグ／ホイールで回す・クリックで選択"
+      title="左右ドラッグ／ホイールで回す・クリックで割当を編集"
       className="absolute touch-none"
       style={{ ...place(def, geo), cursor: interactive ? 'ew-resize' : 'default', pointerEvents: interactive ? undefined : 'none' }}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture(e.pointerId)
         dragging.current = true
+        dragDistance.current = 0
         lastX.current = e.clientX
-        onSelect('cw')
       }}
       onPointerMove={(e) => {
         if (!dragging.current) return
-        feed(e.clientX - lastX.current)
+        const dx = e.clientX - lastX.current
+        dragDistance.current += Math.abs(dx)
+        feed(dx)
         lastX.current = e.clientX
       }}
-      onPointerUp={() => { dragging.current = false }}
+      onPointerUp={(e) => {
+        if (!dragging.current) return
+        dragging.current = false
+        // 回すためにドラッグしたときは編集メニューを出さない
+        if (dragDistance.current < 4) onSelect('cw', e.currentTarget.getBoundingClientRect())
+      }}
       onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect('cw', e.currentTarget.getBoundingClientRect())
+          return
+        }
         const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
         if (!dir) return
         // ← → はレイヤー切替のショートカットでもあるので、ホイールを操作中はそちらに流さない
@@ -158,7 +172,8 @@ export function PadView({
   glyphs: Record<PadSlot, string>
   color?: BodyColor
   onSlot: (slot: PadSlot) => void
-  onSelect: (slot: PadSlot) => void
+  /** rect は編集メニューを出す位置 */
+  onSelect: (slot: PadSlot, rect: DOMRect) => void
   interactive?: boolean
 }) {
   const start = useRef<{ x: number; y: number } | null>(null)
@@ -187,7 +202,7 @@ export function PadView({
   return (
     <div
       {...inertProps(interactive, `${label}（スワイプ）`)}
-      title="上下ドラッグでスワイプ・クリックでタップ"
+      title="上下ドラッグでスワイプ・クリックでタップ（割当の編集メニューも開く）"
       className="absolute touch-none"
       style={{ ...place(def, geo), pointerEvents: interactive ? undefined : 'none' }}
       onWheel={(e) => { e.preventDefault(); feedWheel(e.deltaY) }}
@@ -201,16 +216,17 @@ export function PadView({
         if (!s) return
         const dx = e.clientX - s.x
         const dy = e.clientY - s.y
+        const rect = e.currentTarget.getBoundingClientRect()
         if (Math.max(Math.abs(dx), Math.abs(dy)) >= 10) {
           // 横方向が主な動きなら（左右スワイプは実機にないので）何もしない
           if (Math.abs(dy) >= Math.abs(dx)) {
             const slot: PadSlot = dy > 0 ? 'down' : 'up'
-            onSelect(slot)
+            onSelect(slot, rect)
             fire(slot)
           }
           return
         }
-        onSelect('tap')
+        onSelect('tap', rect)
         fire('tap')
       }}
     >

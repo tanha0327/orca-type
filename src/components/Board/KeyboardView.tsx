@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import {
   halfExtent, KEYS, SENSORS, type Half, type KeyId,
@@ -11,7 +11,7 @@ import { engine, useEngineSnapshot } from '../../engine/useEngine'
 import { resolveKey } from '../../engine/resolve'
 import { sameTarget, useKeymapStore, type Selection } from '../../store/keymapStore'
 import { KeyCap, type CapTone } from './KeyCap'
-import { KeyMenu } from './KeyMenu'
+import { KeyMenu, type BoardMenuTarget } from './KeyMenu'
 import { BallView, EncoderView, PadView, sensorGlyph } from './Sensors'
 
 export interface KeyboardViewProps {
@@ -94,18 +94,29 @@ export function KeyboardView({
     return m
   }, [keymap.combos, viewLayer, comboPickId])
 
-  const [menuAnchor, setMenuAnchor] = useState<{ keyId: KeyId; rect: DOMRect } | null>(null)
+  const boardRef = useRef<HTMLDivElement>(null)
+  const [menu, setMenu] = useState<{ target: BoardMenuTarget; rect: DOMRect } | null>(null)
+  const canEdit = interactive && !isPreview
 
   const doSelect = (s: Selection) => {
-    if (!interactive || isPreview) return
+    if (!canEdit) return
     // コンボのキーを選んでいる最中は、クリックを「参加キーの追加／解除」に回す
     if (comboPickId && s.kind === 'key') {
       toggleComboKey(comboPickId, s.keyId)
       return
     }
-    if (s.kind !== 'key') setMenuAnchor(null)
     select(s)
   }
+
+  const openMenu = (target: BoardMenuTarget, rect: DOMRect) => {
+    if (canEdit && !comboPickId) setMenu({ target, rect })
+  }
+
+  // メニューを閉じたら選択も外し、他のキーのグレーアウトを戻す
+  const closeMenu = useCallback(() => {
+    setMenu(null)
+    select(null)
+  }, [select])
 
   const renderHalf = (half: Half) => {
     const ext = halfExtent(half)
@@ -168,9 +179,7 @@ export function KeyboardView({
               totalH={ext.h}
               onSelect={(e) => {
                 doSelect({ kind: 'key', keyId: k.id })
-                if (interactive && !isPreview && !comboPickId) {
-                  setMenuAnchor({ keyId: k.id, rect: e.currentTarget.getBoundingClientRect() })
-                }
+                openMenu({ kind: 'key', keyId: k.id }, e.currentTarget.getBoundingClientRect())
               }}
               onPulse={() => engine.pulse(k.id)}
             />
@@ -193,7 +202,10 @@ export function KeyboardView({
                 color={bodyColor}
                 interactive={interactive}
                 onSlot={(slot: EncoderSlot) => engine.encoder(slot)}
-                onSelect={(slot) => doSelect({ kind: 'encoder', slot })}
+                onSelect={(slot, rect) => {
+                  doSelect({ kind: 'encoder', slot })
+                  openMenu({ kind: 'sensor', sensor: 'enc-l' }, rect)
+                }}
               />
             )
           }
@@ -213,7 +225,10 @@ export function KeyboardView({
                 color={bodyColor}
                 interactive={interactive}
                 onSlot={(slot) => engine.pad(sensorId, slot)}
-                onSelect={(slot) => doSelect({ kind: 'pad', sensor: sensorId, slot })}
+                onSelect={(slot, rect) => {
+                  doSelect({ kind: 'pad', sensor: sensorId, slot })
+                  openMenu({ kind: 'sensor', sensor: sensorId }, rect)
+                }}
               />
             )
           }
@@ -226,7 +241,7 @@ export function KeyboardView({
               dpi={keymap.trackball.dpi}
               color={keymap.trackball.color ?? 'white'}
               interactive={interactive}
-              onSelect={() => doSelect({ kind: 'ball' })}
+              onSelect={() => { setMenu(null); doSelect({ kind: 'ball' }) }}
             />
           )
         })}
@@ -234,11 +249,29 @@ export function KeyboardView({
     )
   }
 
-  // 別の方法（リストからキーを選ぶ等）で選択が変わったり、コンボ選択中に入ったら、古い位置のメニューは出さない
-  const showMenu = !!menuAnchor
-    && !comboPickId
-    && selection?.kind === 'key'
-    && selection.keyId === menuAnchor.keyId
+  // 別の方法で選択が変わったり、コンボ選択中に入ったら、古い位置のメニューは出さない
+  const menuMatchesSelection = (() => {
+    if (!menu || !selection) return false
+    const t = menu.target
+    if (t.kind === 'key') return selection.kind === 'key' && selection.keyId === t.keyId
+    if (t.sensor === 'enc-l') return selection.kind === 'encoder'
+    return selection.kind === 'pad' && selection.sensor === t.sensor
+  })()
+  const showMenu = !!menu && !comboPickId && menuMatchesSelection
+
+  // 盤面の外や、キーのすき間を触ったら選択を外す（メニューが開いている間はメニュー側で閉じる）。
+  // コンボの編集中の選択はコンボ一覧のものなので触らない
+  const boardSelected = !!selection && selection.kind !== 'combo'
+  useEffect(() => {
+    if (!canEdit || comboPickId || !boardSelected || showMenu) return
+    const onPointerDown = (e: PointerEvent) => {
+      const el = e.target as Element | null
+      const onBoardItem = !!el && !!boardRef.current?.contains(el) && !!el.closest('button, [role="button"]')
+      if (!onBoardItem) select(null)
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => window.removeEventListener('pointerdown', onPointerDown, true)
+  }, [canEdit, comboPickId, boardSelected, showMenu, select])
 
   // このメニューが開いている間は、盤面の下の「1」等のレイヤー切替ショートカットを止める
   useEffect(() => {
@@ -247,11 +280,11 @@ export function KeyboardView({
   }, [showMenu, setKeyMenuOpen])
 
   return (
-    <div className={`flex w-full items-start ${compact ? 'gap-2' : 'gap-3 sm:gap-6'}`}>
+    <div ref={boardRef} className={`flex w-full items-start ${compact ? 'gap-2' : 'gap-3 sm:gap-6'}`}>
       <div className="min-w-0 flex-1">{renderHalf('L')}</div>
       <div className="min-w-0 flex-1">{renderHalf('R')}</div>
-      {showMenu && menuAnchor && (
-        <KeyMenu keyId={menuAnchor.keyId} anchorRect={menuAnchor.rect} onClose={() => setMenuAnchor(null)} />
+      {showMenu && menu && (
+        <KeyMenu target={menu.target} anchorRect={menu.rect} onClose={closeMenu} />
       )}
     </div>
   )
