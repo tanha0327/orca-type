@@ -1,13 +1,17 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import {
   halfExtent, KEYS, SENSORS, type Half, type KeyId,
 } from '../../data/layout'
-import { LAYER_COLOR_HEX, type EncoderSlot, type PadSlot } from '../../data/types'
+import {
+  DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_TEXT, LAYER_COLOR_HEX,
+  type EncoderSlot, type EscColor, type Keymap, type PadSlot,
+} from '../../data/types'
 import { engine, useEngineSnapshot } from '../../engine/useEngine'
 import { resolveKey } from '../../engine/resolve'
 import { sameTarget, useKeymapStore, type Selection } from '../../store/keymapStore'
-import { KeyCap } from './KeyCap'
+import { KeyCap, type CapTone } from './KeyCap'
+import { KeyMenu, type BoardMenuTarget } from './KeyMenu'
 import { BallView, EncoderView, PadView, sensorGlyph } from './Sensors'
 
 export interface KeyboardViewProps {
@@ -16,41 +20,86 @@ export interface KeyboardViewProps {
   /** 実機写真のように他レイヤーの印字を重ねる */
   subLegends?: boolean
   compact?: boolean
+  /**
+   * 指定すると、ストアの編集中の内容ではなく、このキーマップ・レイヤーを表示する
+   * （フィードの配列プレビューなど、他人のキーマップを覗き見るとき用）。
+   */
+  previewKeymap?: Keymap
+  previewLayer?: number
+  /** プレビュー時、他方のキーマップと割当が違うキーの ID 集合（比較モーダル用） */
+  diffKeys?: ReadonlySet<KeyId>
 }
 
-export function KeyboardView({ interactive = true, subLegends = false, compact = false }: KeyboardViewProps) {
-  const keymap = useKeymapStore((s) => s.keymap)
-  const editingLayer = useKeymapStore((s) => s.editingLayer)
-  const selection = useKeymapStore((s) => s.selection)
+/**
+ * esc キーキャップの色を、本体色の上での地色・文字色・縁の色にする。
+ * 縁は黒が基本。黒本体に黒い esc のときだけ、他のキーと同じ白い縁にそろえる
+ * （色付きのキーに白い縁を付けると、背景に溶けて輪郭が消える）。
+ */
+function escCapTone(esc: EscColor, dark: boolean): CapTone {
+  return {
+    face: ESC_COLOR_FACE[esc],
+    text: ESC_COLOR_TEXT[esc],
+    border: esc === 'black' && dark ? 'var(--color-paper)' : 'var(--color-ink)',
+  }
+}
+
+export function KeyboardView({
+  interactive = true, subLegends = false, compact = false, previewKeymap, previewLayer, diffKeys,
+}: KeyboardViewProps) {
+  const storeKeymap = useKeymapStore((s) => s.keymap)
+  const storeEditingLayer = useKeymapStore((s) => s.editingLayer)
+  const storeSelection = useKeymapStore((s) => s.selection)
   const select = useKeymapStore((s) => s.select)
-  const comboPickId = useKeymapStore((s) => s.comboPickId)
+  const storeComboPickId = useKeymapStore((s) => s.comboPickId)
   const toggleComboKey = useKeymapStore((s) => s.toggleComboKey)
+  const setKeyMenuOpen = useKeymapStore((s) => s.setKeyMenuOpen)
   const snap = useEngineSnapshot()
 
+  // プレビュー中は他人のキーマップを表示するので、いまの編集状態（選択・コンボ選択中・押下中）は一切持ち込まない
+  const isPreview = !!previewKeymap
+  const keymap = previewKeymap ?? storeKeymap
+  const editingLayer = previewLayer ?? storeEditingLayer
+  const selection = isPreview ? null : storeSelection
+  const comboPickId = isPreview ? null : storeComboPickId
+
   // 実際に入力を受けているときは、押下中に有効なレイヤーを映す
-  const viewLayer = snap.down.length > 0 ? snap.activeLayer : editingLayer
+  const viewLayer = !isPreview && snap.down.length > 0 ? snap.activeLayer : editingLayer
   const accent = LAYER_COLOR_HEX[keymap.layers[viewLayer]?.color ?? 'gray']
+  const bodyColor = keymap.settings.bodyColor ?? 'white'
+  const dark = bodyColor === 'black'
+  const escTone = escCapTone(keymap.settings.escColor ?? DEFAULT_ESC_COLOR, dark)
   const displayStack = useMemo(
     () => (viewLayer === 0 ? [0] : [0, viewLayer]),
     [viewLayer],
   )
 
   const pressByKey = useMemo(
-    () => new Map(snap.presses.map((p) => [p.keyId, p])),
-    [snap.presses],
+    () => (isPreview ? new Map() : new Map(snap.presses.map((p) => [p.keyId, p]))),
+    [snap.presses, isPreview],
   )
 
+  // 参加キーを選んでいる最中は、そのコンボのキーだけに印を絞る。
+  // 普通のときは、このレイヤーで有効なコンボ全部のキーに印をつける。
   const comboCount = useMemo(() => {
     const m = new Map<KeyId, number>()
+    if (comboPickId) {
+      const combo = keymap.combos.find((c) => c.id === comboPickId)
+      for (const k of combo?.keys ?? []) m.set(k, 1)
+      return m
+    }
     for (const c of keymap.combos) {
       if (!c.enabled || !c.layers.includes(viewLayer)) continue
       for (const k of c.keys) m.set(k, (m.get(k) ?? 0) + 1)
     }
     return m
-  }, [keymap.combos, viewLayer])
+  }, [keymap.combos, viewLayer, comboPickId])
+
+  const boardRef = useRef<HTMLDivElement>(null)
+  const [menu, setMenu] = useState<{ target: BoardMenuTarget; rect: DOMRect } | null>(null)
+  const canEdit = interactive && !isPreview
 
   const doSelect = (s: Selection) => {
-    if (!interactive) return
+    if (!canEdit) return
     // コンボのキーを選んでいる最中は、クリックを「参加キーの追加／解除」に回す
     if (comboPickId && s.kind === 'key') {
       toggleComboKey(comboPickId, s.keyId)
@@ -58,6 +107,16 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
     }
     select(s)
   }
+
+  const openMenu = (target: BoardMenuTarget, rect: DOMRect) => {
+    if (canEdit && !comboPickId) setMenu({ target, rect })
+  }
+
+  // メニューを閉じたら選択も外し、他のキーのグレーアウトを戻す
+  const closeMenu = useCallback(() => {
+    setMenu(null)
+    select(null)
+  }, [select])
 
   const renderHalf = (half: Half) => {
     const ext = halfExtent(half)
@@ -106,6 +165,11 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
                   ? (keymap.combos.find((c) => c.id === comboPickId)?.keys.includes(k.id) ?? false)
                   : sameTarget(selection, { kind: 'key', keyId: k.id })
               }
+              selectedTone={comboPickId ? 'var(--color-purple)' : undefined}
+              dimmed={interactive && !comboPickId && selection?.kind === 'key' && selection.keyId !== k.id}
+              diff={diffKeys?.has(k.id) ?? false}
+              dark={dark}
+              capTone={k.accent ? escTone : undefined}
               press={pressByKey.get(k.id)}
               comboCount={comboCount.get(k.id) ?? 0}
               accent={accent}
@@ -113,7 +177,10 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
               interactive={interactive}
               totalW={ext.w}
               totalH={ext.h}
-              onSelect={() => doSelect({ kind: 'key', keyId: k.id })}
+              onSelect={(e) => {
+                doSelect({ kind: 'key', keyId: k.id })
+                openMenu({ kind: 'key', keyId: k.id }, e.currentTarget.getBoundingClientRect())
+              }}
               onPulse={() => engine.pulse(k.id)}
             />
           )
@@ -131,11 +198,14 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
                 glyphs={{
                   cw: sensorGlyph(e?.cw.tap),
                   ccw: sensorGlyph(e?.ccw.tap),
-                  press: sensorGlyph(e?.press.tap),
                 }}
+                color={bodyColor}
                 interactive={interactive}
                 onSlot={(slot: EncoderSlot) => engine.encoder(slot)}
-                onSelect={(slot) => doSelect({ kind: 'encoder', slot })}
+                onSelect={(slot, rect) => {
+                  doSelect({ kind: 'encoder', slot })
+                  openMenu({ kind: 'sensor', sensor: 'enc-l' }, rect)
+                }}
               />
             )
           }
@@ -151,13 +221,14 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
                 selectedSlot={
                   selection?.kind === 'pad' && selection.sensor === sensorId ? selection.slot : null
                 }
-                glyphs={{
-                  up: g('up'), down: g('down'), left: g('left'), right: g('right'),
-                  tap: g('tap'), doubleTap: g('doubleTap'),
-                }}
+                glyphs={{ up: g('up'), down: g('down'), tap: g('tap') }}
+                color={bodyColor}
                 interactive={interactive}
                 onSlot={(slot) => engine.pad(sensorId, slot)}
-                onSelect={(slot) => doSelect({ kind: 'pad', sensor: sensorId, slot })}
+                onSelect={(slot, rect) => {
+                  doSelect({ kind: 'pad', sensor: sensorId, slot })
+                  openMenu({ kind: 'sensor', sensor: sensorId }, rect)
+                }}
               />
             )
           }
@@ -168,8 +239,9 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
               geo={{ totalW: ext.w, totalH: ext.h }}
               selected={selection?.kind === 'ball'}
               dpi={keymap.trackball.dpi}
+              color={keymap.trackball.color ?? 'white'}
               interactive={interactive}
-              onSelect={() => doSelect({ kind: 'ball' })}
+              onSelect={() => { setMenu(null); doSelect({ kind: 'ball' }) }}
             />
           )
         })}
@@ -177,10 +249,43 @@ export function KeyboardView({ interactive = true, subLegends = false, compact =
     )
   }
 
+  // 別の方法で選択が変わったり、コンボ選択中に入ったら、古い位置のメニューは出さない
+  const menuMatchesSelection = (() => {
+    if (!menu || !selection) return false
+    const t = menu.target
+    if (t.kind === 'key') return selection.kind === 'key' && selection.keyId === t.keyId
+    if (t.sensor === 'enc-l') return selection.kind === 'encoder'
+    return selection.kind === 'pad' && selection.sensor === t.sensor
+  })()
+  const showMenu = !!menu && !comboPickId && menuMatchesSelection
+
+  // 盤面の外や、キーのすき間を触ったら選択を外す（メニューが開いている間はメニュー側で閉じる）。
+  // コンボの編集中の選択はコンボ一覧のものなので触らない
+  const boardSelected = !!selection && selection.kind !== 'combo'
+  useEffect(() => {
+    if (!canEdit || comboPickId || !boardSelected || showMenu) return
+    const onPointerDown = (e: PointerEvent) => {
+      const el = e.target as Element | null
+      const onBoardItem = !!el && !!boardRef.current?.contains(el) && !!el.closest('button, [role="button"]')
+      if (!onBoardItem) select(null)
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => window.removeEventListener('pointerdown', onPointerDown, true)
+  }, [canEdit, comboPickId, boardSelected, showMenu, select])
+
+  // このメニューが開いている間は、盤面の下の「1」等のレイヤー切替ショートカットを止める
+  useEffect(() => {
+    setKeyMenuOpen(showMenu)
+    return () => setKeyMenuOpen(false)
+  }, [showMenu, setKeyMenuOpen])
+
   return (
-    <div className={`flex w-full items-start ${compact ? 'gap-2' : 'gap-3 sm:gap-6'}`}>
+    <div ref={boardRef} className={`flex w-full items-start ${compact ? 'gap-2' : 'gap-3 sm:gap-6'}`}>
       <div className="min-w-0 flex-1">{renderHalf('L')}</div>
       <div className="min-w-0 flex-1">{renderHalf('R')}</div>
+      {showMenu && menu && (
+        <KeyMenu target={menu.target} anchorRect={menu.rect} onClose={closeMenu} />
+      )}
     </div>
   )
 }

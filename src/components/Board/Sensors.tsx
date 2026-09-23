@@ -1,7 +1,10 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import type { SensorDef } from '../../data/layout'
-import type { EncoderSlot, PadSlot } from '../../data/types'
+import {
+  TRACKBALL_COLOR_DARK, TRACKBALL_COLOR_GRADIENT,
+  type BodyColor, type EncoderSlot, type PadSlot, type TrackballColor,
+} from '../../data/types'
 
 interface Geo { totalW: number; totalH: number }
 
@@ -23,24 +26,32 @@ function place(def: SensorDef, { totalW, totalH }: Geo) {
 
 /* ================================================================
    ロータリーエンコーダー（左）
-   ホイール操作・上下ドラッグで回転、クリックで押し込み。
+   実機は横向きのホイールなので、左右ドラッグ・横スクロール・← → で回す。
+   縦ホイールしかないマウスでも回せるよう、縦スクロールも受け付ける。
    ================================================================ */
 export function EncoderView({
-  def, geo, selected, glyphs, onSlot, onSelect, interactive = true,
+  def, geo, selected, glyphs, color = 'white', onSlot, onSelect, interactive = true,
 }: {
   def: SensorDef
   geo: Geo
   selected: boolean
   glyphs: Record<EncoderSlot, string>
+  color?: BodyColor
   onSlot: (slot: EncoderSlot) => void
-  onSelect: (slot: EncoderSlot) => void
+  /** クリック（ドラッグせずに離した）で呼ぶ。rect は編集メニューを出す位置 */
+  onSelect: (slot: EncoderSlot, rect: DOMRect) => void
   interactive?: boolean
 }) {
+  const rootRef = useRef<HTMLDivElement>(null)
   const accum = useRef(0)
   const dragging = useRef(false)
-  const lastY = useRef(0)
+  const lastX = useRef(0)
+  const dragDistance = useRef(0)
   const [spin, setSpin] = useState(0)
+  const [, mid] = TRACKBALL_COLOR_GRADIENT[color]
+  const knurlColor = TRACKBALL_COLOR_DARK[color] ? 'var(--color-paper)' : 'var(--color-ink)'
 
+  // 右へ回す = 時計回り (cw)、左へ回す = 反時計回り (ccw)
   const step = useCallback((dir: 1 | -1) => {
     setSpin((v) => v + dir * 18)
     onSlot(dir > 0 ? 'cw' : 'ccw')
@@ -55,28 +66,57 @@ export function EncoderView({
     }
   }, [step])
 
+  // React の onWheel は passive なので preventDefault が効かず、回すたびにページもスクロールしてしまう。
+  // ネイティブのリスナーを passive: false で付ける
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el || !interactive) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      feed(Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [feed, interactive])
+
   return (
     <div
+      ref={rootRef}
       {...inertProps(interactive, '左ロータリーエンコーダー')}
-      title="ホイール／上下ドラッグで回す・クリックで選択"
+      title="左右ドラッグ／ホイールで回す・クリックで割当を編集"
       className="absolute touch-none"
-      style={{ ...place(def, geo), cursor: interactive ? 'ns-resize' : 'default', pointerEvents: interactive ? undefined : 'none' }}
-      onWheel={(e) => { e.preventDefault(); feed(e.deltaY) }}
+      style={{ ...place(def, geo), cursor: interactive ? 'ew-resize' : 'default', pointerEvents: interactive ? undefined : 'none' }}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture(e.pointerId)
         dragging.current = true
-        lastY.current = e.clientY
-        onSelect('cw')
+        dragDistance.current = 0
+        lastX.current = e.clientX
       }}
       onPointerMove={(e) => {
         if (!dragging.current) return
-        feed(e.clientY - lastY.current)
-        lastY.current = e.clientY
+        const dx = e.clientX - lastX.current
+        dragDistance.current += Math.abs(dx)
+        feed(dx)
+        lastX.current = e.clientX
       }}
-      onPointerUp={() => { dragging.current = false }}
+      onPointerUp={(e) => {
+        if (!dragging.current) return
+        dragging.current = false
+        // 回すためにドラッグしたときは編集メニューを出さない
+        if (dragDistance.current < 4) onSelect('cw', e.currentTarget.getBoundingClientRect())
+      }}
       onKeyDown={(e) => {
-        if (e.key === 'ArrowUp') { e.preventDefault(); step(-1) }
-        if (e.key === 'ArrowDown') { e.preventDefault(); step(1) }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect('cw', e.currentTarget.getBoundingClientRect())
+          return
+        }
+        const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+        if (!dir) return
+        // ← → はレイヤー切替のショートカットでもあるので、ホイールを操作中はそちらに流さない
+        e.preventDefault()
+        e.stopPropagation()
+        step(dir)
       }}
     >
       <div
@@ -84,26 +124,32 @@ export function EncoderView({
         style={{
           border: `${selected ? 3.5 : 2.5}px solid var(--color-ink)`,
           borderRadius: 'clamp(4px, 1.2cqw, 9px)',
-          background: 'var(--color-ink)',
+          background: mid,
           boxShadow: '2px 2px 0 var(--color-ink)',
         }}
       >
-        {/* ローレット（刻み） */}
+        {/* ローレット（刻み）。横に転がるので刻みは縦線で、回すと左右に流れる */}
         <div
-          className="absolute inset-0"
+          className="absolute inset-y-0"
           style={{
+            left: '-5px',
+            right: '-5px',
             backgroundImage:
-              'repeating-linear-gradient(to bottom, var(--color-paper) 0 1.5px, transparent 1.5px 5px)',
-            transform: `translateY(${spin % 5}px)`,
+              `repeating-linear-gradient(to right, ${knurlColor} 0 1.5px, transparent 1.5px 5px)`,
+            transform: `translateX(${spin % 5}px)`,
             opacity: 0.75,
           }}
         />
-        <div className="absolute inset-x-0 top-0 h-[22%]" style={{ background: 'linear-gradient(#0000 0%, #0008 100%)' }} />
+        {/* 円筒の左右の端に影を落として、横向きのホイールに見せる */}
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(to right, #0007 0%, #0000 28%, #0000 72%, #0007 100%)' }}
+        />
       </div>
-      {/* 回転方向の割当を脇に出す */}
+      {/* 回転方向の割当を脇に出す（左に回す／右に回す の並び） */}
       <div
         className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-black"
-        style={{ top: '102%', fontSize: 'clamp(5px, 2cqw, 9px)' }}
+        style={{ top: '104%', fontSize: 'clamp(5px, 2cqw, 9px)' }}
       >
         <span style={{ color: 'var(--color-pink)' }}>↺{glyphs.ccw}</span>
         <span className="opacity-30"> / </span>
@@ -115,41 +161,39 @@ export function EncoderView({
 
 /* ================================================================
    スクロールパッド（左右）
-   スワイプ（ドラッグ / ホイール）とタップ・ダブルタップ。
+   上下ドラッグ／ホイールでスワイプ、クリックでタップ。
    ================================================================ */
 export function PadView({
-  def, geo, selectedSlot, glyphs, onSlot, onSelect, interactive = true,
+  def, geo, selectedSlot, glyphs, color = 'white', onSlot, onSelect, interactive = true,
 }: {
   def: SensorDef
   geo: Geo
   selectedSlot: PadSlot | null
   glyphs: Record<PadSlot, string>
+  color?: BodyColor
   onSlot: (slot: PadSlot) => void
-  onSelect: (slot: PadSlot) => void
+  /** rect は編集メニューを出す位置 */
+  onSelect: (slot: PadSlot, rect: DOMRect) => void
   interactive?: boolean
 }) {
-  const start = useRef<{ x: number; y: number; t: number } | null>(null)
-  const lastTap = useRef(0)
-  const accum = useRef({ x: 0, y: 0 })
+  const start = useRef<{ x: number; y: number } | null>(null)
+  const accum = useRef(0)
   const [flash, setFlash] = useState(0)
+  const [, mid] = TRACKBALL_COLOR_GRADIENT[color]
+  const dark = TRACKBALL_COLOR_DARK[color]
+  const dotColor = dark ? 'var(--color-paper)' : 'var(--color-ink)'
 
   const fire = (slot: PadSlot) => {
     setFlash((v) => v + 1)
     onSlot(slot)
   }
 
-  const feedWheel = (dx: number, dy: number) => {
-    accum.current.x += dx
-    accum.current.y += dy
-    while (Math.abs(accum.current.y) >= 40) {
-      const dir = accum.current.y > 0 ? 1 : -1
-      accum.current.y -= dir * 40
+  const feedWheel = (dy: number) => {
+    accum.current += dy
+    while (Math.abs(accum.current) >= 40) {
+      const dir = accum.current > 0 ? 1 : -1
+      accum.current -= dir * 40
       fire(dir > 0 ? 'down' : 'up')
-    }
-    while (Math.abs(accum.current.x) >= 40) {
-      const dir = accum.current.x > 0 ? 1 : -1
-      accum.current.x -= dir * 40
-      fire(dir > 0 ? 'right' : 'left')
     }
   }
 
@@ -158,13 +202,13 @@ export function PadView({
   return (
     <div
       {...inertProps(interactive, `${label}（スワイプ）`)}
-      title="ドラッグでスワイプ・クリックでタップ"
+      title="上下ドラッグでスワイプ・クリックでタップ（割当の編集メニューも開く）"
       className="absolute touch-none"
       style={{ ...place(def, geo), pointerEvents: interactive ? undefined : 'none' }}
-      onWheel={(e) => { e.preventDefault(); feedWheel(e.deltaX, e.deltaY) }}
+      onWheel={(e) => { e.preventDefault(); feedWheel(e.deltaY) }}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture(e.pointerId)
-        start.current = { x: e.clientX, y: e.clientY, t: performance.now() }
+        start.current = { x: e.clientX, y: e.clientY }
       }}
       onPointerUp={(e) => {
         const s = start.current
@@ -172,19 +216,18 @@ export function PadView({
         if (!s) return
         const dx = e.clientX - s.x
         const dy = e.clientY - s.y
+        const rect = e.currentTarget.getBoundingClientRect()
         if (Math.max(Math.abs(dx), Math.abs(dy)) >= 10) {
-          const slot: PadSlot = Math.abs(dx) > Math.abs(dy)
-            ? (dx > 0 ? 'right' : 'left')
-            : (dy > 0 ? 'down' : 'up')
-          onSelect(slot)
-          fire(slot)
+          // 横方向が主な動きなら（左右スワイプは実機にないので）何もしない
+          if (Math.abs(dy) >= Math.abs(dx)) {
+            const slot: PadSlot = dy > 0 ? 'down' : 'up'
+            onSelect(slot, rect)
+            fire(slot)
+          }
           return
         }
-        const now = performance.now()
-        const slot: PadSlot = now - lastTap.current < 260 ? 'doubleTap' : 'tap'
-        lastTap.current = now
-        onSelect(slot)
-        fire(slot)
+        onSelect('tap', rect)
+        fire('tap')
       }}
     >
       <div
@@ -193,7 +236,7 @@ export function PadView({
         style={{
           border: `${selectedSlot ? 3.5 : 2.5}px solid var(--color-ink)`,
           borderRadius: 'clamp(5px, 1.5cqw, 11px)',
-          background: 'var(--color-ink)',
+          background: mid,
           boxShadow: '2px 2px 0 var(--color-ink)',
           animation: flash ? 'orca-ring 420ms ease-out' : undefined,
         }}
@@ -202,33 +245,30 @@ export function PadView({
         <div
           className="absolute inset-[10%]"
           style={{
-            backgroundImage: 'radial-gradient(var(--color-paper) 38%, transparent 40%)',
+            backgroundImage: `radial-gradient(${dotColor} 38%, transparent 40%)`,
             backgroundSize: 'clamp(4px, 1.4cqw, 8px) clamp(4px, 1.4cqw, 8px)',
             opacity: 0.55,
           }}
         />
         {/* 割当の表示 */}
         <div className="absolute inset-0 flex flex-col items-center justify-between" style={{ padding: '6% 2%' }}>
-          <PadTag glyph={glyphs.up} active={selectedSlot === 'up'} />
-          <div className="flex w-full items-center justify-between">
-            <PadTag glyph={glyphs.left} active={selectedSlot === 'left'} />
-            <PadTag glyph={glyphs.right} active={selectedSlot === 'right'} />
-          </div>
-          <PadTag glyph={glyphs.down} active={selectedSlot === 'down'} />
+          <PadTag glyph={glyphs.up} active={selectedSlot === 'up'} dark={dark} />
+          <PadTag glyph={glyphs.tap} active={selectedSlot === 'tap'} dark={dark} />
+          <PadTag glyph={glyphs.down} active={selectedSlot === 'down'} dark={dark} />
         </div>
       </div>
     </div>
   )
 }
 
-function PadTag({ glyph, active }: { glyph: string; active: boolean }) {
+function PadTag({ glyph, active, dark }: { glyph: string; active: boolean; dark: boolean }) {
   if (!glyph) return <span style={{ fontSize: 'clamp(5px, 1.8cqw, 8px)' }} />
   return (
     <span
       className="whitespace-nowrap rounded-full px-[0.3em] font-black leading-tight"
       style={{
         fontSize: 'clamp(5px, 2.1cqw, 9px)',
-        color: active ? 'var(--color-ink)' : 'var(--color-paper)',
+        color: active ? 'var(--color-ink)' : dark ? 'var(--color-paper)' : 'var(--color-ink)',
         background: active ? 'var(--color-lime)' : 'transparent',
       }}
     >
@@ -241,17 +281,19 @@ function PadTag({ glyph, active }: { glyph: string; active: boolean }) {
    トラックボール（右・19mm）
    ================================================================ */
 export function BallView({
-  def, geo, selected, onSelect, dpi, interactive = true,
+  def, geo, selected, onSelect, dpi, color = 'white', interactive = true,
 }: {
   def: SensorDef
   geo: Geo
   selected: boolean
   onSelect: () => void
   dpi: number
+  color?: TrackballColor
   interactive?: boolean
 }) {
   const [nudge, setNudge] = useState({ x: 0, y: 0 })
   const dragging = useRef(false)
+  const [hi, mid, lo] = TRACKBALL_COLOR_GRADIENT[color]
 
   return (
     <div
@@ -277,7 +319,7 @@ export function BallView({
         className="relative h-full w-full rounded-full"
         style={{
           border: `${selected ? 3.5 : 2.5}px solid var(--color-ink)`,
-          background: 'radial-gradient(circle at 32% 28%, #ff8a9b 0%, #d21f3c 42%, #6d0f1f 100%)',
+          background: `radial-gradient(circle at 32% 28%, ${hi} 0%, ${mid} 42%, ${lo} 100%)`,
           boxShadow: selected ? '3px 3px 0 var(--color-ink)' : '2px 2px 0 var(--color-ink)',
           transform: `translate(${nudge.x}px, ${nudge.y}px)`,
         }}

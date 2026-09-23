@@ -10,6 +10,16 @@ export interface KeyCapProps {
   /** 下のレイヤーから落ちてきた（このレイヤーでは透過）割当か */
   inherited: boolean
   selected: boolean
+  /** 選択中の縁の色（既定は黒。コンボの参加キー選択中は紫にする） */
+  selectedTone?: string
+  /** 他のキーを選択中で、このキーは選択されていない（少しグレーを重ねて目立たなくする） */
+  dimmed?: boolean
+  /** 比較プレビューで、もう一方のキーマップとこのキーの割当が違う */
+  diff?: boolean
+  /** キーボード本体の色がブラックのとき true。キーキャップの地色と文字色を反転する */
+  dark?: boolean
+  /** 本体色とは別の色のキーキャップ（esc の交換用キーキャップなど）。未指定なら本体色に従う */
+  capTone?: CapTone
   press?: PressView
   comboCount: number
   /** 編集中レイヤーの色 */
@@ -20,12 +30,18 @@ export interface KeyCapProps {
   interactive?: boolean
   totalW: number
   totalH: number
-  onSelect: () => void
+  onSelect: (e: React.MouseEvent<HTMLElement>) => void
   onPulse: () => void
 }
 
+export interface CapTone {
+  face: string
+  text: string
+  border: string
+}
+
 export function KeyCap({
-  keyDef, binding, inherited, selected, press, comboCount, accent,
+  keyDef, binding, inherited, selected, selectedTone, dimmed, diff, dark, capTone, press, comboCount, accent,
   subLegends, interactive = true, totalW, totalH, onSelect, onPulse,
 }: KeyCapProps) {
   const kc = getKeycode(binding?.tap)
@@ -34,8 +50,23 @@ export function KeyCap({
   const isHeld = press?.state === 'hold'
   const awaiting = press?.awaitingHold ?? false
 
+  // 本体色に応じて、キーキャップの地色・縁・文字色を反転する
+  const faceDefault = capTone?.face ?? (dark ? 'var(--color-ink)' : 'var(--color-paper)')
+  const borderDefault = capTone?.border ?? (dark ? 'var(--color-paper)' : 'var(--color-ink)')
+  const textDefault = capTone?.text ?? (dark ? 'var(--color-paper)' : 'var(--color-ink)')
+  const selectedBorder = selectedTone ?? borderDefault
+  // esc のように本体と別色のキーキャップは、選択中も色を変えない（選択は太い縁と影で示す）
+  const selectedFace = capTone
+    ? capTone.face
+    : dark
+      ? 'color-mix(in srgb, var(--color-ink) 55%, #000)'
+      : 'color-mix(in srgb, var(--color-paper) 70%, #fff)'
+  const diffFace = dark
+    ? 'color-mix(in srgb, var(--color-pink) 28%, var(--color-ink))'
+    : 'color-mix(in srgb, var(--color-pink) 20%, var(--color-paper))'
+
   const label = kc.code === 'NONE' ? '' : kc.label || kc.code
-  // 文字数でフォントを落とす。MO2 のような 3 文字が折り返さないようにする
+  // 文字数でフォントを落とす。fn2 のような 3 文字が折り返さないようにする
   const mainFontSize =
     label.length <= 2 ? 'clamp(9px, 4.6cqw, 21px)'
       : label.length === 3 ? 'clamp(7px, 3.5cqw, 16px)'
@@ -46,7 +77,7 @@ export function KeyCap({
     ? {
         type: 'button' as const,
         'aria-label': `${keyDef.id} ${kc.name}`,
-        onClick: (e: React.MouseEvent) => { onSelect(); if (e.altKey) onPulse() },
+        onClick: (e: React.MouseEvent<HTMLElement>) => { onSelect(e); if (e.altKey) onPulse() },
         onDoubleClick: onPulse,
       }
     : { 'aria-hidden': true }
@@ -66,19 +97,25 @@ export function KeyCap({
       <span
         className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden"
         style={{
-          // HUD の中では周囲の文字色が paper なので、明示的に ink に戻す
-          // （キーキャップは常に明るい面なので、継承すると文字が消える）
-          color: 'var(--color-ink)',
-          border: `${selected ? 3.5 : 2.5}px solid var(--color-ink)`,
+          // HUD の中では周囲の文字色が paper なので、明示的に戻す
+          // （キーキャップは常に本体色の面なので、継承すると文字が消える）
+          color: textDefault,
+          border: `${selected ? 3.5 : diff ? 3 : 2.5}px solid ${
+            selected ? selectedBorder : diff ? 'var(--color-pink)' : borderDefault
+          }`,
           borderRadius: 'clamp(5px, 1.5cqw, 11px)',
           background: isDown
             ? accent
             : selected
-              ? 'color-mix(in srgb, var(--color-paper) 70%, #fff)'
-              : keyDef.accent
-                ? 'var(--color-orange)'
-                : 'var(--color-paper)',
-          boxShadow: isDown ? 'none' : `${selected ? 3 : 2}px ${selected ? 3 : 2}px 0 var(--color-ink)`,
+              ? selectedFace
+              : diff
+                ? diffFace
+                : faceDefault,
+          boxShadow: isDown
+            ? 'none'
+            : `${selected ? 3 : 2}px ${selected ? 3 : 2}px 0 ${
+              selected ? (selectedTone ?? 'var(--color-ink)') : diff ? 'var(--color-pink)' : 'var(--color-ink)'
+            }`,
           transform: isDown ? 'translate(2px, 2px)' : 'none',
           transition: 'transform 60ms ease, box-shadow 60ms ease, background 90ms ease',
           opacity: inherited && !isDown ? 0.5 : 1,
@@ -100,18 +137,21 @@ export function KeyCap({
           style={{
             fontSize: mainFontSize,
             letterSpacing: '-0.02em',
-            marginTop: hold || subLegends?.length ? '-6%' : 0,
+            marginTop: subLegends?.length ? '-6%' : 0,
           }}
         >
           {label}
         </span>
 
-        {/* 長押し（MOD-TAP）— キーキャップには現れない情報なので必ず出す */}
+        {/* 長押し（MOD-TAP）— キーキャップには現れない情報なので必ず出す。
+            重ね印字（JKL などの下側の赤／緑サブ表記）とかぶらないよう、キーキャップの上側に出す */}
         {hold && hold.code !== 'NONE' && (
           <span
             className="absolute font-black leading-none"
             style={{
-              bottom: '7%',
+              top: '6%',
+              left: '50%',
+              transform: 'translateX(-50%)',
               color: isDown ? 'var(--color-ink)' : 'var(--color-pink)',
               fontSize: 'clamp(6px, 2.4cqw, 11px)',
               opacity: isHeld ? 1 : 0.9,
@@ -121,8 +161,8 @@ export function KeyCap({
           </span>
         )}
 
-        {/* 他レイヤーの重ね印字（実機の赤／緑サブ印字の再現） */}
-        {!hold && subLegends && subLegends.length > 0 && (
+        {/* 他レイヤーの重ね印字（実機の赤／緑サブ印字の再現）。長押しがあっても消さない */}
+        {subLegends && subLegends.length > 0 && (
           <span
             className="absolute flex items-center gap-[0.35em] font-black leading-none"
             style={{ bottom: '7%', fontSize: 'clamp(5px, 2.2cqw, 10px)' }}
@@ -154,6 +194,18 @@ export function KeyCap({
             style={{
               background: 'var(--color-ink)',
               animation: `orca-term ${press.termMs}ms linear forwards`,
+            }}
+          />
+        )}
+
+        {/* 他のキーを選択中：このキーを少しグレーで覆って目立たなくする */}
+        {dimmed && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: 'color-mix(in srgb, var(--color-ink) 40%, transparent)',
+              transition: 'background 120ms ease',
             }}
           />
         )}

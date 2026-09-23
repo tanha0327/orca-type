@@ -192,6 +192,7 @@
   .nb-folder::before {
     content: "";
     position: absolute;
+    z-index: -1;
     top: -12px;
     left: 10px;
     width: 46%;
@@ -199,8 +200,29 @@
     height: 16px;
     background: var(--tab-color, var(--color-gray));
     border: 3px solid var(--color-ink);
-    border-bottom: none;
     border-radius: 8px 8px 0 0;
+  }
+
+  /* --- ログインのキースイッチ線画: キーを押している間ステムが沈む --- */
+  .ks-stem,
+  .ks-spring {
+    transform-box: view-box;
+    transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1);
+  }
+  [data-pressed="true"] .ks-stem {
+    transform: translateY(var(--ks-travel));
+    transition-duration: 40ms;
+  }
+  [data-pressed="true"] .ks-spring {
+    transform: scaleY(var(--ks-spring-scale));
+    transition-duration: 40ms;
+  }
+  /* 入力が始まるまでは、ときどき自分で2回タップして「押せる」ことを見せる */
+  [data-idle="true"] .ks-stem {
+    animation: ks-idle-stem 3.6s ease-in-out infinite;
+  }
+  [data-idle="true"] .ks-spring {
+    animation: ks-idle-spring 3.6s ease-in-out infinite;
   }
 }
 
@@ -210,6 +232,24 @@
     transition-duration: 1ms !important;
     animation-duration: 1ms !important;
   }
+  [data-pressed="true"] .ks-stem,
+  [data-pressed="true"] .ks-spring {
+    transform: none;
+  }
+  [data-idle="true"] .ks-stem,
+  [data-idle="true"] .ks-spring {
+    animation: none;
+  }
+}
+
+/* --- ログインのキースイッチ線画: 待機中のダブルタップ ------------ */
+@keyframes ks-idle-stem {
+  0%, 62%, 70%, 78%, 100% { transform: translateY(0); }
+  66%, 74% { transform: translateY(var(--ks-travel)); }
+}
+@keyframes ks-idle-spring {
+  0%, 62%, 70%, 78%, 100% { transform: scaleY(1); }
+  66%, 74% { transform: scaleY(var(--ks-spring-scale)); }
 }
 
 /* --- キー押下時の「長押し判定まで」の進行バー -------------------- */
@@ -235,4 +275,9 @@
 @keyframes orca-ring {
   0%   { box-shadow: 0 0 0 0 var(--color-ink); opacity: 1; }
   100% { box-shadow: 0 0 0 14px transparent; opacity: 0; }
+}
+
+/* --- 読み込み中スピナーの回転 ------------------------------------ */
+@keyframes orca-spin {
+  to { transform: rotate(360deg); }
 }

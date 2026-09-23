@@ -81,7 +81,7 @@ function layerBlock(layer: Layer, keymap: Keymap): string {
 
   const padComment = (name: string, cfg: Layer['padL']) =>
     `            /* ${name}: ↑${getKeycode(cfg.up.tap).code}  ↓${getKeycode(cfg.down.tap).code}` +
-    `  ←${getKeycode(cfg.left.tap).code}  →${getKeycode(cfg.right.tap).code} */`
+    `  タップ${getKeycode(cfg.tap.tap).code} */`
 
   const id = layer.id
   const slug = layer.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `layer_${id}`

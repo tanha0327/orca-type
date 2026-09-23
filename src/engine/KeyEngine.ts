@@ -9,12 +9,11 @@ import {
   type SensorSlot,
 } from './resolve'
 
-export type OutputKind = 'tap' | 'hold' | 'double' | 'combo' | 'encoder' | 'pad' | 'layer'
+export type OutputKind = 'tap' | 'hold' | 'combo' | 'encoder' | 'pad' | 'layer'
 
 export const OUTPUT_KIND_LABEL: Record<OutputKind, string> = {
   tap: '単押し',
   hold: '長押し',
-  double: 'ダブルタップ',
   combo: 'コンボ',
   encoder: 'エンコーダー',
   pad: 'スワイプ',
@@ -98,7 +97,6 @@ export class KeyEngine {
   private pressed = new Map<KeyId, Press>()
   private momentary: number[] = []
   private toggled: number[] = []
-  private lastRelease = new Map<KeyId, number>()
   private log: OutputEvent[] = []
   private last?: OutputEvent
   private combo?: ComboFlash
@@ -151,15 +149,6 @@ export class KeyEngine {
       }
     }
 
-    // ダブルタップ
-    const prevRelease = this.lastRelease.get(keyId)
-    if (binding.doubleTap && prevRelease !== undefined && now - prevRelease <= this.keymap.settings.doubleTapMs) {
-      press.state = 'consumed'
-      this.emitOutput('double', binding.doubleTap, this.sourceOfKey(keyId), layerId)
-      this.publish()
-      return
-    }
-
     const candidates = activeCombos(this.keymap, stack).filter((c) => c.keys.includes(keyId))
     if (candidates.length > 0) {
       press.state = 'combo-wait'
@@ -182,7 +171,6 @@ export class KeyEngine {
   keyUp(keyId: KeyId) {
     const press = this.pressed.get(keyId)
     if (!press) return
-    const now = performance.now()
 
     // バランス型のキーは、別のキーが押されて離された時点で長押しに倒す
     for (const other of this.pressed.values()) {
@@ -204,11 +192,10 @@ export class KeyEngine {
 
     this.releaseEffects(press)
     this.pressed.delete(keyId)
-    this.lastRelease.set(keyId, now)
     this.publish()
   }
 
-  /** ロータリーエンコーダーの回転・押し込み */
+  /** ロータリーエンコーダーの回転 */
   encoder(slot: EncoderSlot) {
     this.fireSensor('enc-l', slot, 'encoder')
   }
@@ -229,7 +216,6 @@ export class KeyEngine {
     this.pressed.clear()
     this.momentary = []
     this.toggled = []
-    this.lastRelease.clear()
     this.log = []
     this.last = undefined
     this.combo = undefined
@@ -419,8 +405,7 @@ export class KeyEngine {
   private sourceOfSensor(sensor: SensorId, slot: SensorSlot): string {
     const head = sensor === 'enc-l' ? 'ENC' : sensor === 'pad-l' ? 'PAD L' : 'PAD R'
     const glyphs: Record<string, string> = {
-      cw: '↻', ccw: '↺', press: '⊙',
-      up: '↑', down: '↓', left: '←', right: '→', tap: '·', doubleTap: '··',
+      cw: '↻', ccw: '↺', up: '↑', down: '↓', tap: '·',
     }
     return `${head} ${glyphs[slot] ?? slot}`
   }

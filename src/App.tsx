@@ -1,20 +1,31 @@
 import { useEffect, useState } from 'react'
+import { LoginModal } from './components/Auth/LoginModal'
 import { KeyboardView } from './components/Board/KeyboardView'
 import { ComboList } from './components/Combos/ComboList'
 import { ExportView } from './components/Export/ExportView'
-import { GestureView } from './components/Gestures/GestureView'
+import { FeedView } from './components/Feed/FeedView'
 import { Hud } from './components/Hud/Hud'
-import { Inspector } from './components/Inspector/Inspector'
 import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
-import { engine, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
+import { CODE_TO_KEY } from './data/layout'
+import {
+  BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_LABEL, ESC_COLORS,
+  TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS,
+  type BodyColor, type EscColor, type TrackballColor,
+} from './data/types'
+import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { authEnabled, profileFromUser, signOut } from './lib/auth'
+import { useAuthStore } from './store/authStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
+import { useProfileStore } from './store/profileStore'
+
+const BODY_COLORS: BodyColor[] = ['white', 'black']
 
 const VIEWS: { id: ViewId; label: string }[] = [
-  { id: 'board', label: '盤面' },
-  { id: 'combos', label: 'コンボ' },
-  { id: 'gestures', label: 'ジェスチャー' },
+  { id: 'edit', label: '編集' },
+  { id: 'feed', label: 'みんなの配列' },
   { id: 'export', label: '書き出し' },
 ]
 
@@ -25,12 +36,64 @@ export function App() {
   const setCapture = useKeymapStore((s) => s.setCapture)
   const comboPickId = useKeymapStore((s) => s.comboPickId)
   const setComboPick = useKeymapStore((s) => s.setComboPick)
-  const [subLegends, setSubLegends] = useState(true)
+  const toggleComboKey = useKeymapStore((s) => s.toggleComboKey)
+  const bodyColor = useKeymapStore((s) => s.keymap.settings.bodyColor) ?? 'white'
+  const escColor = useKeymapStore((s) => s.keymap.settings.escColor) ?? DEFAULT_ESC_COLOR
+  const ballColor = useKeymapStore((s) => s.keymap.trackball.color) ?? 'white'
+  const setTrackball = useKeymapStore((s) => s.setTrackball)
+  const setSettings = useKeymapStore((s) => s.setSettings)
+  const [subLegends, setSubLegends] = useState(false)
+  const initAuth = useAuthStore((s) => s.init)
+  const user = useAuthStore((s) => s.user)
+  const loadProfile = useProfileStore((s) => s.load)
+  const resetProfile = useProfileStore((s) => s.reset)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
   useKeyCapture(typeof document !== 'undefined' ? document : null)
   useResetOnCaptureOff()
+
+  useEffect(() => { initAuth() }, [initAuth])
+
+  // ログインしたら、そのユーザーのプロフィール（表示名・アイコン）を読み込む。
+  // 行がまだ無ければ初回サインイン扱いで、編集モーダルが自動で開く。
+  useEffect(() => {
+    if (user) void loadProfile(user)
+    else resetProfile()
+  }, [user, loadProfile, resetProfile])
+
+  // コンボの参加キーを選んでいる間は、手元のキーボードのキーでも盤面のキーを追加／解除できる
+  useEffect(() => {
+    if (!comboPickId) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || isTypingTarget(e.target)) return
+      const keyId = CODE_TO_KEY[e.code]
+      if (!keyId) return
+      e.preventDefault()
+      toggleComboKey(comboPickId, keyId)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [comboPickId, toggleComboKey])
+
+  // 編集画面では ← → と数字キーで編集中のレイヤーを切り替えられる
+  // （入力キャプチャ中は数字キーが M1〜M3 の打鍵テストと被るので、キャプチャ OFF のときだけ）
+  useEffect(() => {
+    if (view !== 'edit' || capture || comboPickId) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || isTypingTarget(e.target)) return
+      const { editingLayer, keymap, setEditingLayer, keyMenuOpen } = useKeymapStore.getState()
+      // キーのクイック編集メニューを開いている間は、数字キーを編集内容の入力に使うのでレイヤー切替はしない
+      if (keyMenuOpen) return
+      const layerCount = keymap.layers.length
+      if (e.key === 'ArrowRight') { setEditingLayer((editingLayer + 1) % layerCount); return }
+      if (e.key === 'ArrowLeft') { setEditingLayer((editingLayer - 1 + layerCount) % layerCount); return }
+      const n = Number(e.key)
+      if (Number.isInteger(n) && n >= 0 && n < layerCount) setEditingLayer(n)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view, capture, comboPickId])
 
   // PiP を開いたら自動でキャプチャを入れる（HUD が空だと意味がないので）
   useEffect(() => { if (pip.win && !capture) setCapture(true) }, [pip.win, capture, setCapture])
@@ -62,7 +125,7 @@ export function App() {
             style={{ background: 'var(--color-purple)' }}
           >
             <span className="text-[0.82rem] font-black">
-              コンボに入れるキーを、盤面でクリックしてください
+              コンボに入れるキーを、盤面でクリックするか、手元のキーボードで押してください
             </span>
             <span className="flex-1" />
             <button type="button" className="nb-btn !py-1.5 text-[0.78rem]" onClick={() => setComboPick(null)}>
@@ -74,38 +137,78 @@ export function App() {
 
       <main className="mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-4">
-          <section className="nb nb-lg p-4">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-              <div className="min-w-0">
-                <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
-                <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
-                  キーをクリックで選択・ダブルクリックで試し打ち。
-                  ホイールとパッドはドラッグ／スクロールで動かせます。
-                </p>
-              </div>
-              <button
-                type="button"
-                className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
-                data-active={subLegends}
-                onClick={() => setSubLegends((v) => !v)}
-              >
-                重ね印字
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <div className="min-w-[520px]">
-                <KeyboardView subLegends={subLegends} />
-              </div>
-            </div>
-            <Legend />
-          </section>
+          {view === 'edit' && (
+            <>
+              <section className="nb nb-lg p-4">
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                  <div className="min-w-0">
+                    <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
+                    <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
+                      キー・ホイール・パッドはクリックで割当を編集、キーはダブルクリックで試し打ち。
+                      ホイールとパッドはドラッグ／スクロールでも試せます。
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
+                    <div className="flex items-center gap-1" role="group" aria-label="キーボード本体の色">
+                      <span className="nb-eyebrow mr-0.5">本体</span>
+                      {BODY_COLORS.map((c) => (
+                        <RoundSwatch
+                          key={c}
+                          color={c}
+                          title={`本体色: ${BODY_COLOR_LABEL[c]}`}
+                          ariaLabel={`本体色を${BODY_COLOR_LABEL[c]}にする`}
+                          active={bodyColor === c}
+                          onClick={() => setSettings({ bodyColor: c })}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1" role="group" aria-label="esc キーキャップの色">
+                      <span className="nb-eyebrow mr-0.5">ESC</span>
+                      {ESC_COLORS.map((c) => (
+                        <EscColorSwatch
+                          key={c}
+                          color={c}
+                          active={escColor === c}
+                          onClick={() => setSettings({ escColor: c })}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1" role="group" aria-label="トラックボールの色">
+                      <span className="nb-eyebrow mr-0.5">BALL</span>
+                      {TRACKBALL_COLORS.map((c) => (
+                        <RoundSwatch
+                          key={c}
+                          color={c}
+                          title={`トラックボール: ${TRACKBALL_COLOR_LABEL[c]}`}
+                          ariaLabel={`トラックボールを${TRACKBALL_COLOR_LABEL[c]}にする`}
+                          active={ballColor === c}
+                          onClick={() => setTrackball({ color: c })}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
+                      data-active={subLegends}
+                      onClick={() => setSubLegends((v) => !v)}
+                    >
+                      重ね印字
+                    </button>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <div className="min-w-[520px]">
+                    <KeyboardView subLegends={subLegends} />
+                  </div>
+                </div>
+                <Legend />
+              </section>
 
-          <LayerBar />
-
-          {view === 'combos' && <ComboList />}
-          {view === 'gestures' && <GestureView />}
+              <ComboList />
+            </>
+          )}
+          {view === 'feed' && <FeedView />}
           {view === 'export' && <ExportView />}
-          {view === 'board' && <HowTo />}
         </div>
 
         <aside className="min-w-0">
@@ -113,8 +216,8 @@ export function App() {
             <div className="nb nb-lg min-h-[22rem] overflow-hidden lg:min-h-0 lg:flex-[1.15]">
               {pip.win ? <PipPlaceholder onClose={pip.close} /> : <Hud />}
             </div>
-            <div className="min-h-[20rem] lg:min-h-0 lg:flex-1">
-              <Inspector />
+            <div className="min-h-0 lg:flex-1 lg:overflow-y-auto">
+              <LayerBar />
             </div>
           </div>
         </aside>
@@ -123,6 +226,9 @@ export function App() {
       <PipPortal win={pip.win}>
         <Hud variant="pip" />
       </PipPortal>
+
+      <LoginModal />
+      <ProfileSetupModal />
 
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
@@ -173,6 +279,8 @@ function Header({
 
         <span className="flex-1" />
 
+        <AuthButton />
+
         <button
           type="button"
           className="nb-btn !py-2 text-[0.82rem]"
@@ -202,6 +310,56 @@ function Header({
   )
 }
 
+function AuthButton() {
+  const user = useAuthStore((s) => s.user)
+  const initializing = useAuthStore((s) => s.initializing)
+  const openLoginModal = useAuthStore((s) => s.openLoginModal)
+  const profile = useProfileStore((s) => s.profile)
+  const openProfileEditor = useProfileStore((s) => s.openEditor)
+
+  if (!authEnabled() || initializing) return null
+
+  if (!user) {
+    return (
+      <button type="button" className="nb-btn !py-2 text-[0.82rem]" onClick={openLoginModal}>
+        ログイン
+      </button>
+    )
+  }
+
+  const fallback = profileFromUser(user)
+  const name = profile?.name ?? fallback.name
+  const avatarUrl = profile?.avatarUrl ?? fallback.avatarUrl
+
+  return (
+    <div className="nb flex items-center gap-2 !py-1 !px-2">
+      <button
+        type="button"
+        className="flex min-w-0 items-center gap-2"
+        title="プロフィールを編集"
+        onClick={openProfileEditor}
+      >
+        {avatarUrl
+          ? <img src={avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full" style={{ border: '2px solid var(--color-ink)' }} />
+          : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-black" style={{ background: 'var(--color-lime)', border: '2px solid var(--color-ink)' }}>{name.slice(0, 1)}</span>}
+        <span className="max-w-[8rem] truncate text-[0.78rem] font-bold">{name}</span>
+      </button>
+      <button
+        type="button"
+        className="nb-btn !py-1 !px-2 text-[0.72rem]"
+        title="プロフィールを編集"
+        aria-label="プロフィールを編集"
+        onClick={openProfileEditor}
+      >
+        ✎ 編集
+      </button>
+      <button type="button" className="nb-btn !py-1 !px-2 text-[0.72rem]" onClick={() => void signOut()}>
+        ログアウト
+      </button>
+    </div>
+  )
+}
+
 function PipPlaceholder({ onClose }: { onClose: () => void }) {
   return (
     <div
@@ -221,11 +379,65 @@ function PipPlaceholder({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** 本体色・トラックボールの色。実機写真から採った球の陰影で見せる */
+function RoundSwatch({
+  color, title, ariaLabel, active, onClick,
+}: {
+  color: TrackballColor
+  title: string
+  ariaLabel: string
+  active: boolean
+  onClick: () => void
+}) {
+  const [hi, mid, lo] = TRACKBALL_COLOR_GRADIENT[color]
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      onClick={onClick}
+      className="block h-6 w-6 rounded-full"
+      style={{
+        background: `radial-gradient(circle at 32% 28%, ${hi} 0%, ${mid} 42%, ${lo} 100%)`,
+        border: `${active ? 3 : 2}px solid var(--color-ink)`,
+        boxShadow: active ? '2px 2px 0 var(--color-ink)' : '1px 1px 0 var(--color-ink)',
+        transform: active ? 'translate(-1px, -1px)' : undefined,
+      }}
+    />
+  )
+}
+
+/** esc の交換用キーキャップの色。キーキャップらしく角丸の四角で見せる */
+function EscColorSwatch({
+  color, active, onClick,
+}: {
+  color: EscColor
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      title={`esc キーキャップ: ${ESC_COLOR_LABEL[color]}`}
+      aria-label={`esc キーキャップを${ESC_COLOR_LABEL[color]}にする`}
+      aria-pressed={active}
+      onClick={onClick}
+      className="block h-6 w-6 rounded-[6px]"
+      style={{
+        background: ESC_COLOR_FACE[color],
+        border: `${active ? 3 : 2}px solid var(--color-ink)`,
+        boxShadow: active ? '2px 2px 0 var(--color-ink)' : '1px 1px 0 var(--color-ink)',
+        transform: active ? 'translate(-1px, -1px)' : undefined,
+      }}
+    />
+  )
+}
+
 function Legend() {
   const items: [string, string][] = [
     ['var(--color-pink)', '長押し（MOD-TAP）の出力'],
     ['var(--color-purple)', 'コンボに参加しているキー'],
-    ['var(--color-orange)', 'アクセントキーキャップ'],
   ]
   return (
     <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
@@ -239,51 +451,5 @@ function Legend() {
         </li>
       ))}
     </ul>
-  )
-}
-
-function HowTo() {
-  const setCapture = useKeymapStore((s) => s.setCapture)
-  const capture = useKeymapStore((s) => s.captureEnabled)
-  const steps: [string, string][] = [
-    ['1', '盤面のキーをクリックして、右のインスペクタで単押しと長押しを決めます。'],
-    ['2', '「入力キャプチャ ON」で、手元のキーボードの打鍵を Orca echo の配列として読み替えます。'],
-    ['3', 'HUD に「いま何が出力されたか」「単押しか長押しか」が常に表示されます。'],
-    ['4', 'PiP で常時表示すれば、他のアプリを使いながらでも確認できます。'],
-  ]
-  return (
-    <section className="nb nb-lg p-4">
-      <h2 className="text-[1.35rem]">使い方</h2>
-      <ol className="mt-3 space-y-2">
-        {steps.map(([n, text]) => (
-          <li key={n} className="flex items-start gap-2.5">
-            <span
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] font-mono text-[0.85rem] font-black"
-              style={{ background: 'var(--color-lime)', border: '3px solid var(--color-ink)' }}
-            >
-              {n}
-            </span>
-            <span className="pt-1 text-[0.82rem] font-bold leading-relaxed">{text}</span>
-          </li>
-        ))}
-      </ol>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="nb-btn !py-2 text-[0.82rem]"
-          style={{ background: capture ? 'var(--color-lime)' : 'var(--color-paper)' }}
-          onClick={() => setCapture(!capture)}
-        >
-          入力キャプチャを {capture ? 'OFF にする' : 'ON にする'}
-        </button>
-        <button type="button" className="nb-btn !py-2 text-[0.82rem]" onClick={() => engine.clearLog()}>
-          HUD のログを消す
-        </button>
-      </div>
-      <p className="mt-3 text-[0.72rem] font-bold leading-relaxed opacity-60">
-        キャプチャ中は、ブラウザのショートカットを除くほとんどのキーがこのページに取り込まれます。
-        文字を入力したいときは OFF に戻してください。
-      </p>
-    </section>
   )
 }

@@ -1,3 +1,6 @@
+import {
+  TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS, type TrackballColor,
+} from '../../data/types'
 import { useKeymapStore } from '../../store/keymapStore'
 
 export function TrackballPanel() {
@@ -5,7 +8,7 @@ export function TrackballPanel() {
   const setTrackball = useKeymapStore((s) => s.setTrackball)
 
   return (
-    <div className="nb nb-lg flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="nb nb-lg overflow-hidden">
       <header
         className="border-b-[3px] border-[var(--color-ink)] p-3"
         style={{ background: 'linear-gradient(100deg, #ff8a9b, #d21f3c)' }}
@@ -17,7 +20,24 @@ export function TrackballPanel() {
         </p>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <div className="space-y-4 p-3">
+        <div>
+          <span className="nb-eyebrow">ボールの色</span>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {TRACKBALL_COLORS.map((c) => (
+              <ColorSwatch
+                key={c}
+                color={c}
+                active={(ball.color ?? 'white') === c}
+                onClick={() => setTrackball({ color: c })}
+              />
+            ))}
+          </div>
+          <p className="mt-1.5 text-[0.68rem] font-bold leading-relaxed opacity-60">
+            実機で交換できるボールの色に合わせた見た目のみの設定です。動作は変わりません。
+          </p>
+        </div>
+
         <Slider
           label="DPI（ポインタ速度）" value={ball.dpi} min={200} max={3200} step={100}
           unit="dpi" onChange={(v) => setTrackball({ dpi: v })}
@@ -83,6 +103,35 @@ function Toggle({ label, on, onToggle }: { label: string; on: boolean; onToggle:
   return (
     <button type="button" className="nb-btn flex-1 !py-2 text-[0.8rem]" data-active={on} onClick={onToggle}>
       {on ? '☑' : '☐'} {label}
+    </button>
+  )
+}
+
+function ColorSwatch({
+  color, active, onClick,
+}: {
+  color: TrackballColor
+  active: boolean
+  onClick: () => void
+}) {
+  const [hi, mid, lo] = TRACKBALL_COLOR_GRADIENT[color]
+  return (
+    <button
+      type="button"
+      className="flex flex-col items-center gap-1"
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      <span
+        className="block h-8 w-8 rounded-full"
+        style={{
+          background: `radial-gradient(circle at 32% 28%, ${hi} 0%, ${mid} 42%, ${lo} 100%)`,
+          border: `${active ? 3.5 : 2.5}px solid var(--color-ink)`,
+          boxShadow: active ? '3px 3px 0 var(--color-ink)' : '2px 2px 0 var(--color-ink)',
+          transform: active ? 'translate(-1px, -1px)' : undefined,
+        }}
+      />
+      <span className="text-[0.62rem] font-black opacity-70">{TRACKBALL_COLOR_LABEL[color]}</span>
     </button>
   )
 }

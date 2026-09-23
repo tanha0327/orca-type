@@ -23,42 +23,68 @@ export const FLAVOR_HELP: Record<Flavor, string> = {
 export interface Binding {
   tap: Keycode
   hold?: Keycode
-  doubleTap?: Keycode
   /** 未設定なら keymap.settings.tappingTermMs を使う */
   tappingTermMs?: number
   flavor?: Flavor
 }
 
-export type SwipeDir = 'up' | 'down' | 'left' | 'right'
-export type PadSlot = SwipeDir | 'tap' | 'doubleTap'
-export type EncoderSlot = 'cw' | 'ccw' | 'press'
+export type PadSlot = 'up' | 'down' | 'tap'
+export type EncoderSlot = 'cw' | 'ccw'
 
-export const PAD_SLOTS: PadSlot[] = ['up', 'down', 'left', 'right', 'tap', 'doubleTap']
-export const ENCODER_SLOTS: EncoderSlot[] = ['cw', 'ccw', 'press']
+export const PAD_SLOTS: PadSlot[] = ['up', 'down', 'tap']
+export const ENCODER_SLOTS: EncoderSlot[] = ['cw', 'ccw']
 
 export const PAD_SLOT_LABEL: Record<PadSlot, string> = {
   up: '上スワイプ',
   down: '下スワイプ',
-  left: '左スワイプ',
-  right: '右スワイプ',
   tap: 'タップ',
-  doubleTap: 'ダブルタップ',
 }
 export const PAD_SLOT_GLYPH: Record<PadSlot, string> = {
-  up: '↑', down: '↓', left: '←', right: '→', tap: '·', doubleTap: '··',
+  up: '↑', down: '↓', tap: '·',
 }
 
 export const ENCODER_SLOT_LABEL: Record<EncoderSlot, string> = {
   cw: '右回し（時計回り）',
   ccw: '左回し（反時計回り）',
-  press: '押し込み',
 }
 export const ENCODER_SLOT_GLYPH: Record<EncoderSlot, string> = {
-  cw: '↻', ccw: '↺', press: '⊙',
+  cw: '↻', ccw: '↺',
 }
 
 export type PadConfig = Record<PadSlot, Binding>
 export type EncoderConfig = Record<EncoderSlot, Binding>
+
+/** 実機で選べる 19mm トラックボール／スクロールパッドの色（交換パーツ、セットで揃う） */
+export type TrackballColor = 'white' | 'black' | 'red' | 'blue' | 'yellow'
+
+export const TRACKBALL_COLORS: TrackballColor[] = ['white', 'black', 'red', 'blue', 'yellow']
+
+export const TRACKBALL_COLOR_LABEL: Record<TrackballColor, string> = {
+  white: 'ホワイト',
+  black: 'ブラック',
+  red: 'レッド',
+  blue: 'ブルー',
+  yellow: 'イエロー',
+}
+
+/** ボール描画用のグラデーション色（ハイライト → 中間 → 影）。実機写真の実際の色味から採取。
+    スクロールパッドの地色にも同じトーンを流用する */
+export const TRACKBALL_COLOR_GRADIENT: Record<TrackballColor, [string, string, string]> = {
+  white: ['#ffffff', '#f2f1ee', '#d8d7d2'],
+  black: ['#8f8f90', '#3a3a3c', '#0c0c0d'],
+  red: ['#8a3934', '#5c1414', '#260404'],
+  blue: ['#ccd6dd', '#7f93a2', '#3d4c58'],
+  yellow: ['#f2e9d2', '#d6bb6c', '#8a7137'],
+}
+
+/** その色の地の上で、文字やドットを明るい色(paper)にすべきか暗い色(ink)にすべきか */
+export const TRACKBALL_COLOR_DARK: Record<TrackballColor, boolean> = {
+  white: false,
+  black: true,
+  red: true,
+  blue: false,
+  yellow: false,
+}
 
 /** トラックボールはデバイス設定なのでレイヤーではなくキーマップ全体で 1 つ持つ */
 export interface TrackballConfig {
@@ -71,6 +97,8 @@ export interface TrackballConfig {
   snipeRatio: number
   /** スクロールモード時の 1 ノッチあたりの移動量 */
   scrollDivisor: number
+  /** ボールの色（交換パーツ。実機写真に合わせた見た目のみで、動作には影響しない） */
+  color: TrackballColor
 }
 
 export type LayerColor =
@@ -112,11 +140,57 @@ export interface Combo {
   enabled: boolean
 }
 
+/** キーボード本体（キーキャップ・スクロールパッド・エンコーダー）の色。実機の白／黒モデルに対応 */
+export type BodyColor = 'white' | 'black'
+
+export const BODY_COLOR_LABEL: Record<BodyColor, string> = {
+  white: 'ホワイト',
+  black: 'ブラック',
+}
+
+/**
+ * esc キーキャップの色（見た目のみ）。
+ * white / black は本体に付いている通常のキーキャップ、blue / green / orange は付属の交換用キーキャップ。
+ */
+export type EscColor = 'white' | 'black' | 'blue' | 'green' | 'orange'
+
+export const ESC_COLORS: EscColor[] = ['white', 'black', 'blue', 'green', 'orange']
+
+export const DEFAULT_ESC_COLOR: EscColor = 'orange'
+
+export const ESC_COLOR_LABEL: Record<EscColor, string> = {
+  white: 'ホワイト',
+  black: 'ブラック',
+  blue: 'ブルー',
+  green: 'グリーン',
+  orange: 'オレンジ',
+}
+
+/** キーキャップの地色。交換用の 3 色は実機写真の色味から採取 */
+export const ESC_COLOR_FACE: Record<EscColor, string> = {
+  white: 'var(--color-paper)',
+  black: 'var(--color-ink)',
+  blue: '#4db2e6',
+  green: '#2f9479',
+  orange: '#f58149',
+}
+
+/** 印字の色。実機の交換用キーキャップは色付きの地に白い印字 */
+export const ESC_COLOR_TEXT: Record<EscColor, string> = {
+  white: 'var(--color-ink)',
+  black: 'var(--color-paper)',
+  blue: 'var(--color-paper)',
+  green: 'var(--color-paper)',
+  orange: 'var(--color-paper)',
+}
+
 export interface KeymapSettings {
   tappingTermMs: number
   flavor: Flavor
-  /** ダブルタップとみなす最大間隔 */
-  doubleTapMs: number
+  /** キーボード本体の色（見た目のみ）。白↔黒を切り替えると、同じ色だったボールと esc も追従する */
+  bodyColor: BodyColor
+  /** esc キーキャップの色（見た目のみ）。古い保存データには無いので DEFAULT_ESC_COLOR で補う */
+  escColor?: EscColor
 }
 
 export interface Keymap {
@@ -143,4 +217,19 @@ export function isTrans(b: Binding | undefined): boolean {
 
 export function isModTap(b: Binding | undefined): boolean {
   return !!b?.hold && b.hold !== 'TRANS' && b.hold !== 'NONE'
+}
+
+/**
+ * ざっくりとした形チェック。ファイル読み込みや共有フィードなど、
+ * 外部から来た JSON を信用せずに取り込む前に使う。
+ */
+export function isValidKeymapShape(x: unknown): x is Keymap {
+  if (!x || typeof x !== 'object') return false
+  const km = x as Partial<Keymap>
+  return (
+    Array.isArray(km.layers)
+    && Array.isArray(km.combos)
+    && typeof km.trackball === 'object' && km.trackball !== null
+    && typeof km.settings === 'object' && km.settings !== null
+  )
 }

@@ -1,44 +1,114 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
-import { getKey } from '../../data/layout'
+import { getKey, KEYS } from '../../data/layout'
 import {
   ENCODER_SLOT_GLYPH, ENCODER_SLOT_LABEL, FLAVOR_HELP, FLAVOR_LABEL,
   LAYER_COLOR_HEX, PAD_SLOT_GLYPH, PAD_SLOT_LABEL,
   type Binding, type Flavor,
 } from '../../data/types'
 import { engine } from '../../engine/useEngine'
+import { resolveKey } from '../../engine/resolve'
 import {
-  getBinding, useKeymapStore, type BindingTarget,
+  getBinding, sameTarget, useKeymapStore, type BindingTarget,
 } from '../../store/keymapStore'
 import { BindingSlot, KeycodePicker } from '../Picker/KeycodePicker'
 import { ComboEditor } from '../Combos/ComboEditor'
 import { TrackballPanel } from './TrackballPanel'
 
-type Slot = 'tap' | 'hold' | 'doubleTap'
+type Slot = 'tap' | 'hold'
 
 export function Inspector() {
   const selection = useKeymapStore((s) => s.selection)
   const keymap = useKeymapStore((s) => s.keymap)
   const editingLayer = useKeymapStore((s) => s.editingLayer)
 
-  if (!selection) return <EmptyState />
-  if (selection.kind === 'ball') return <TrackballPanel />
-  if (selection.kind === 'combo') {
-    const combo = keymap.combos.find((c) => c.id === selection.comboId)
-    if (!combo) return <EmptyState />
-    return <ComboEditor combo={combo} />
-  }
+  const body = selection?.kind === 'ball'
+    ? <TrackballPanel />
+    : selection?.kind === 'combo'
+      ? (() => {
+          const combo = keymap.combos.find((c) => c.id === selection.comboId)
+          return combo ? <ComboEditor combo={combo} /> : <EmptyState />
+        })()
+      : selection
+        ? <BindingInspector target={selection} layerId={editingLayer} />
+        : <EmptyState />
 
-  return <BindingInspector target={selection} layerId={editingLayer} />
+  return (
+    <div className="space-y-2">
+      <KeyListPicker />
+      {body}
+    </div>
+  )
+}
+
+/** 編集したいキーを、盤面をクリックせずに検索して選べるリスト */
+function KeyListPicker() {
+  const selection = useKeymapStore((s) => s.selection)
+  const keymap = useKeymapStore((s) => s.keymap)
+  const editingLayer = useKeymapStore((s) => s.editingLayer)
+  const select = useKeymapStore((s) => s.select)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return KEYS.filter((k) => {
+      if (!q) return true
+      const label = getKeycode(resolveKey(keymap, [0, editingLayer], k.id).binding.tap).label
+      return k.id.toLowerCase().includes(q) || label.toLowerCase().includes(q)
+    })
+  }, [query, keymap, editingLayer])
+
+  return (
+    <div className="nb shrink-0 p-2.5">
+      <button
+        type="button"
+        className="nb-btn w-full !py-1.5 text-[0.78rem]"
+        data-active={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? '閉じる' : 'リストからキーを選ぶ'}
+      </button>
+      {open && (
+        <>
+          <input
+            className="nb-input mt-2 !py-1.5 text-[0.82rem]"
+            placeholder="キーを検索（例: Q / shift）"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+          <div className="mt-1.5 grid max-h-40 grid-cols-4 gap-1 overflow-y-auto sm:grid-cols-6">
+            {results.map((k) => {
+              const g = getKeycode(resolveKey(keymap, [0, editingLayer], k.id).binding.tap)
+              const active = sameTarget(selection, { kind: 'key', keyId: k.id })
+              return (
+                <button
+                  key={k.id}
+                  type="button"
+                  className="nb-chip !justify-center"
+                  style={{ background: active ? 'var(--color-lime)' : 'transparent', cursor: 'pointer' }}
+                  onClick={() => { select({ kind: 'key', keyId: k.id }); setOpen(false); setQuery('') }}
+                >
+                  {g.label || k.id}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 function EmptyState() {
   return (
-    <div className="nb nb-lg flex h-full flex-col justify-center gap-2 p-5 text-center">
+    <div className="nb nb-lg flex flex-col gap-2 p-5 text-center">
       <p className="text-[2rem] leading-none">👆</p>
       <h3 className="text-[1.05rem]">編集したいところを選ぶ</h3>
       <p className="text-[0.82rem] font-bold leading-relaxed opacity-70">
-        盤面のキー・ロータリーエンコーダー・スクロールパッド・トラックボールをクリックすると、
+        盤面のキー・ロータリーエンコーダー・スクロールパッド・トラックボールをクリックするか、
+        上の「リストからキーを選ぶ」で検索すると、
         ここで<strong>単押し</strong>と<strong>長押し（MOD-TAP）</strong>を編集できます。
       </p>
       <p className="text-[0.75rem] font-bold leading-relaxed opacity-50">
@@ -48,7 +118,7 @@ function EmptyState() {
   )
 }
 
-function targetTitle(target: BindingTarget): { title: string; sub: string } {
+export function targetTitle(target: BindingTarget): { title: string; sub: string } {
   switch (target.kind) {
     case 'key': {
       const k = getKey(target.keyId)
@@ -88,20 +158,16 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
   const slotLabel: Record<Slot, string> = {
     tap: '単押し（TAP）',
     hold: '長押し（HOLD）',
-    doubleTap: 'ダブルタップ',
   }
 
   const pick = (code: string) => {
     if (picking === 'tap') setTap(layerId, target, code)
     else if (picking === 'hold') setHold(layerId, target, code === 'NONE' ? undefined : code)
-    else if (picking === 'doubleTap') {
-      patchBinding(layerId, target, { doubleTap: code === 'NONE' ? undefined : code })
-    }
     setPicking(null)
   }
 
   return (
-    <div className="nb nb-lg flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="nb nb-lg overflow-hidden">
       <header
         className="flex items-center gap-2 border-b-[3px] border-[var(--color-ink)] p-3"
         style={{ background: hex }}
@@ -122,7 +188,7 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
         )}
       </header>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <div className="space-y-4 p-3">
         {isTrans && (
           <div
             className="nb nb-flat p-2.5 text-[0.76rem] font-bold leading-relaxed"
@@ -154,14 +220,6 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
             短く押せば単押しの出力、押し続ければ長押しの出力（Shift やレイヤー）になります。
           </p>
         </div>
-
-        <BindingSlot
-          label={slotLabel.doubleTap}
-          code={binding.doubleTap}
-          tone="var(--color-purple)"
-          onClick={() => setPicking('doubleTap')}
-          onClear={binding.doubleTap ? () => patchBinding(layerId, target, { doubleTap: undefined }) : undefined}
-        />
 
         {hasHold && (
           <div className="nb nb-flat space-y-3 p-3">
@@ -223,8 +281,8 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
       <KeycodePicker
         open={picking !== null}
         title={picking ? `${slotLabel[picking]} に割り当てる` : ''}
-        value={picking === 'tap' ? binding.tap : picking === 'hold' ? binding.hold : binding.doubleTap}
-        allowNone={picking !== 'tap'}
+        value={picking === 'tap' ? binding.tap : binding.hold}
+        allowNone={picking === 'hold'}
         onPick={pick}
         onClose={() => setPicking(null)}
       />
@@ -236,7 +294,6 @@ function Preview({ binding }: { binding: Binding }) {
   const rows: [string, string | undefined][] = [
     ['単押し', binding.tap === 'TRANS' ? undefined : binding.tap],
     ['長押し', binding.hold],
-    ['ダブルタップ', binding.doubleTap],
   ]
   return (
     <div className="nb nb-flat p-3" style={{ background: 'var(--color-ink)', color: 'var(--color-paper)' }}>
