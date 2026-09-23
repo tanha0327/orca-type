@@ -10,7 +10,11 @@ import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
 import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
 import { CODE_TO_KEY } from './data/layout'
-import { BODY_COLOR_LABEL, TRACKBALL_COLOR_GRADIENT, type BodyColor } from './data/types'
+import {
+  BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_LABEL, ESC_COLORS,
+  TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS,
+  type BodyColor, type EscColor, type TrackballColor,
+} from './data/types'
 import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
 import { authEnabled, profileFromUser, signOut } from './lib/auth'
 import { useAuthStore } from './store/authStore'
@@ -34,6 +38,9 @@ export function App() {
   const setComboPick = useKeymapStore((s) => s.setComboPick)
   const toggleComboKey = useKeymapStore((s) => s.toggleComboKey)
   const bodyColor = useKeymapStore((s) => s.keymap.settings.bodyColor) ?? 'white'
+  const escColor = useKeymapStore((s) => s.keymap.settings.escColor) ?? DEFAULT_ESC_COLOR
+  const ballColor = useKeymapStore((s) => s.keymap.trackball.color) ?? 'white'
+  const setTrackball = useKeymapStore((s) => s.setTrackball)
   const setSettings = useKeymapStore((s) => s.setSettings)
   const [subLegends, setSubLegends] = useState(false)
   const initAuth = useAuthStore((s) => s.init)
@@ -141,14 +148,41 @@ export function App() {
                       ホイールとパッドはドラッグ／スクロールで動かせます。
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
                     <div className="flex items-center gap-1" role="group" aria-label="キーボード本体の色">
+                      <span className="nb-eyebrow mr-0.5">本体</span>
                       {BODY_COLORS.map((c) => (
-                        <BodyColorSwatch
+                        <RoundSwatch
                           key={c}
                           color={c}
+                          title={`本体色: ${BODY_COLOR_LABEL[c]}`}
+                          ariaLabel={`本体色を${BODY_COLOR_LABEL[c]}にする`}
                           active={bodyColor === c}
                           onClick={() => setSettings({ bodyColor: c })}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1" role="group" aria-label="esc キーキャップの色">
+                      <span className="nb-eyebrow mr-0.5">ESC</span>
+                      {ESC_COLORS.map((c) => (
+                        <EscColorSwatch
+                          key={c}
+                          color={c}
+                          active={escColor === c}
+                          onClick={() => setSettings({ escColor: c })}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1" role="group" aria-label="トラックボールの色">
+                      <span className="nb-eyebrow mr-0.5">BALL</span>
+                      {TRACKBALL_COLORS.map((c) => (
+                        <RoundSwatch
+                          key={c}
+                          color={c}
+                          title={`トラックボール: ${TRACKBALL_COLOR_LABEL[c]}`}
+                          ariaLabel={`トラックボールを${TRACKBALL_COLOR_LABEL[c]}にする`}
+                          active={ballColor === c}
+                          onClick={() => setTrackball({ color: c })}
                         />
                       ))}
                     </div>
@@ -345,10 +379,13 @@ function PipPlaceholder({ onClose }: { onClose: () => void }) {
   )
 }
 
-function BodyColorSwatch({
-  color, active, onClick,
+/** 本体色・トラックボールの色。実機写真から採った球の陰影で見せる */
+function RoundSwatch({
+  color, title, ariaLabel, active, onClick,
 }: {
-  color: BodyColor
+  color: TrackballColor
+  title: string
+  ariaLabel: string
   active: boolean
   onClick: () => void
 }) {
@@ -356,8 +393,8 @@ function BodyColorSwatch({
   return (
     <button
       type="button"
-      title={`本体色: ${BODY_COLOR_LABEL[color]}`}
-      aria-label={`本体色を${BODY_COLOR_LABEL[color]}にする`}
+      title={title}
+      aria-label={ariaLabel}
       aria-pressed={active}
       onClick={onClick}
       className="block h-6 w-6 rounded-full"
@@ -371,11 +408,42 @@ function BodyColorSwatch({
   )
 }
 
+const ESC_SWATCH_FILL: Record<EscColor, string> = {
+  white: 'var(--color-paper)',
+  black: 'var(--color-ink)',
+  orange: 'var(--color-orange)',
+}
+
+/** esc の交換用キーキャップの色。キーキャップらしく角丸の四角で見せる */
+function EscColorSwatch({
+  color, active, onClick,
+}: {
+  color: EscColor
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      title={`esc キーキャップ: ${ESC_COLOR_LABEL[color]}`}
+      aria-label={`esc キーキャップを${ESC_COLOR_LABEL[color]}にする`}
+      aria-pressed={active}
+      onClick={onClick}
+      className="block h-6 w-6 rounded-[6px]"
+      style={{
+        background: ESC_SWATCH_FILL[color],
+        border: `${active ? 3 : 2}px solid var(--color-ink)`,
+        boxShadow: active ? '2px 2px 0 var(--color-ink)' : '1px 1px 0 var(--color-ink)',
+        transform: active ? 'translate(-1px, -1px)' : undefined,
+      }}
+    />
+  )
+}
+
 function Legend() {
   const items: [string, string][] = [
     ['var(--color-pink)', '長押し（MOD-TAP）の出力'],
     ['var(--color-purple)', 'コンボに参加しているキー'],
-    ['var(--color-orange)', 'アクセントキーキャップ'],
   ]
   return (
     <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">

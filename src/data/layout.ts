@@ -22,7 +22,7 @@ export interface KeyDef {
   w: number
   h: number
   kind: 'key' | 'thumb'
-  /** 写真で esc だけオレンジのアクセントキーキャップ */
+  /** esc のように、付属の交換用キーキャップで色を選べるキー */
   accent?: boolean
 }
 
@@ -91,7 +91,7 @@ const leftThumb: KeyDef = {
 }
 
 export const KEYS: readonly KeyDef[] = [
-  ...leftGrid.map((k) => (k.id === 'L00' ? { ...k, accent: true } : k)), // esc をオレンジに
+  ...leftGrid.map((k) => (k.id === 'L00' ? { ...k, accent: true } : k)), // esc は色を選べる
   leftThumb,
   ...rightGrid,
 ]
@@ -106,9 +106,10 @@ export const SENSORS: readonly SensorDef[] = [
     x: 6, y: 0.46, w: 1, h: 1.9,
   },
   {
+    // 実機のホイールは横向きに埋まっていて、左右に転がして回す
     id: 'enc-l', half: 'L', kind: 'encoder',
     name: '左ロータリーエンコーダー', short: 'ENC',
-    x: 5.85, y: 4.18, w: 0.62, h: 1.1,
+    x: 5.9, y: 4.36, w: 1.05, h: 0.62,
   },
   {
     id: 'pad-r', half: 'R', kind: 'pad',

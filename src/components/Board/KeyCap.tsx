@@ -18,6 +18,8 @@ export interface KeyCapProps {
   diff?: boolean
   /** キーボード本体の色がブラックのとき true。キーキャップの地色と文字色を反転する */
   dark?: boolean
+  /** 本体色とは別の色のキーキャップ（esc の交換用キーキャップなど）。未指定なら本体色に従う */
+  capTone?: CapTone
   press?: PressView
   comboCount: number
   /** 編集中レイヤーの色 */
@@ -32,8 +34,14 @@ export interface KeyCapProps {
   onPulse: () => void
 }
 
+export interface CapTone {
+  face: string
+  text: string
+  border: string
+}
+
 export function KeyCap({
-  keyDef, binding, inherited, selected, selectedTone, dimmed, diff, dark, press, comboCount, accent,
+  keyDef, binding, inherited, selected, selectedTone, dimmed, diff, dark, capTone, press, comboCount, accent,
   subLegends, interactive = true, totalW, totalH, onSelect, onPulse,
 }: KeyCapProps) {
   const kc = getKeycode(binding?.tap)
@@ -43,9 +51,9 @@ export function KeyCap({
   const awaiting = press?.awaitingHold ?? false
 
   // 本体色に応じて、キーキャップの地色・縁・文字色を反転する
-  const faceDefault = dark ? 'var(--color-ink)' : 'var(--color-paper)'
-  const borderDefault = dark ? 'var(--color-paper)' : 'var(--color-ink)'
-  const textDefault = dark ? 'var(--color-paper)' : 'var(--color-ink)'
+  const faceDefault = capTone?.face ?? (dark ? 'var(--color-ink)' : 'var(--color-paper)')
+  const borderDefault = capTone?.border ?? (dark ? 'var(--color-paper)' : 'var(--color-ink)')
+  const textDefault = capTone?.text ?? (dark ? 'var(--color-paper)' : 'var(--color-ink)')
   const selectedBorder = selectedTone ?? borderDefault
   const selectedFace = dark
     ? 'color-mix(in srgb, var(--color-ink) 55%, #000)'
@@ -99,9 +107,7 @@ export function KeyCap({
               ? selectedFace
               : diff
                 ? diffFace
-                : keyDef.accent
-                  ? 'var(--color-orange)'
-                  : faceDefault,
+                : faceDefault,
           boxShadow: isDown
             ? 'none'
             : `${selected ? 3 : 2}px ${selected ? 3 : 2}px 0 ${

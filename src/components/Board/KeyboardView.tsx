@@ -3,11 +3,13 @@ import { getKeycode } from '../../data/keycodes'
 import {
   halfExtent, KEYS, SENSORS, type Half, type KeyId,
 } from '../../data/layout'
-import { LAYER_COLOR_HEX, type EncoderSlot, type Keymap, type PadSlot } from '../../data/types'
+import {
+  DEFAULT_ESC_COLOR, LAYER_COLOR_HEX, type EncoderSlot, type EscColor, type Keymap, type PadSlot,
+} from '../../data/types'
 import { engine, useEngineSnapshot } from '../../engine/useEngine'
 import { resolveKey } from '../../engine/resolve'
 import { sameTarget, useKeymapStore, type Selection } from '../../store/keymapStore'
-import { KeyCap } from './KeyCap'
+import { KeyCap, type CapTone } from './KeyCap'
 import { KeyMenu } from './KeyMenu'
 import { BallView, EncoderView, PadView, sensorGlyph } from './Sensors'
 
@@ -25,6 +27,19 @@ export interface KeyboardViewProps {
   previewLayer?: number
   /** プレビュー時、他方のキーマップと割当が違うキーの ID 集合（比較モーダル用） */
   diffKeys?: ReadonlySet<KeyId>
+}
+
+/** esc キーキャップの色を、本体色の上での地色・文字色・縁の色にする */
+function escCapTone(esc: EscColor, dark: boolean): CapTone {
+  const bodyBorder = dark ? 'var(--color-paper)' : 'var(--color-ink)'
+  switch (esc) {
+    case 'white':
+      return { face: 'var(--color-paper)', text: 'var(--color-ink)', border: 'var(--color-ink)' }
+    case 'black':
+      return { face: 'var(--color-ink)', text: 'var(--color-paper)', border: bodyBorder }
+    case 'orange':
+      return { face: 'var(--color-orange)', text: 'var(--color-ink)', border: bodyBorder }
+  }
 }
 
 export function KeyboardView({
@@ -51,6 +66,7 @@ export function KeyboardView({
   const accent = LAYER_COLOR_HEX[keymap.layers[viewLayer]?.color ?? 'gray']
   const bodyColor = keymap.settings.bodyColor ?? 'white'
   const dark = bodyColor === 'black'
+  const escTone = escCapTone(keymap.settings.escColor ?? DEFAULT_ESC_COLOR, dark)
   const displayStack = useMemo(
     () => (viewLayer === 0 ? [0] : [0, viewLayer]),
     [viewLayer],
@@ -141,6 +157,7 @@ export function KeyboardView({
               dimmed={interactive && !comboPickId && selection?.kind === 'key' && selection.keyId !== k.id}
               diff={diffKeys?.has(k.id) ?? false}
               dark={dark}
+              capTone={k.accent ? escTone : undefined}
               press={pressByKey.get(k.id)}
               comboCount={comboCount.get(k.id) ?? 0}
               accent={accent}
