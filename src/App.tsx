@@ -11,7 +11,7 @@ import { usePipWindow } from './components/PipHost/usePipWindow'
 import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
 import { CODE_TO_KEY } from './data/layout'
 import {
-  BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_LABEL, ESC_COLORS,
+  BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_LABEL, ESC_COLORS,
   TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS,
   type BodyColor, type EscColor, type TrackballColor,
 } from './data/types'
@@ -408,12 +408,6 @@ function RoundSwatch({
   )
 }
 
-const ESC_SWATCH_FILL: Record<EscColor, string> = {
-  white: 'var(--color-paper)',
-  black: 'var(--color-ink)',
-  orange: 'var(--color-orange)',
-}
-
 /** esc の交換用キーキャップの色。キーキャップらしく角丸の四角で見せる */
 function EscColorSwatch({
   color, active, onClick,
@@ -431,7 +425,7 @@ function EscColorSwatch({
       onClick={onClick}
       className="block h-6 w-6 rounded-[6px]"
       style={{
-        background: ESC_SWATCH_FILL[color],
+        background: ESC_COLOR_FACE[color],
         border: `${active ? 3 : 2}px solid var(--color-ink)`,
         boxShadow: active ? '2px 2px 0 var(--color-ink)' : '1px 1px 0 var(--color-ink)',
         transform: active ? 'translate(-1px, -1px)' : undefined,

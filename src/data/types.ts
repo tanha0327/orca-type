@@ -149,19 +149,39 @@ export const BODY_COLOR_LABEL: Record<BodyColor, string> = {
 }
 
 /**
- * esc キーキャップの色（付属の交換用キーキャップ。見た目のみ）。
- * white / black は通常のキーキャップと同じ色、orange は製品写真で esc に付いているアクセント色。
+ * esc キーキャップの色（見た目のみ）。
+ * white / black は本体に付いている通常のキーキャップ、blue / green / orange は付属の交換用キーキャップ。
  */
-export type EscColor = 'white' | 'black' | 'orange'
+export type EscColor = 'white' | 'black' | 'blue' | 'green' | 'orange'
 
-export const ESC_COLORS: EscColor[] = ['white', 'black', 'orange']
+export const ESC_COLORS: EscColor[] = ['white', 'black', 'blue', 'green', 'orange']
 
 export const DEFAULT_ESC_COLOR: EscColor = 'orange'
 
 export const ESC_COLOR_LABEL: Record<EscColor, string> = {
   white: 'ホワイト',
   black: 'ブラック',
+  blue: 'ブルー',
+  green: 'グリーン',
   orange: 'オレンジ',
+}
+
+/** キーキャップの地色。交換用の 3 色は実機写真の色味から採取 */
+export const ESC_COLOR_FACE: Record<EscColor, string> = {
+  white: 'var(--color-paper)',
+  black: 'var(--color-ink)',
+  blue: '#4db2e6',
+  green: '#2f9479',
+  orange: '#f58149',
+}
+
+/** 印字の色。実機の交換用キーキャップは色付きの地に白い印字 */
+export const ESC_COLOR_TEXT: Record<EscColor, string> = {
+  white: 'var(--color-ink)',
+  black: 'var(--color-paper)',
+  blue: 'var(--color-paper)',
+  green: 'var(--color-paper)',
+  orange: 'var(--color-paper)',
 }
 
 export interface KeymapSettings {
