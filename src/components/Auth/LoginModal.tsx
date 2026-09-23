@@ -52,7 +52,7 @@ function LoginHero() {
   return (
     <div
       className="relative hidden min-h-[26rem] flex-col justify-between overflow-hidden p-6 sm:flex"
-      style={{ background: 'var(--color-purple)', color: 'var(--color-paper)' }}
+      style={{ background: 'var(--color-paper)', color: 'var(--color-ink)' }}
     >
       <span
         className="pointer-events-none absolute -bottom-10 -left-8 h-32 w-32 rounded-full"
@@ -62,26 +62,16 @@ function LoginHero() {
         className="pointer-events-none absolute -right-10 top-8 h-24 w-24 rounded-full"
         style={{ background: 'var(--color-orange)', border: '3px solid var(--color-ink)' }}
       />
-      <span
-        className="pointer-events-none absolute bottom-20 right-6 h-9 w-9 rounded-full"
-        style={{ background: 'var(--color-pink)', border: '3px solid var(--color-ink)' }}
-      />
-      <span
-        className="pointer-events-none absolute left-10 top-24 h-4 w-4 rounded-full"
-        style={{ background: 'var(--color-paper)', border: '2px solid var(--color-ink)' }}
-      />
 
-      <div className="pointer-events-none absolute -bottom-8 -right-8 rotate-[-4deg]">
-        <div
-          className="nb nb-lg flex items-center justify-center p-3"
-          style={{ width: '11.5rem', height: '12rem', color: 'var(--color-ink)' }}
-        >
-          <KeyswitchIllustration className="h-full w-full" />
-        </div>
+      <div
+        className="pointer-events-none absolute top-1/2 -translate-y-1/2"
+        style={{ right: '-11rem', width: '22rem', aspectRatio: '34.9 / 36.4', color: 'var(--color-ink)' }}
+      >
+        <KeyswitchIllustration className="h-full w-full" />
       </div>
 
       <div className="relative z-10">
-        <p className="nb-eyebrow" style={{ color: 'var(--color-paper)', opacity: 0.85 }}>ORCA TYPE</p>
+        <p className="nb-eyebrow" style={{ color: 'var(--color-ink)', opacity: 0.7 }}>ORCA TYPE</p>
         <h2 className="mt-2 text-[2.6rem]">
           ようこそ
           <br />
@@ -91,7 +81,7 @@ function LoginHero() {
         </h2>
       </div>
 
-      <p className="relative z-10 max-w-[16rem] text-[0.8rem] font-bold leading-relaxed opacity-85">
+      <p className="relative z-10 max-w-[16rem] text-[0.8rem] font-bold leading-relaxed opacity-70">
         ログインすると、今の配列を投稿したり、他の人の投稿にいいね・コメントで反応できます。
       </p>
     </div>
