@@ -1,24 +1,18 @@
 /**
- * アプリのロゴマーク。実機のキースイッチ 3D モデルを真上から見たシルエット
- * （本体の四角＋両サイドの位置決めタブ／中央に見える軸のキャップ）を
- * trimesh + shapely で正確に抽出し単純化したもの。配色は本体=紫、軸=オレンジ。
+ * アプリのロゴマーク。キースイッチを真上から見た図を単純化したもの:
+ * 黒いハウジング、LED 窓（上の白いスリット）、軸の頭（ピンク）と MX の十字。
+ * 十字だけだと「追加」ボタンに見えるので、LED 窓と軸の頭でスイッチだと分かるようにしている。
  */
 export function AppLogo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
+      <rect x="2" y="2" width="28" height="28" rx="7" fill="var(--color-ink)" />
+      <rect x="6" y="7.5" width="20" height="20" rx="5" fill="#34343a" />
+      <rect x="13" y="3.9" width="6" height="1.9" rx="0.95" fill="var(--color-paper)" />
+      <rect x="10" y="11.5" width="12" height="12" rx="3.2" fill="var(--color-pink)" />
       <path
-        d="M 2.50 4.67 L 2.50 2.50 L 29.50 2.50 L 29.50 4.67 L 29.06 4.67 L 29.06 27.33 L 29.50 27.33 L 29.50 29.50 L 2.50 29.50 L 2.50 27.33 L 2.94 27.33 L 2.94 4.67 L 2.50 4.67 Z"
-        fill="var(--color-purple)"
-        stroke="var(--color-ink)"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M 9.03 17.74 L 9.03 14.26 L 9.90 14.26 L 9.90 11.65 L 22.10 11.65 L 22.10 14.26 L 22.97 14.26 L 22.97 17.74 L 22.10 17.74 L 22.10 20.35 L 9.90 20.35 L 9.90 17.74 L 9.03 17.74 Z"
-        fill="var(--color-orange)"
-        stroke="var(--color-ink)"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
+        d="M15 13.2H17V16.5H20.3V18.5H17V21.8H15V18.5H11.7V16.5H15Z"
+        fill="var(--color-ink)"
       />
     </svg>
   )
