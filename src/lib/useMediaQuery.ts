@@ -1,7 +1,5 @@
 import { useSyncExternalStore } from 'react'
 
-/** Tailwind の lg と同じ幅。サイド列が横に並んで見える */
-export const WIDE_QUERY = '(min-width: 1024px)'
 /** Tailwind の sm と同じ幅 */
 export const SM_QUERY = '(min-width: 640px)'
 

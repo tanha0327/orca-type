@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { LAYER_COLOR_HEX } from '../../data/types'
+import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
 import { errorMessage } from '../../lib/errors'
 import {
-  deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, fetchSharedKeymap, feedEnabled,
-  postComment, shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
+  deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
+  shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
-import { useMediaQuery, WIDE_QUERY } from '../../lib/useMediaQuery'
 import { useAuthStore } from '../../store/authStore'
 import { useFeedStore } from '../../store/feedStore'
 import { useKeymapStore } from '../../store/keymapStore'
@@ -15,6 +14,7 @@ import { IconComment, IconHeart, IconImageSave, IconLoad, IconTrash, IconX } fro
 import { Ring } from '../Ring'
 import { Avatar, DeviceColors, importSharedKeymap, relativeTime } from './FeedParts'
 import { SortBar, sortOption } from './FeedSort'
+import { PostDiff } from './KeymapDiff'
 import { PostViewerModal } from './PostViewerModal'
 
 const EMPTY_EXTRAS: FeedExtras = { likeCounts: {}, likedByMe: new Set(), commentCounts: {} }
@@ -46,13 +46,10 @@ export function FeedView() {
   const profile = useProfileStore((s) => s.profile)
 
   const sort = useFeedStore((s) => s.sort)
-  const pinned = useFeedStore((s) => s.pinned)
-  const pinnedId = useFeedStore((s) => s.pinnedId)
-  const pin = useFeedStore((s) => s.pin)
+  const focusLayer = useFeedStore((s) => s.focusLayer)
+  const setFocusLayer = useFeedStore((s) => s.setFocusLayer)
   const viewer = useFeedStore((s) => s.viewer)
   const openViewer = useFeedStore((s) => s.openViewer)
-  const setFeedStatus = useFeedStore((s) => s.setFeedStatus)
-  const wide = useMediaQuery(WIDE_QUERY)
 
   const [items, setItems] = useState<SharedKeymap[] | null>(null)
   const [extras, setExtras] = useState<FeedExtras>(EMPTY_EXTRAS)
@@ -99,39 +96,6 @@ export function FeedView() {
     if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [sort])
 
-  // 右上に出す投稿を決める。自分で選んだ投稿があればそれを（一覧に無ければ 1 件だけ取り直す）、
-  // まだ選んでいなければ一覧の先頭をひとまず出しておく
-  useEffect(() => {
-    if (!items) return
-    const state = useFeedStore.getState()
-    if (pinnedId) {
-      if (state.pinned?.id === pinnedId) return
-      const found = items.find((i) => i.id === pinnedId)
-      if (found) {
-        state.pin(found, false)
-        return
-      }
-      let cancelled = false
-      fetchSharedKeymap(pinnedId)
-        .then((item) => {
-          if (cancelled || useFeedStore.getState().pinnedId !== pinnedId) return
-          // 投稿が消えていたら選択を忘れて、先頭の投稿に戻す（pinnedId が変わるのでこの effect がもう一度走る）
-          if (item) useFeedStore.getState().pin(item, false)
-          else useFeedStore.getState().pin(null, true)
-        })
-        .catch(() => {
-          // 取り直せなかったときも、選択は忘れて先頭を出す（読み込み中のまま止まらないように）
-          if (!cancelled) useFeedStore.setState({ pinned: items[0] ?? null, pinnedId: null })
-        })
-      return () => { cancelled = true }
-    }
-    if (!state.pinned || !items.some((i) => i.id === state.pinned?.id)) state.pin(items[0] ?? null, false)
-  }, [items, pinnedId])
-
-  // 右上のパネルで「読み込み中」と「まだ無い」を出し分けるため、読み込み状態を共有する
-  const feedStatus = loadError ? 'error' : items === null ? 'loading' : 'ready'
-  useEffect(() => { setFeedStatus(feedStatus) }, [feedStatus, setFeedStatus])
-
   // フィードを離れたら、大きく見るモーダルは閉じておく（戻ったときに勝手に開かないように）
   useEffect(() => () => openViewer(null), [openViewer])
 
@@ -174,12 +138,6 @@ export function FeedView() {
     } finally {
       setSharing(false)
     }
-  }
-
-  /** 投稿を選ぶ。右上の比較パネルに置き、パネルが見えない幅ではモーダルで開く */
-  const selectPost = (item: SharedKeymap) => {
-    pin(item, true)
-    if (!wide) openViewer(item)
   }
 
   const doToggleLike = async (item: SharedKeymap) => {
@@ -228,10 +186,7 @@ export function FeedView() {
       await deleteKeymap(item.id)
       setItems((prev) => prev?.filter((i) => i.id !== item.id) ?? null)
       if (commentItem?.id === item.id) setCommentItem(null)
-      const feed = useFeedStore.getState()
-      if (feed.viewer?.id === item.id) feed.openViewer(null)
-      // 右上に出していた投稿なら外す（自分で選んでいたなら、その選択も忘れる）
-      if (feed.pinned?.id === item.id) feed.pin(null, feed.pinnedId === item.id)
+      if (useFeedStore.getState().viewer?.id === item.id) openViewer(null)
     } catch (e) {
       setShareMsg(`削除に失敗しました: ${errorMessage(e)}`)
     }
@@ -243,9 +198,7 @@ export function FeedView() {
         <div className="min-w-0 flex-1">
           <h2 className="text-[1.35rem]">みんなの配列</h2>
           <p className="mt-1 text-[0.78rem] font-bold leading-relaxed opacity-70">
-            {wide
-              ? 'みんなが共有したキーマップのタイムライン。投稿をクリックすると、右上であなたの配列と違うキーを見比べられます。'
-              : 'みんなが共有したキーマップのタイムライン。投稿をタップすると、あなたの配列と違うキーを見比べられます。'}
+            みんなが共有したキーマップのタイムライン。あなたの配列と違うキーがピンクで表示されます。
           </p>
         </div>
         <span
@@ -288,12 +241,14 @@ export function FeedView() {
         <PostCard
           key={item.id}
           item={item}
-          pinned={wide && pinned?.id === item.id}
+          myKeymap={keymap}
+          focusLayer={focusLayer}
+          onFocusLayer={setFocusLayer}
           canDelete={!!user && user.id === item.user_id}
           likeCount={extras.likeCounts[item.id] ?? 0}
           liked={extras.likedByMe.has(item.id)}
           commentCount={extras.commentCounts[item.id] ?? 0}
-          onSelect={() => selectPost(item)}
+          onOpen={() => openViewer(item)}
           onImport={() => importSharedKeymap(item)}
           onLike={() => void doToggleLike(item)}
           onComments={() => setCommentItem(item)}
@@ -416,16 +371,21 @@ function ActionButton({
 }
 
 function PostCard({
-  item, pinned, canDelete, likeCount, liked, commentCount, onSelect, onImport, onLike, onComments, onDelete,
+  item, myKeymap, focusLayer, onFocusLayer, canDelete, likeCount, liked, commentCount,
+  onOpen, onImport, onLike, onComments, onDelete,
 }: {
   item: SharedKeymap
-  /** 右上の比較パネルに出している投稿か */
-  pinned: boolean
+  /** 比べる基準（編集中の自分の配列） */
+  myKeymap: Keymap
+  /** 大きい盤面に出すレイヤー（全部の投稿で共通） */
+  focusLayer: number
+  onFocusLayer: (n: number) => void
   canDelete: boolean
   likeCount: number
   liked: boolean
   commentCount: number
-  onSelect: () => void
+  /** 投稿を大きく見るモーダルを開く */
+  onOpen: () => void
   onImport: () => void
   onLike: () => void
   onComments: () => void
@@ -436,7 +396,7 @@ function PostCard({
 
   const captureFilename = () => `orca-${item.name.replace(/\s+/g, '-')}.png`
 
-  // タイムラインには L0 しか出していないので、保存用の画像は
+  // タイムラインの大きい盤面は 1 レイヤーずつしか印字を出さないので、保存用の画像は
   // 全レイヤーを画面外に一度だけ描画してからまとめてキャプチャする
   useEffect(() => {
     if (!saving) return
@@ -467,36 +427,15 @@ function PostCard({
   )}&url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`
 
   return (
-    <article
-      className="relative cursor-pointer border-b-[3px] border-[var(--color-ink)] p-3 transition-colors hover:bg-[color-mix(in_srgb,var(--color-purple)_7%,var(--color-paper))]"
-      style={pinned ? { background: 'color-mix(in srgb, var(--color-purple) 16%, var(--color-paper))' } : undefined}
-      // 投稿のどこを押しても選べるようにする（中のボタン・リンクはそれぞれの操作を優先）
-      onClick={(e) => {
-        if ((e.target as Element).closest('button, a')) return
-        onSelect()
-      }}
-    >
-      {pinned && (
-        <span
-          aria-hidden
-          className="absolute inset-y-0 left-0 w-[6px]"
-          style={{ background: 'var(--color-purple)' }}
-        />
-      )}
-
+    <article className="relative border-b-[3px] border-[var(--color-ink)] p-3">
       <div className="flex gap-3">
         <Avatar url={item.avatar_url} name={item.author} size={40} />
 
         <div className="min-w-0 flex-1">
-          <button type="button" className="block w-full text-left" onClick={onSelect}>
-            <div className="flex min-w-0 items-center gap-1.5">
+          <button type="button" className="block w-full text-left" onClick={onOpen}>
+            <div className="flex min-w-0 items-baseline gap-1.5">
               <span className="truncate text-[0.85rem] font-black">{item.author}</span>
               <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
-              {pinned && (
-                <span className="nb-chip ml-auto shrink-0" style={{ background: 'var(--color-purple)' }}>
-                  右上で比較中
-                </span>
-              )}
             </div>
 
             <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
@@ -516,7 +455,7 @@ function PostCard({
 
           {item.keymap.layers.length > 0 && (
             <div className="mt-2">
-              <KeyboardView interactive={false} compact previewKeymap={item.keymap} previewLayer={0} />
+              <PostDiff theirs={item.keymap} mine={myKeymap} focus={focusLayer} onFocus={onFocusLayer} />
             </div>
           )}
         </div>

@@ -217,8 +217,8 @@ export function App() {
           {view === 'export' && <ExportView />}
         </div>
 
-        {/* みんなの配列では、HUD の場所に「えらんだ配列との比較」、レイヤー一覧の場所に「並び替え」を出す。
-            サイド列が下に回る幅では、どちらもタイムライン側（上の並び替え・タップで開くモーダル）で代わりに出す */}
+        {/* みんなの配列では、HUD の場所に「あなたの配列」（比べる基準）、レイヤー一覧の場所に「並び替え」を出す。
+            サイド列が下に回る幅では、並び替えはタイムラインの上に出す */}
         <aside className={feedSide ? 'hidden min-w-0 lg:block' : 'min-w-0'}>
           <div className="flex flex-col gap-4 lg:sticky lg:top-[5.5rem] lg:h-[calc(100vh-7rem)]">
             {feedSide

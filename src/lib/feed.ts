@@ -154,14 +154,6 @@ async function fetchRankedIds(sort: 'hot' | 'popular'): Promise<string[]> {
   return ranked.slice(0, FEED_LIMIT).map((r) => r.id)
 }
 
-/** 右上に固定していた投稿を、一覧に無くても（並び順を変えた後など）1 件だけ取り直す */
-export async function fetchSharedKeymap(id: string): Promise<SharedKeymap | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase.from('shared_keymaps').select('*').eq('id', id).maybeSingle()
-  if (error) throw error
-  return toSharedKeymaps(data ? [data] : [])[0] ?? null
-}
-
 /** 一覧に出す投稿分の、いいね数・自分がいいね済みか・コメント数をまとめて取得する */
 export async function fetchFeedExtras(keymapIds: string[], myUserId: string | null): Promise<FeedExtras> {
   const empty: FeedExtras = { likeCounts: {}, likedByMe: new Set(), commentCounts: {} }
