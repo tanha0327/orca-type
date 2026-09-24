@@ -38,15 +38,18 @@ const SWITCH_STEM_COLORS: Record<'red' | 'blue' | 'brown', string> = {
   brown: '#b8752f',
 }
 
-/** キースイッチの正面シルエットアイコン。線は黒・細めで輪郭を強調し、軸だけ赤・青・茶に色分け */
+/**
+ * キースイッチの正面シルエットアイコン。線は黒。主輪郭（ハウジング）を太く、
+ * 軸（ステム）は副次的な形なのでそれより細い線で描き、線の強弱で主従を出す。
+ */
 function switchAvatar(axis: keyof typeof SWITCH_STEM_COLORS, bg = '#faf7f0'): string {
-  const layer = (d: string, fill: string) =>
-    `<path d="${d}" fill="${fill}" stroke="#111111" stroke-width="1.5" stroke-linejoin="round"/>`
+  const layer = (d: string, fill: string, strokeWidth: number) =>
+    `<path d="${d}" fill="${fill}" stroke="#111111" stroke-width="${strokeWidth}" stroke-linejoin="round"/>`
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`
     + `<rect x="4" y="4" width="56" height="56" rx="14" fill="${bg}" stroke="#111111" stroke-width="4"/>`
-    + layer(SWITCH_HOUSING_PATH, SWITCH_HOUSING_COLOR)
-    + layer(SWITCH_STEM_PATH, SWITCH_STEM_COLORS[axis])
+    + layer(SWITCH_HOUSING_PATH, SWITCH_HOUSING_COLOR, 1.5)
+    + layer(SWITCH_STEM_PATH, SWITCH_STEM_COLORS[axis], 0.8)
     + `</svg>`
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
