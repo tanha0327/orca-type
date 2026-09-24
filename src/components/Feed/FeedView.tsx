@@ -432,13 +432,12 @@ function PostCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saving])
 
-  // 寿司打の「Xで結果をシェア」のように、その場で文面入りの投稿画面を開くだけにする
-  // （画像を毎回添付する凝った作りにはせず、クリックした瞬間に開かないと大抵ポップアップブロックに引っかかる）
-  const onShareX = () => {
-    const text = `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を Orca echo で共有中 #Orcaecho`
-    const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.origin)}`
-    window.open(intent, '_blank', 'noopener,noreferrer')
-  }
+  // 寿司打の「Xで結果をシェア」のように、その場で文面入りの投稿画面を開くだけにする。
+  // window.open() での実装はブラウザによってポップアップブロックの対象になり得るので、
+  // 普通の <a target="_blank"> によるリンク遷移にする（これはブロックされない）
+  const shareXHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+    `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を Orca echo で共有中 #Orcaecho`,
+  )}&url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`
 
   return (
     <article className="relative border-b-[3px] border-[var(--color-ink)] p-3">
@@ -562,14 +561,15 @@ function PostCard({
         >
           {saving ? <Ring size={14} /> : '⬇'} 画像
         </button>
-        <button
-          type="button"
+        <a
+          href={shareXHref}
+          target="_blank"
+          rel="noopener noreferrer"
           className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
           aria-label="Xでシェア"
-          onClick={onShareX}
         >
           𝕏 シェア
-        </button>
+        </a>
         <span className="flex-1" />
         {canDelete && (
           <button
