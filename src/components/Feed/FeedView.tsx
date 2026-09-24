@@ -461,17 +461,19 @@ function PostCard({
         </div>
       </div>
 
+      {/* 保存用の画像は、8 レイヤーを横 2 × 縦 4 に並べて正方形に近い形にする */}
       {saving && (
         <div
           ref={fullCaptureRef}
           aria-hidden
-          className="fixed left-[-9999px] top-0 w-[520px]"
+          className="fixed left-[-9999px] top-0 w-[1040px]"
           style={{ background: 'var(--color-paper)' }}
         >
           <div className="flex gap-3 p-3">
             <Avatar url={item.avatar_url} name={item.author} size={40} />
             <div className="min-w-0 flex-1">
-              <span className="truncate text-[0.85rem] font-black">{item.author}</span>
+              {/* html2canvas は truncate（overflow: hidden）の中の文字を下にずらして切ってしまうので、画像用は省略しない */}
+              <p className="text-[0.85rem] font-black">{item.author}</p>
               <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
               {item.description && (
                 <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
@@ -483,7 +485,7 @@ function PostCard({
               </div>
             </div>
           </div>
-          <div className="space-y-3 p-3 pt-0">
+          <div className="grid grid-cols-2 gap-x-5 gap-y-3 p-3 pt-0">
             {item.keymap.layers.map((layer, i) => (
               <div key={layer.id}>
                 <span className="nb-chip mb-1" style={{ background: LAYER_COLOR_HEX[layer.color] }}>
