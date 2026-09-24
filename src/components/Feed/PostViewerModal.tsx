@@ -86,7 +86,6 @@ export function PostViewerModal({
             onFocus={setFocus}
             showMine={showMine}
             onShowMine={setShowMine}
-            variant="modal"
           />
 
           <p className="mt-2 text-[0.68rem] font-bold opacity-50">
