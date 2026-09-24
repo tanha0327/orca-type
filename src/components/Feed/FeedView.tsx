@@ -497,9 +497,6 @@ function PostCard({
       )}
 
       <div className="mt-3 flex items-center gap-2.5">
-        <ActionButton label="コメント" count={commentCount} onClick={onComments}>
-          <IconComment />
-        </ActionButton>
         <ActionButton
           label={liked ? 'いいねを取り消す' : 'いいね'}
           count={likeCount}
@@ -508,6 +505,9 @@ function PostCard({
           onClick={onLike}
         >
           <IconHeart filled={liked} />
+        </ActionButton>
+        <ActionButton label="コメント" count={commentCount} onClick={onComments}>
+          <IconComment />
         </ActionButton>
         <ActionButton label="画像を保存（全レイヤー）" busy={saving} onClick={() => setSaving(true)}>
           <IconImageSave />
