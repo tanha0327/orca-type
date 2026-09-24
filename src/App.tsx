@@ -4,6 +4,7 @@ import { LoginModal } from './components/Auth/LoginModal'
 import { KeyboardView } from './components/Board/KeyboardView'
 import { ComboList } from './components/Combos/ComboList'
 import { ExportView } from './components/Export/ExportView'
+import { FeedSide } from './components/Feed/FeedSide'
 import { FeedView } from './components/Feed/FeedView'
 import { Hud } from './components/Hud/Hud'
 import { LayerBar } from './components/LayerBar/LayerBar'
@@ -18,6 +19,7 @@ import {
 } from './data/types'
 import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
 import { authEnabled, profileFromUser, signOut } from './lib/auth'
+import { feedEnabled } from './lib/feed'
 import { useAuthStore } from './store/authStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 import { useProfileStore } from './store/profileStore'
@@ -98,6 +100,9 @@ export function App() {
 
   // PiP を開いたら自動でキャプチャを入れる（HUD が空だと意味がないので）
   useEffect(() => { if (pip.win && !capture) setCapture(true) }, [pip.win, capture, setCapture])
+
+  // 共有フィードが設定されていない環境では、みんなの配列でもいつもの HUD とレイヤー一覧を出す
+  const feedSide = view === 'feed' && feedEnabled()
 
   return (
     <div className="min-h-full">
@@ -212,14 +217,22 @@ export function App() {
           {view === 'export' && <ExportView />}
         </div>
 
-        <aside className="min-w-0">
+        {/* みんなの配列では、HUD の場所に「えらんだ配列との比較」、レイヤー一覧の場所に「並び替え」を出す。
+            サイド列が下に回る幅では、どちらもタイムライン側（上の並び替え・タップで開くモーダル）で代わりに出す */}
+        <aside className={feedSide ? 'hidden min-w-0 lg:block' : 'min-w-0'}>
           <div className="flex flex-col gap-4 lg:sticky lg:top-[5.5rem] lg:h-[calc(100vh-7rem)]">
-            <div className="nb nb-lg min-h-[22rem] overflow-hidden lg:min-h-0 lg:flex-[1.15]">
-              {pip.win ? <PipPlaceholder onClose={pip.close} /> : <Hud />}
-            </div>
-            <div className="min-h-0 lg:flex-1 lg:overflow-y-auto">
-              <LayerBar />
-            </div>
+            {feedSide
+              ? <FeedSide />
+              : (
+                <>
+                  <div className="nb nb-lg min-h-[22rem] overflow-hidden lg:min-h-0 lg:flex-[1.15]">
+                    {pip.win ? <PipPlaceholder onClose={pip.close} /> : <Hud />}
+                  </div>
+                  <div className="min-h-0 lg:flex-1 lg:overflow-y-auto">
+                    <LayerBar />
+                  </div>
+                </>
+              )}
           </div>
         </aside>
       </main>

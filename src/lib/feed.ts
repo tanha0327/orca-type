@@ -28,23 +28,42 @@ export interface KeymapComment {
   created_at: string
 }
 
+/** みんなの配列の並び順 */
+export type FeedSort = 'hot' | 'popular' | 'new' | 'old'
+
+export const FEED_SORTS: readonly FeedSort[] = ['hot', 'popular', 'new', 'old']
+
+export function isFeedSort(x: unknown): x is FeedSort {
+  return FEED_SORTS.includes(x as FeedSort)
+}
+
+export interface FeedPage {
+  items: SharedKeymap[]
+  /** いいね・コメントのテーブルが読めず、今熱い／人気の代わりに新しい順で返したとき true */
+  rankFallback: boolean
+}
+
+const FEED_LIMIT = 50
+
+/** 今熱い・人気の順位付けで見る、直近の投稿の数（これより古い投稿は候補に入らない） */
+const RANK_POOL = 1000
+
+/** 今熱い: 投稿・いいね・コメントの勢いが半分になるまでの時間 */
+const HOT_HALF_LIFE_MS = 72 * 3600 * 1000
+
+/** コメントはいいねの半分の重みで数える（何回でも書けるので） */
+const HOT_COMMENT_WEIGHT = 0.5
+
 export function feedEnabled(): boolean {
   return supabase !== null
 }
 
 /**
- * 新しい順に最大 50 件。壊れた形の keymap が紛れ込んでいても落ちないよう弾く。
+ * 壊れた形の keymap が紛れ込んでいても落ちないよう弾く。
  * user_id / avatar_url をまだ持たないテーブルでも一覧は出せるよう、列は * で取って埋める。
  */
-export async function fetchFeed(): Promise<SharedKeymap[]> {
-  if (!supabase) throw new Error('共有フィードは設定されていません')
-  const { data, error } = await supabase
-    .from('shared_keymaps')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(50)
-  if (error) throw error
-  return (data ?? [])
+function toSharedKeymaps(rows: any[] | null): SharedKeymap[] {
+  return (rows ?? [])
     .filter((row) => isValidKeymapShape(row.keymap))
     .map((row) => ({
       id: row.id,
@@ -56,6 +75,91 @@ export async function fetchFeed(): Promise<SharedKeymap[]> {
       user_id: row.user_id ?? null,
       avatar_url: row.avatar_url ?? null,
     }))
+}
+
+/** 指定の並び順で最大 50 件 */
+export async function fetchFeed(sort: FeedSort): Promise<FeedPage> {
+  if (!supabase) throw new Error('共有フィードは設定されていません')
+
+  if (sort === 'hot' || sort === 'popular') {
+    let ids: string[]
+    try {
+      ids = await fetchRankedIds(sort)
+    } catch {
+      // いいね・コメントのテーブルがまだ無い環境でも、一覧そのものは新しい順で出す
+      return { items: (await fetchFeed('new')).items, rankFallback: true }
+    }
+    if (ids.length === 0) return { items: [], rankFallback: false }
+    const { data, error } = await supabase.from('shared_keymaps').select('*').in('id', ids)
+    if (error) throw error
+    const byId = new Map(toSharedKeymaps(data).map((item) => [item.id, item]))
+    return {
+      items: ids.flatMap((id) => byId.get(id) ?? []),
+      rankFallback: false,
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('shared_keymaps')
+    .select('*')
+    .order('created_at', { ascending: sort === 'old' })
+    .limit(FEED_LIMIT)
+  if (error) throw error
+  return { items: toSharedKeymaps(data), rankFallback: false }
+}
+
+interface RankRow {
+  id: string
+  created_at: string
+  keymap_likes: { created_at: string }[] | null
+  keymap_comments: { created_at: string }[] | null
+}
+
+/**
+ * 今熱い／人気の上位 50 件の ID を順番どおりに返す。
+ * いいね・コメントは投稿ごとの件数で並べ替えられない（PostgREST では集計順に並べられない）ので、
+ * 直近の投稿にいいね・コメントの日時をぶら下げて取り、こちらで点数を付けて並べる。
+ */
+async function fetchRankedIds(sort: 'hot' | 'popular'): Promise<string[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('shared_keymaps')
+    .select('id, created_at, keymap_likes(created_at), keymap_comments(created_at)')
+    .order('created_at', { ascending: false })
+    .limit(RANK_POOL)
+  if (error) throw error
+
+  const rows = (data ?? []) as RankRow[]
+  const now = Date.now()
+  // 経過時間に応じて 1 → 0 に減っていく重み。未来の日時（時計のずれ）は 1 として扱う
+  const fresh = (iso: string) => 0.5 ** (Math.max(0, now - Date.parse(iso)) / HOT_HALF_LIFE_MS)
+
+  const ranked = rows.map((row) => {
+    const likes = row.keymap_likes ?? []
+    const comments = row.keymap_comments ?? []
+    const score = sort === 'popular'
+      ? likes.length
+      // 投稿そのものも「いいね 1 つ分」の勢いから始まるので、新着はしばらく上に出る
+      : fresh(row.created_at)
+        + likes.reduce((sum, l) => sum + fresh(l.created_at), 0)
+        + HOT_COMMENT_WEIGHT * comments.reduce((sum, c) => sum + fresh(c.created_at), 0)
+    return { id: row.id, score, comments: comments.length, createdAt: Date.parse(row.created_at) }
+  })
+
+  ranked.sort((a, b) => (
+    b.score - a.score
+    || b.comments - a.comments
+    || b.createdAt - a.createdAt
+  ))
+  return ranked.slice(0, FEED_LIMIT).map((r) => r.id)
+}
+
+/** 右上に固定していた投稿を、一覧に無くても（並び順を変えた後など）1 件だけ取り直す */
+export async function fetchSharedKeymap(id: string): Promise<SharedKeymap | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.from('shared_keymaps').select('*').eq('id', id).maybeSingle()
+  if (error) throw error
+  return toSharedKeymaps(data ? [data] : [])[0] ?? null
 }
 
 /** 一覧に出す投稿分の、いいね数・自分がいいね済みか・コメント数をまとめて取得する */
