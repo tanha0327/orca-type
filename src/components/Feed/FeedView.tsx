@@ -10,11 +10,13 @@ import {
   deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
   shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
+import { fetchXVerifications, verificationFromUser, type XVerification } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
 import { useKeymapStore } from '../../store/keymapStore'
 import { useProfileStore } from '../../store/profileStore'
 import { KeyboardView } from '../Board/KeyboardView'
 import { Ring } from '../Ring'
+import { XVerifiedBadge } from '../XVerifiedBadge'
 
 const EMPTY_EXTRAS: FeedExtras = { likeCounts: {}, likedByMe: new Set(), commentCounts: {} }
 
@@ -71,9 +73,12 @@ export function FeedView() {
   const user = useAuthStore((s) => s.user)
   const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = useProfileStore((s) => s.profile)
+  const openProfileEditor = useProfileStore((s) => s.openEditor)
+  const verificationRevision = useProfileStore((s) => s.verificationRevision)
 
   const [items, setItems] = useState<SharedKeymap[] | null>(null)
   const [extras, setExtras] = useState<FeedExtras>(EMPTY_EXTRAS)
+  const [verifications, setVerifications] = useState<Record<string, XVerification>>({})
   const [loadError, setLoadError] = useState<string | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareName, setShareName] = useState('')
@@ -101,6 +106,18 @@ export function FeedView() {
   }
 
   useEffect(() => { void load() }, [user?.id])
+
+  // 投稿者の X 本人確認バッジ。自分が連携・解除したとき（verificationRevision）も取り直す
+  useEffect(() => {
+    if (!items) return
+    let cancelled = false
+    const userIds = items.flatMap((i) => (i.user_id ? [i.user_id] : []))
+    fetchXVerifications(userIds)
+      .then((v) => { if (!cancelled) setVerifications(v) })
+      // 本人確認のテーブルがまだ無い環境でも、一覧はそのまま出す（バッジが出ないだけ）
+      .catch(() => { if (!cancelled) setVerifications({}) })
+    return () => { cancelled = true }
+  }, [items, verificationRevision])
 
   if (!feedEnabled()) {
     return (
@@ -229,6 +246,7 @@ export function FeedView() {
           key={item.id}
           item={item}
           canDelete={!!user && user.id === item.user_id}
+          verification={item.user_id ? verifications[item.user_id] ?? null : null}
           likeCount={extras.likeCounts[item.id] ?? 0}
           liked={extras.likedByMe.has(item.id)}
           commentCount={extras.commentCounts[item.id] ?? 0}
@@ -264,6 +282,8 @@ export function FeedView() {
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
         profile={profile}
+        verification={user ? verificationFromUser(user) : null}
+        onOpenProfile={() => { setShareOpen(false); openProfileEditor() }}
         onRequireLogin={() => { setShareOpen(false); openLoginModal() }}
       />
 
@@ -292,6 +312,7 @@ export function FeedView() {
 
       <PostDetailModal
         item={detailItem}
+        verification={detailItem?.user_id ? verifications[detailItem.user_id] ?? null : null}
         canDelete={!!user && !!detailItem && user.id === detailItem.user_id}
         onClose={() => setDetailItem(null)}
         onEdit={() => {
@@ -388,10 +409,11 @@ function Avatar({ url, name, size = 22 }: { url: string | null; name: string; si
 }
 
 function PostCard({
-  item, canDelete, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments, onOpenDetail, onDelete,
+  item, canDelete, verification, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments, onOpenDetail, onDelete,
 }: {
   item: SharedKeymap
   canDelete: boolean
+  verification: XVerification | null
   likeCount: number
   liked: boolean
   commentCount: number
@@ -445,12 +467,16 @@ function PostCard({
         <Avatar url={item.avatar_url} name={item.author} size={40} />
 
         <div className="min-w-0 flex-1">
-          <button type="button" className="block w-full text-left" onClick={onOpenDetail}>
-            <div className="flex min-w-0 items-baseline gap-1.5">
-              <span className="truncate text-[0.85rem] font-black">{item.author}</span>
-              <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
-            </div>
+          {/* 本人確認バッジは X へのリンクなので、詳細を開くボタンの外に置く（ボタンの中にリンクは入れられない） */}
+          <div className="flex min-w-0 items-center gap-1.5">
+            <button type="button" className="min-w-0 truncate text-left text-[0.85rem] font-black" onClick={onOpenDetail}>
+              {item.author}
+            </button>
+            {verification && <XVerifiedBadge verification={verification} className="shrink" />}
+            <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
+          </div>
 
+          <button type="button" className="block w-full text-left" onClick={onOpenDetail}>
             <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
             {item.description && (
               <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
@@ -505,7 +531,10 @@ function PostCard({
           <div className="flex gap-3 p-3">
             <Avatar url={item.avatar_url} name={item.author} size={40} />
             <div className="min-w-0 flex-1">
-              <span className="truncate text-[0.85rem] font-black">{item.author}</span>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate text-[0.85rem] font-black">{item.author}</span>
+                {verification && <XVerifiedBadge verification={verification} link={false} />}
+              </div>
               <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
               {item.description && (
                 <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
@@ -597,7 +626,7 @@ function PostCard({
 
 function ShareModal({
   open, onClose, shareName, onShareName,
-  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile, onRequireLogin,
+  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile, verification, onOpenProfile, onRequireLogin,
 }: {
   open: boolean
   onClose: () => void
@@ -609,6 +638,8 @@ function ShareModal({
   onSubmit: () => void
   shareMsg: string | null
   profile: { name: string; avatarUrl: string | null } | null
+  verification: XVerification | null
+  onOpenProfile: () => void
   onRequireLogin: () => void
 }) {
   useEffect(() => {
@@ -663,8 +694,16 @@ function ShareModal({
                 <div className="nb nb-flat mt-1 flex items-center gap-2 p-2">
                   <Avatar url={profile.avatarUrl} name={profile.name} size={26} />
                   <span className="min-w-0 flex-1 truncate text-[0.85rem] font-black">{profile.name}</span>
-                  <span className="nb-chip shrink-0" style={{ background: 'var(--color-lime)' }}>ログイン中</span>
+                  {verification
+                    ? <XVerifiedBadge verification={verification} className="shrink" />
+                    : <span className="nb-chip shrink-0" style={{ background: 'var(--color-lime)' }}>ログイン中</span>}
                 </div>
+                {!verification && (
+                  <p className="mt-1 text-[0.7rem] font-bold opacity-60">
+                    <button type="button" className="underline" onClick={onOpenProfile}>プロフィール</button>
+                    から X と連携すると、投稿に本人確認バッジが付きます。
+                  </p>
+                )}
               </div>
             )
             : (
@@ -834,9 +873,10 @@ function CompareModal({
 }
 
 function PostDetailModal({
-  item, canDelete, onClose, onEdit, onDelete,
+  item, verification, canDelete, onClose, onEdit, onDelete,
 }: {
   item: SharedKeymap | null
+  verification: XVerification | null
   canDelete: boolean
   onClose: () => void
   onEdit: () => void
@@ -880,7 +920,10 @@ function PostDetailModal({
           style={{ background: 'var(--color-purple)' }}
         >
           <div className="min-w-0 flex-1">
-            <p className="nb-eyebrow !opacity-80">{item.author}</p>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="nb-eyebrow min-w-0 truncate !opacity-80">{item.author}</p>
+              {verification && <XVerifiedBadge verification={verification} className="shrink" />}
+            </div>
             <h3 className="truncate text-[1.05rem]">{item.name}</h3>
           </div>
           <button type="button" className="nb-btn shrink-0 !py-1.5 text-[0.78rem]" onClick={onClose}>
@@ -965,8 +1008,10 @@ function CommentsModal({
   const user = useAuthStore((s) => s.user)
   const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = useProfileStore((s) => s.profile)
+  const verificationRevision = useProfileStore((s) => s.verificationRevision)
 
   const [comments, setComments] = useState<KeymapComment[] | null>(null)
+  const [verifications, setVerifications] = useState<Record<string, XVerification>>({})
   const [error, setError] = useState<string | null>(null)
   const [body, setBody] = useState('')
   const [posting, setPosting] = useState(false)
@@ -988,6 +1033,15 @@ function CommentsModal({
       .catch((e) => { if (!cancelled) setError(`コメントを読み込めませんでした: ${errorMessage(e)}`) })
     return () => { cancelled = true }
   }, [item])
+
+  useEffect(() => {
+    if (!comments) return
+    let cancelled = false
+    fetchXVerifications(comments.map((c) => c.user_id))
+      .then((v) => { if (!cancelled) setVerifications(v) })
+      .catch(() => { if (!cancelled) setVerifications({}) })
+    return () => { cancelled = true }
+  }, [comments, verificationRevision])
 
   if (!item) return null
 
@@ -1065,8 +1119,11 @@ function CommentsModal({
             <div key={c.id} className="nb nb-flat flex gap-2 p-2.5">
               <Avatar url={c.avatar_url} name={c.author_name} size={26} />
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5">
+                <p className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-[0.8rem] font-black">{c.author_name}</span>
+                  {verifications[c.user_id] && (
+                    <XVerifiedBadge verification={verifications[c.user_id]} className="shrink" />
+                  )}
                   <span className="shrink-0 text-[0.68rem] font-bold opacity-50">
                     {new Date(c.created_at).toLocaleDateString('ja-JP')}
                   </span>

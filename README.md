@@ -41,14 +41,34 @@ PiP（Document Picture-in-Picture API）は Chrome / Edge で動きます。
 キャプチャ中はブラウザのショートカットを除くほとんどのキーがページに取り込まれます。
 文字を入力したいときは OFF に戻してください。
 
+## X 連携（本人確認）
+
+ログイン中のアカウントに X（旧 Twitter）のアカウントを紐づけると、
+「みんなの配列」の投稿・コメントに **✓ 𝕏 @ユーザー名** のバッジが付きます。
+バッジは連携した X のプロフィール（数値のユーザー ID 指定）へのリンクなので、
+見た人が本人の投稿かどうかを確かめられます。連携・解除はプロフィール編集から行えます。
+
+有効にするには Supabase 側で次の設定が必要です。
+
+1. Authentication > Sign In / Providers で **X / Twitter (OAuth 2.0)** を有効にし、
+   X Developer Portal の Client ID / Client Secret を登録する
+   （X 側の Callback URI は `https://<project-ref>.supabase.co/auth/v1/callback`）
+2. 同じ画面の **Allow manual linking** を ON にする
+3. `supabase/sql/005_x_verification.sql` を SQL Editor で実行する
+
+連携情報は Supabase Auth の `auth.identities` に入り、公開用の `x_verifications` テーブルへは
+DB 関数 `sync_x_verification()` だけが書き込みます（クライアントから任意のユーザー名を書き込んで
+なりすますことはできません）。
+
 ## 構成
 
 ```
 src/
   data/       layout.ts（49 キーの物理配列）/ keycodes.ts / defaultKeymap.ts / types.ts
   engine/     resolve.ts（純粋な解決関数）/ KeyEngine.ts（状態機械）/ zmk.ts / useEngine.ts
-  store/      keymapStore.ts（Zustand + persist）
-  components/ Board / LayerBar / Inspector / Picker / Combos / Gestures / Export / Hud / PipHost
+  lib/        supabase.ts / auth.ts / profile.ts / feed.ts / xVerification.ts（X 連携による本人確認）
+  store/      keymapStore.ts（Zustand + persist）/ authStore.ts / profileStore.ts
+  components/ Board / LayerBar / Inspector / Picker / Combos / Gestures / Export / Hud / PipHost / Feed / Profile / Auth
   styles/     theme.css（デザイントークンと共通クラス）
 ```
 

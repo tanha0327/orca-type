@@ -1,9 +1,14 @@
+import type { User } from '@supabase/supabase-js'
 import { useEffect, useRef, useState } from 'react'
 import { SAMPLE_AVATARS, SAMPLE_NAMES } from '../../data/profileSamples'
 import { uploadAvatar } from '../../lib/profile'
+import {
+  linkXAccount, unlinkXAccount, verificationFromUser, xIdentityOf, xVerificationEnabled,
+} from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
 import { useProfileStore } from '../../store/profileStore'
 import { Ring } from '../Ring'
+import { XVerifiedBadge } from '../XVerifiedBadge'
 
 /**
  * Supabase のエラー（PostgrestError / StorageError）は Error を継承していないので、
@@ -22,6 +27,7 @@ export function ProfileSetupModal() {
   const editorOpen = useProfileStore((s) => s.editorOpen)
   const isFirstSignIn = useProfileStore((s) => s.isFirstSignIn)
   const profile = useProfileStore((s) => s.profile)
+  const notice = useProfileStore((s) => s.notice)
   const closeEditor = useProfileStore((s) => s.closeEditor)
   const save = useProfileStore((s) => s.save)
 
@@ -114,6 +120,16 @@ export function ProfileSetupModal() {
         </header>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+          {notice && (
+            <p
+              className="nb-chip !whitespace-normal !py-1 leading-relaxed"
+              style={{ background: notice.kind === 'ok' ? 'var(--color-lime)' : 'var(--color-pink)' }}
+              role={notice.kind === 'error' ? 'alert' : 'status'}
+            >
+              {notice.text}
+            </p>
+          )}
+
           <div className="flex items-center gap-3">
             <img
               src={avatarUrl}
@@ -126,6 +142,8 @@ export function ProfileSetupModal() {
               <p className="text-[0.72rem] font-bold opacity-60">みんなの配列やコメントにこの名前とアイコンで表示されます</p>
             </div>
           </div>
+
+          <XLinkSection user={user} />
 
           <div>
             <span className="nb-eyebrow">アイコン（サンプル）</span>
@@ -243,6 +261,90 @@ export function ProfileSetupModal() {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** X（旧 Twitter）のアカウントを紐づけて本人確認する欄。連携すると投稿・コメントに本人確認バッジが付く */
+function XLinkSection({ user }: { user: User }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  if (!xVerificationEnabled()) return null
+
+  const identity = xIdentityOf(user)
+  const verification = verificationFromUser(user)
+
+  const doLink = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await linkXAccount()
+      // X の認証ページへリダイレクトするので、busy はこのまま残ってよい
+    } catch (e) {
+      setError(errorMessage(e))
+      setBusy(false)
+    }
+  }
+
+  const doUnlink = async () => {
+    if (!confirm('X との連携を解除しますか？ 投稿やコメントの本人確認バッジも外れます。')) return
+    setBusy(true)
+    setError(null)
+    try {
+      await unlinkXAccount(user)
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <span className="nb-eyebrow">本人確認（X 連携）</span>
+      {identity
+        ? (
+          <div className="nb nb-flat mt-1.5 flex flex-wrap items-center gap-2 p-2.5">
+            {verification
+              ? <XVerifiedBadge verification={verification} />
+              : <span className="nb-chip" style={{ background: 'var(--color-cyan)' }}>✓ 𝕏 連携済み</span>}
+            <span className="min-w-0 flex-1 text-[0.72rem] font-bold opacity-60">本人確認済み</span>
+            <button
+              type="button"
+              className="nb-btn flex shrink-0 items-center gap-1.5 !py-1 !px-2 text-[0.72rem]"
+              onClick={() => void doUnlink()}
+              disabled={busy}
+            >
+              {busy && <Ring size={12} />}
+              連携を解除
+            </button>
+          </div>
+        )
+        : (
+          <div className="nb nb-flat mt-1.5 p-2.5">
+            <p className="text-[0.74rem] font-bold leading-relaxed opacity-70">
+              X（旧 Twitter）と連携すると、投稿やコメントに「✓ 𝕏 @ユーザー名」のバッジが付き、
+              そこから X のプロフィールを開いて本人の投稿だと確かめてもらえます。
+            </p>
+            <button
+              type="button"
+              className="nb-btn mt-2 flex w-full items-center justify-center gap-2 !py-1.5 text-[0.78rem]"
+              style={{ background: 'var(--color-cyan)' }}
+              onClick={() => void doLink()}
+              disabled={busy}
+            >
+              {busy && <Ring size={13} />}
+              𝕏 と連携して本人確認する
+            </button>
+            <p className="mt-1.5 text-[0.68rem] font-bold opacity-50">
+              X の認証ページに移動します。名前やアイコンを変えた場合は、先に保存してください。
+            </p>
+          </div>
+        )}
+      {error && (
+        <p className="mt-1.5 text-[0.76rem] font-bold" style={{ color: 'var(--color-pink)' }}>{error}</p>
+      )}
     </div>
   )
 }
