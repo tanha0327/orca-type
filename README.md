@@ -18,6 +18,8 @@
 | **トラックボール** | 19mm ボールの DPI・取り付け角度・反転・精密モード倍率・スクロール粒度 |
 | **出力 HUD** | 現在レイヤー／組み合わせ→出力／単押し・長押しの判定とタッピングターム進行バー／コンボ発火／スワイプ／直近ログ／ミニキーマップ。PiP で常時最前面に出せる |
 | **入出力** | localStorage への自動保存、JSON の書き出し・読み込み、ZMK `.keymap` 風のプレビュー |
+| **打鍵音** | 打鍵に赤軸／茶軸／青軸のスイッチ音を Web Audio で合成して鳴らす。長押し確定・コンボ・ホイール・スワイプにも専用の音。HUD の ⚙ から選べる |
+| **みんなの配列** | 投稿・いいね・コメント・比較。配列の特徴から自動でフォルダ分けし（投稿時に選び直せる）、自分用のフォルダにも保存・手動で並べ替えできる。新着順／人気順／自分に近い順、一致度の表示、24 時間以内の投稿に NEW、いいね 10 以上は 🔥 で上に表示 |
 
 ## 動かす
 
@@ -27,6 +29,10 @@ npm run dev      # http://localhost:5173
 npm run build    # 型チェック + 本番ビルド
 npm run typecheck
 ```
+
+「みんなの配列」を使うには `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` を設定し、
+`supabase/sql/` の SQL を番号順に Supabase の SQL Editor で実行してください
+（フォルダ機能は `005_feed_folders.sql` が必要です）。
 
 PiP（Document Picture-in-Picture API）は Chrome / Edge で動きます。
 非対応のブラウザではボタンが無効になり、HUD はページ内に表示されます。
@@ -46,7 +52,7 @@ PiP（Document Picture-in-Picture API）は Chrome / Edge で動きます。
 ```
 src/
   data/       layout.ts（49 キーの物理配列）/ keycodes.ts / defaultKeymap.ts / types.ts
-  engine/     resolve.ts（純粋な解決関数）/ KeyEngine.ts（状態機械）/ zmk.ts / useEngine.ts
+  engine/     resolve.ts（純粋な解決関数）/ KeyEngine.ts（状態機械）/ analyze.ts（フォルダ分け・一致度）/ zmk.ts / useEngine.ts
   store/      keymapStore.ts（Zustand + persist）
   components/ Board / LayerBar / Inspector / Picker / Combos / Gestures / Export / Hud / PipHost
   styles/     theme.css（デザイントークンと共通クラス）

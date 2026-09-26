@@ -17,6 +17,7 @@ import {
   type BodyColor, type EscColor, type TrackballColor,
 } from './data/types'
 import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { useSwitchSound } from './engine/useSwitchSound'
 import { authEnabled, profileFromUser, signOut } from './lib/auth'
 import { useAuthStore } from './store/authStore'
 import { useFolderStore } from './store/folderStore'
@@ -56,6 +57,7 @@ export function App() {
 
   useKeyCapture(typeof document !== 'undefined' ? document : null)
   useResetOnCaptureOff()
+  useSwitchSound()
 
   useEffect(() => { initAuth() }, [initAuth])
 
