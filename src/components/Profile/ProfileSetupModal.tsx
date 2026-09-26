@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { SAMPLE_AVATARS, SAMPLE_NAMES } from '../../data/profileSamples'
 import { uploadAvatar } from '../../lib/profile'
 import {
-  linkXAccount, unlinkXAccount, verificationFromUser, xIdentityOf, xVerificationEnabled,
+  fetchMyXVerificationCode, isXVerificationUnavailable, removeXVerification, verifyXPost,
+  xVerificationEnabled, xVerificationIntentUrl,
 } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
 import { useProfileStore } from '../../store/profileStore'
@@ -27,7 +28,6 @@ export function ProfileSetupModal() {
   const editorOpen = useProfileStore((s) => s.editorOpen)
   const isFirstSignIn = useProfileStore((s) => s.isFirstSignIn)
   const profile = useProfileStore((s) => s.profile)
-  const notice = useProfileStore((s) => s.notice)
   const closeEditor = useProfileStore((s) => s.closeEditor)
   const save = useProfileStore((s) => s.save)
 
@@ -120,16 +120,6 @@ export function ProfileSetupModal() {
         </header>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-          {notice && (
-            <p
-              className="nb-chip !whitespace-normal !py-1 leading-relaxed"
-              style={{ background: notice.kind === 'ok' ? 'var(--color-lime)' : 'var(--color-pink)' }}
-              role={notice.kind === 'error' ? 'alert' : 'status'}
-            >
-              {notice.text}
-            </p>
-          )}
-
           <div className="flex items-center gap-3">
             <img
               src={avatarUrl}
@@ -143,7 +133,7 @@ export function ProfileSetupModal() {
             </div>
           </div>
 
-          <XLinkSection user={user} />
+          <XVerifySection user={user} />
 
           <div>
             <span className="nb-eyebrow">アイコン（サンプル）</span>
@@ -265,34 +255,62 @@ export function ProfileSetupModal() {
   )
 }
 
-/** X（旧 Twitter）のアカウントを紐づけて本人確認する欄。連携すると投稿・コメントに本人確認バッジが付く */
-function XLinkSection({ user }: { user: User }) {
+/**
+ * X（旧 Twitter）のポストで本人確認する欄。確認コード入りのポストをしてその URL を貼ると、
+ * 投稿・コメントに「✓ 𝕏 @ユーザー名」のバッジが付く。X の API（有料）は使わない。
+ */
+function XVerifySection({ user }: { user: User }) {
+  const verification = useProfileStore((s) => s.verification)
+  const setVerification = useProfileStore((s) => s.setVerification)
+
+  const [code, setCode] = useState<string | null>(null)
+  // 本人確認の SQL がまだ実行されていない環境では、この欄ごと出さない
+  const [unavailable, setUnavailable] = useState(false)
+  const [postUrl, setPostUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
 
-  if (!xVerificationEnabled()) return null
+  useEffect(() => {
+    if (!xVerificationEnabled() || verification || code) return
+    let cancelled = false
+    fetchMyXVerificationCode()
+      .then((c) => { if (!cancelled) setCode(c) })
+      .catch((e) => {
+        if (cancelled) return
+        if (isXVerificationUnavailable(e)) setUnavailable(true)
+        else setError(`確認コードを取得できませんでした: ${errorMessage(e)}`)
+      })
+    return () => { cancelled = true }
+  }, [verification, code])
 
-  const identity = xIdentityOf(user)
-  const verification = verificationFromUser(user)
+  if (!xVerificationEnabled() || unavailable) return null
 
-  const doLink = async () => {
+  const doVerify = async () => {
+    if (!postUrl.trim()) return
     setBusy(true)
     setError(null)
+    setDone(null)
     try {
-      await linkXAccount()
-      // X の認証ページへリダイレクトするので、busy はこのまま残ってよい
+      const v = await verifyXPost(user.id, postUrl.trim())
+      setVerification(v)
+      setPostUrl('')
+      setDone(`@${v.username} で本人確認できました！ 投稿やコメントにバッジが付きます。`)
     } catch (e) {
       setError(errorMessage(e))
+    } finally {
       setBusy(false)
     }
   }
 
-  const doUnlink = async () => {
-    if (!confirm('X との連携を解除しますか？ 投稿やコメントの本人確認バッジも外れます。')) return
+  const doRemove = async () => {
+    if (!confirm('X の本人確認を取り消しますか？ 投稿やコメントのバッジも外れます。')) return
     setBusy(true)
     setError(null)
+    setDone(null)
     try {
-      await unlinkXAccount(user)
+      await removeXVerification(user.id)
+      setVerification(null)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -302,48 +320,91 @@ function XLinkSection({ user }: { user: User }) {
 
   return (
     <div>
-      <span className="nb-eyebrow">本人確認（X 連携）</span>
-      {identity
+      <span className="nb-eyebrow">本人確認（X のポスト）</span>
+      {verification
         ? (
           <div className="nb nb-flat mt-1.5 flex flex-wrap items-center gap-2 p-2.5">
-            {verification
-              ? <XVerifiedBadge verification={verification} />
-              : <span className="nb-chip" style={{ background: 'var(--color-cyan)' }}>✓ 𝕏 連携済み</span>}
+            <XVerifiedBadge verification={verification} />
             <span className="min-w-0 flex-1 text-[0.72rem] font-bold opacity-60">本人確認済み</span>
             <button
               type="button"
               className="nb-btn flex shrink-0 items-center gap-1.5 !py-1 !px-2 text-[0.72rem]"
-              onClick={() => void doUnlink()}
+              onClick={() => void doRemove()}
               disabled={busy}
             >
               {busy && <Ring size={12} />}
-              連携を解除
+              取り消す
             </button>
           </div>
         )
         : (
-          <div className="nb nb-flat mt-1.5 p-2.5">
+          <div className="nb nb-flat mt-1.5 space-y-2.5 p-2.5">
             <p className="text-[0.74rem] font-bold leading-relaxed opacity-70">
-              X（旧 Twitter）と連携すると、投稿やコメントに「✓ 𝕏 @ユーザー名」のバッジが付き、
-              そこから X のプロフィールを開いて本人の投稿だと確かめてもらえます。
+              確認コード入りのポストを X にすると、投稿やコメントに「✓ 𝕏 @ユーザー名」のバッジが付きます。
+              バッジからそのポストを開けるので、本人だと確かめてもらえます。
             </p>
-            <button
-              type="button"
-              className="nb-btn mt-2 flex w-full items-center justify-center gap-2 !py-1.5 text-[0.78rem]"
-              style={{ background: 'var(--color-cyan)' }}
-              onClick={() => void doLink()}
-              disabled={busy}
-            >
-              {busy && <Ring size={13} />}
-              𝕏 と連携して本人確認する
-            </button>
-            <p className="mt-1.5 text-[0.68rem] font-bold opacity-50">
-              X の認証ページに移動します。名前やアイコンを変えた場合は、先に保存してください。
+
+            <div>
+              <p className="text-[0.74rem] font-black">① 確認コード入りのポストをする</p>
+              <div className="mt-1 flex items-center gap-2">
+                <code
+                  className="nb-chip min-w-0 flex-1 justify-center !py-1 font-mono text-[0.78rem]"
+                  style={{ background: 'var(--color-paper)' }}
+                >
+                  {code ?? '…'}
+                </code>
+                <a
+                  href={code ? xVerificationIntentUrl(code) : undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
+                  style={{ background: 'var(--color-cyan)' }}
+                  aria-disabled={!code}
+                  onClick={(e) => { if (!code) e.preventDefault() }}
+                >
+                  𝕏 でポストする
+                </a>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[0.74rem] font-black">② 投稿したポストの URL を貼って確認する</p>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  className="nb-input min-w-0 flex-1 !py-1.5 text-[0.78rem]"
+                  type="url"
+                  inputMode="url"
+                  value={postUrl}
+                  onChange={(e) => setPostUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void doVerify() }}
+                  placeholder="https://x.com/ユーザー名/status/…"
+                  aria-label="投稿したポストの URL"
+                />
+                <button
+                  type="button"
+                  className="nb-btn flex shrink-0 items-center gap-1.5 !py-1.5 text-[0.76rem]"
+                  style={{ background: 'var(--color-lime)' }}
+                  onClick={() => void doVerify()}
+                  disabled={busy || !postUrl.trim()}
+                >
+                  {busy && <Ring size={12} />}
+                  確認する
+                </button>
+              </div>
+            </div>
+
+            <p className="text-[0.68rem] font-bold leading-relaxed opacity-50">
+              鍵アカウントのポストでは確認できません。確認したあともポストは残しておいてください（バッジから開けます）。
             </p>
           </div>
         )}
+      {done && (
+        <p className="nb-chip mt-1.5 !whitespace-normal !py-1 leading-relaxed" style={{ background: 'var(--color-lime)' }} role="status">
+          {done}
+        </p>
+      )}
       {error && (
-        <p className="mt-1.5 text-[0.76rem] font-bold" style={{ color: 'var(--color-pink)' }}>{error}</p>
+        <p className="mt-1.5 text-[0.76rem] font-bold" style={{ color: 'var(--color-pink)' }} role="alert">{error}</p>
       )}
     </div>
   )
