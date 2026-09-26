@@ -1,22 +1,45 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { KEYS, type KeyId } from '../../data/layout'
 import {
   BODY_COLOR_LABEL, LAYER_COLOR_HEX, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL,
   type BodyColor, type Keymap, type TrackballColor,
 } from '../../data/types'
+import {
+  classifyKeymap, FEED_CATEGORIES, getCategory, keymapSimilarity, type CategoryId,
+} from '../../engine/analyze'
 import { resolveKey } from '../../engine/resolve'
 import { errorMessage } from '../../lib/errors'
 import {
-  deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
-  shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
+  deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, fetchKeymapsByIds, feedEnabled,
+  postComment, shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
 import { useAuthStore } from '../../store/authStore'
+import { useFolderStore } from '../../store/folderStore'
 import { useKeymapStore } from '../../store/keymapStore'
 import { useProfileStore } from '../../store/profileStore'
 import { KeyboardView } from '../Board/KeyboardView'
 import { Ring } from '../Ring'
+import { FolderBar, type FeedFolder, type FeedSort } from './FolderBar'
+import { SaveToFolderModal } from './SaveToFolderModal'
 
 const EMPTY_EXTRAS: FeedExtras = { likeCounts: {}, likedByMe: new Set(), commentCounts: {} }
+
+/** いいねがこの数以上の投稿は「話題の配列」として 🔥 を付け、新着順では上に出す */
+const BUZZ_LIKE_THRESHOLD = 10
+/** 投稿からこの時間内は NEW を付ける */
+const NEW_BADGE_MS = 24 * 60 * 60 * 1000
+
+function mergeExtras(a: FeedExtras, b: FeedExtras): FeedExtras {
+  return {
+    likeCounts: { ...a.likeCounts, ...b.likeCounts },
+    likedByMe: new Set([...a.likedByMe, ...b.likedByMe]),
+    commentCounts: { ...a.commentCounts, ...b.commentCounts },
+  }
+}
+
+function byNewest(a: SharedKeymap, b: SharedKeymap): number {
+  return Date.parse(b.created_at) - Date.parse(a.created_at)
+}
 
 /** 2 つのキーマップで、指定レイヤーの割当（単押し・長押し）が違うキーの ID 集合 */
 function diffKeysForLayer(a: Keymap, b: Keymap, layerIndex: number): Set<KeyId> {
@@ -72,17 +95,33 @@ export function FeedView() {
   const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = useProfileStore((s) => s.profile)
 
+  const itemsByFolder = useFolderStore((s) => s.itemsByFolder)
+  const moveInFolder = useFolderStore((s) => s.move)
+  const forgetKeymap = useFolderStore((s) => s.forgetKeymap)
+
   const [items, setItems] = useState<SharedKeymap[] | null>(null)
+  /** 新着の範囲より古いが、自分のフォルダに入っている投稿 */
+  const [olderItems, setOlderItems] = useState<SharedKeymap[]>([])
   const [extras, setExtras] = useState<FeedExtras>(EMPTY_EXTRAS)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareName, setShareName] = useState('')
   const [shareDesc, setShareDesc] = useState('')
+  /** null のあいだは自動判定のカテゴリで投稿する */
+  const [shareCategory, setShareCategory] = useState<CategoryId | null>(null)
   const [sharing, setSharing] = useState(false)
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [compareItem, setCompareItem] = useState<SharedKeymap | null>(null)
   const [commentItem, setCommentItem] = useState<SharedKeymap | null>(null)
   const [detailItem, setDetailItem] = useState<SharedKeymap | null>(null)
+  const [saveItem, setSaveItem] = useState<SharedKeymap | null>(null)
+  const [folder, setFolder] = useState<FeedFolder>({ kind: 'all' })
+  const [sort, setSort] = useState<FeedSort>('new')
+
+  const olderRef = useRef<SharedKeymap[]>([])
+  olderRef.current = olderItems
+  /** 取りに行ったことのある古い投稿の ID（消えた投稿を何度も取りに行かないように） */
+  const requestedOlder = useRef(new Set<string>())
 
   const load = async () => {
     setLoadError(null)
@@ -91,7 +130,8 @@ export function FeedView() {
       setItems(rows)
       // いいね・コメントのテーブルがまだ無い環境でも、配列一覧そのものは出したままにする
       try {
-        setExtras(await fetchFeedExtras(rows.map((r) => r.id), user?.id ?? null))
+        const ids = [...rows, ...olderRef.current].map((r) => r.id)
+        setExtras(await fetchFeedExtras(ids, user?.id ?? null))
       } catch {
         setExtras(EMPTY_EXTRAS)
       }
@@ -102,6 +142,102 @@ export function FeedView() {
 
   useEffect(() => { void load() }, [user?.id])
 
+  // 自分のフォルダに、新着の範囲に入っていない古い投稿があれば取ってくる
+  useEffect(() => {
+    if (!items) return
+    const known = new Set([...items, ...olderItems].map((i) => i.id))
+    const missing = Object.values(itemsByFolder)
+      .flat()
+      .map((it) => it.keymapId)
+      .filter((id) => !known.has(id) && !requestedOlder.current.has(id))
+    if (missing.length === 0) return
+    const ids = [...new Set(missing)]
+    for (const id of ids) requestedOlder.current.add(id)
+    void (async () => {
+      try {
+        const rows = await fetchKeymapsByIds(ids)
+        if (rows.length === 0) return
+        setOlderItems((prev) => [...prev, ...rows.filter((r) => !prev.some((p) => p.id === r.id))])
+        const more = await fetchFeedExtras(rows.map((r) => r.id), user?.id ?? null).catch(() => EMPTY_EXTRAS)
+        setExtras((prev) => mergeExtras(prev, more))
+      } catch {
+        // 取れなかった投稿はフォルダの件数にだけ残り、一覧には出ない
+      }
+    })()
+  }, [items, olderItems, itemsByFolder, user?.id])
+
+  // 自分のフォルダを開いたら手動の並び順、離れたら新着順に戻す
+  function changeFolder(next: FeedFolder) {
+    setFolder(next)
+    if (next.kind === 'mine' && folder.kind !== 'mine') setSort('manual')
+    if (next.kind !== 'mine' && sort === 'manual') setSort('new')
+  }
+
+  // ログアウトしたら自分のフォルダは見られないので「すべて」に戻す
+  useEffect(() => {
+    if (!user && folder.kind === 'mine') changeFolder({ kind: 'all' })
+  }, [user])
+
+  const byId = useMemo(() => {
+    const map = new Map<string, SharedKeymap>()
+    for (const it of [...(items ?? []), ...olderItems]) map.set(it.id, it)
+    return map
+  }, [items, olderItems])
+
+  // カテゴリ未設定の古い投稿は、配列の中身から自動で判定して振り分ける
+  const categoryOf = useMemo(() => {
+    const map = new Map<string, CategoryId>()
+    for (const it of byId.values()) map.set(it.id, it.category ?? classifyKeymap(it.keymap))
+    return map
+  }, [byId])
+
+  const similarityOf = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const it of byId.values()) map.set(it.id, keymapSimilarity(keymap, it.keymap))
+    return map
+  }, [byId, keymap])
+
+  const categoryCounts = useMemo(() => {
+    const counts: Partial<Record<CategoryId, number>> = {}
+    for (const it of items ?? []) {
+      const c = categoryOf.get(it.id) ?? 'standard'
+      counts[c] = (counts[c] ?? 0) + 1
+    }
+    return counts
+  }, [items, categoryOf])
+
+  const likeCountOf = (id: string) => extras.likeCounts[id] ?? 0
+  const isBuzz = (id: string) => likeCountOf(id) >= BUZZ_LIKE_THRESHOLD
+
+  /** いま見ているフォルダの投稿を、選んだ並び順で */
+  const visible = useMemo(() => {
+    if (!items) return null
+    let list: SharedKeymap[]
+    if (folder.kind === 'mine') {
+      list = [...(itemsByFolder[folder.folderId] ?? [])]
+        .sort((a, b) => a.position - b.position)
+        .map((it) => byId.get(it.keymapId))
+        .filter((it): it is SharedKeymap => !!it)
+    } else if (folder.kind === 'category') {
+      list = items.filter((it) => categoryOf.get(it.id) === folder.id)
+    } else {
+      list = [...items]
+    }
+
+    if (sort === 'manual') return list
+    if (sort === 'similar') {
+      return [...list].sort((a, b) => (similarityOf.get(b.id) ?? 0) - (similarityOf.get(a.id) ?? 0) || byNewest(a, b))
+    }
+    if (sort === 'popular') {
+      return [...list].sort((a, b) => likeCountOf(b.id) - likeCountOf(a.id) || byNewest(a, b))
+    }
+    return [...list].sort(byNewest)
+  }, [items, folder, sort, itemsByFolder, byId, categoryOf, similarityOf, extras.likeCounts])
+
+  // 新着順のときだけ、バズった投稿を「話題の配列」として先に並べる
+  const buzzSection = sort === 'new' ? (visible ?? []).filter((it) => isBuzz(it.id)) : []
+  const restSection = sort === 'new' ? (visible ?? []).filter((it) => !isBuzz(it.id)) : (visible ?? [])
+
   if (!feedEnabled()) {
     return (
       <section className="nb nb-lg p-4">
@@ -111,6 +247,19 @@ export function FeedView() {
         </p>
       </section>
     )
+  }
+
+  const flashMsg = (text: string) => {
+    setShareMsg(text)
+    window.setTimeout(() => setShareMsg((cur) => (cur === text ? null : cur)), 4000)
+  }
+
+  const autoCategory = classifyKeymap(keymap)
+
+  const openShare = () => {
+    if (!user) { openLoginModal(); return }
+    setShareCategory(null)
+    setShareOpen(true)
   }
 
   const doShare = async () => {
@@ -124,6 +273,7 @@ export function FeedView() {
         keymap,
         userId: user.id,
         avatarUrl: profile.avatarUrl,
+        category: shareCategory ?? autoCategory,
       })
       setShareMsg('共有しました！')
       setShareName('')
@@ -190,20 +340,71 @@ export function FeedView() {
     try {
       await deleteKeymap(item.id)
       setItems((prev) => prev?.filter((i) => i.id !== item.id) ?? null)
+      setOlderItems((prev) => prev.filter((i) => i.id !== item.id))
+      forgetKeymap(item.id)
       if (compareItem?.id === item.id) setCompareItem(null)
       if (commentItem?.id === item.id) setCommentItem(null)
       if (detailItem?.id === item.id) setDetailItem(null)
+      if (saveItem?.id === item.id) setSaveItem(null)
     } catch (e) {
       setShareMsg(`削除に失敗しました: ${errorMessage(e)}`)
     }
   }
+
+  const doSave = (item: SharedKeymap) => {
+    if (!user) { openLoginModal(); return }
+    setSaveItem(item)
+  }
+
+  const doMove = async (item: SharedKeymap, dir: -1 | 1) => {
+    if (folder.kind !== 'mine') return
+    try {
+      await moveInFolder(folder.folderId, item.id, dir)
+    } catch (e) {
+      flashMsg(`並べ替えに失敗しました: ${errorMessage(e)}`)
+    }
+  }
+
+  const savedIds = new Set(Object.values(itemsByFolder).flat().map((it) => it.keymapId))
+
+  const renderCard = (item: SharedKeymap, index: number, list: SharedKeymap[]) => (
+    <PostCard
+      key={item.id}
+      item={item}
+      canDelete={!!user && user.id === item.user_id}
+      likeCount={likeCountOf(item.id)}
+      liked={extras.likedByMe.has(item.id)}
+      commentCount={extras.commentCounts[item.id] ?? 0}
+      category={categoryOf.get(item.id) ?? 'standard'}
+      similarity={similarityOf.get(item.id) ?? 0}
+      isNew={Date.now() - Date.parse(item.created_at) < NEW_BADGE_MS}
+      isBuzz={isBuzz(item.id)}
+      saved={savedIds.has(item.id)}
+      reorder={folder.kind === 'mine' && sort === 'manual'
+        ? {
+          canUp: index > 0,
+          canDown: index < list.length - 1,
+          onUp: () => void doMove(item, -1),
+          onDown: () => void doMove(item, 1),
+        }
+        : undefined}
+      onImport={() => doImport(item)}
+      onCompare={() => setCompareItem(item)}
+      onLike={() => void doToggleLike(item)}
+      onComments={() => setCommentItem(item)}
+      onOpenDetail={() => setDetailItem(item)}
+      onDelete={() => void doDeletePost(item)}
+      onSave={() => doSave(item)}
+    />
+  )
 
   return (
     <section className="nb nb-lg overflow-hidden">
       <div className="p-4 pb-3">
         <h2 className="text-[1.35rem]">みんなの配列</h2>
         <p className="mt-1 text-[0.78rem] font-bold leading-relaxed opacity-70">
-          みんなが共有したキーマップのタイムライン。いいね・コメントで反応できます。
+          みんなが共有したキーマップのタイムライン。いいね・コメントで反応したり、
+          気に入った配列を自分のフォルダに保存したりできます。
         </p>
       </div>
 
@@ -221,25 +422,31 @@ export function FeedView() {
       <Composer
         profile={profile}
         loggedIn={!!user}
-        onOpen={() => (user ? setShareOpen(true) : openLoginModal())}
+        onOpen={openShare}
       />
 
-      {items?.map((item) => (
-        <PostCard
-          key={item.id}
-          item={item}
-          canDelete={!!user && user.id === item.user_id}
-          likeCount={extras.likeCounts[item.id] ?? 0}
-          liked={extras.likedByMe.has(item.id)}
-          commentCount={extras.commentCounts[item.id] ?? 0}
-          onImport={() => doImport(item)}
-          onCompare={() => setCompareItem(item)}
-          onLike={() => void doToggleLike(item)}
-          onComments={() => setCommentItem(item)}
-          onOpenDetail={() => setDetailItem(item)}
-          onDelete={() => void doDeletePost(item)}
+      {items !== null && items.length > 0 && (
+        <FolderBar
+          folder={folder}
+          onFolder={changeFolder}
+          sort={sort}
+          onSort={setSort}
+          allCount={items.length}
+          categoryCounts={categoryCounts}
+          loggedIn={!!user}
+          onRequireLogin={openLoginModal}
+          onError={flashMsg}
         />
-      ))}
+      )}
+
+      {buzzSection.length > 0 && (
+        <>
+          <SectionHeading tone="var(--color-orange)">🔥 話題の配列（いいね {BUZZ_LIKE_THRESHOLD} 以上）</SectionHeading>
+          {buzzSection.map((item, i) => renderCard(item, i, buzzSection))}
+          {restSection.length > 0 && <SectionHeading tone="var(--color-paper)">新着</SectionHeading>}
+        </>
+      )}
+      {restSection.map((item, i) => renderCard(item, i, restSection))}
 
       {items === null && !loadError && (
         <p className="flex items-center justify-center gap-2 py-6 text-[0.85rem] font-bold opacity-60">
@@ -252,6 +459,13 @@ export function FeedView() {
           まだ共有された配列がありません。上の投稿欄から最初の 1 つをどうぞ。
         </p>
       )}
+      {items !== null && items.length > 0 && visible?.length === 0 && (
+        <p className="py-8 text-center text-[0.85rem] font-bold opacity-60">
+          {folder.kind === 'mine'
+            ? 'このフォルダはまだ空です。投稿の「📁 保存」から追加できます。'
+            : 'このフォルダにはまだ投稿がありません。'}
+        </p>
+      )}
 
       <ShareModal
         open={shareOpen}
@@ -260,12 +474,17 @@ export function FeedView() {
         onShareName={setShareName}
         shareDesc={shareDesc}
         onShareDesc={setShareDesc}
+        autoCategory={autoCategory}
+        category={shareCategory}
+        onCategory={setShareCategory}
         sharing={sharing}
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
         profile={profile}
         onRequireLogin={() => { setShareOpen(false); openLoginModal() }}
       />
+
+      <SaveToFolderModal item={saveItem} onClose={() => setSaveItem(null)} />
 
       <CommentsModal
         item={commentItem}
@@ -305,6 +524,17 @@ export function FeedView() {
         }}
       />
     </section>
+  )
+}
+
+function SectionHeading({ tone, children }: { tone: string; children: ReactNode }) {
+  return (
+    <h3
+      className="border-b-[3px] border-[var(--color-ink)] px-3 py-1.5 text-[0.8rem] font-black"
+      style={{ background: tone }}
+    >
+      {children}
+    </h3>
   )
 }
 
@@ -387,20 +617,62 @@ function Avatar({ url, name, size = 22 }: { url: string | null; name: string; si
   )
 }
 
+/** 自動フォルダ分け（カテゴリ）のチップ */
+function CategoryChip({ id }: { id: CategoryId }) {
+  const c = getCategory(id)
+  return (
+    <span className="nb-chip" style={{ background: 'var(--color-paper)' }} title={c.help}>
+      {c.emoji} {c.label}
+    </span>
+  )
+}
+
+/** 自分の配列との一致度。かなり近いものは目立たせる */
+function SimilarityChip({ value }: { value: number }) {
+  const pct = Math.round(value * 100)
+  return (
+    <span
+      className="nb-chip"
+      style={{ background: pct >= 80 ? 'var(--color-lime)' : pct >= 50 ? 'var(--color-cyan)' : 'var(--color-paper)' }}
+      title="全レイヤーの単押し・長押しとコンボを比べた一致度"
+    >
+      あなたと {pct}% 一致
+    </span>
+  )
+}
+
+/** 自分のフォルダを手動の並び順で見ているときの ↑ ↓ */
+interface ReorderControls {
+  canUp: boolean
+  canDown: boolean
+  onUp: () => void
+  onDown: () => void
+}
+
 function PostCard({
-  item, canDelete, likeCount, liked, commentCount, onImport, onCompare, onLike, onComments, onOpenDetail, onDelete,
+  item, canDelete, likeCount, liked, commentCount, category, similarity, isNew, isBuzz, saved, reorder,
+  onImport, onCompare, onLike, onComments, onOpenDetail, onDelete, onSave,
 }: {
   item: SharedKeymap
   canDelete: boolean
   likeCount: number
   liked: boolean
   commentCount: number
+  category: CategoryId
+  /** 自分の配列との一致度（0〜1） */
+  similarity: number
+  isNew: boolean
+  isBuzz: boolean
+  /** 自分のフォルダのどれかに入っているか */
+  saved: boolean
+  reorder?: ReorderControls
   onImport: () => void
   onCompare: () => void
   onLike: () => void
   onComments: () => void
   onOpenDetail: () => void
   onDelete: () => void
+  onSave: () => void
 }) {
   const [previewLayerIdx, setPreviewLayerIdx] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -445,22 +717,60 @@ function PostCard({
         <Avatar url={item.avatar_url} name={item.author} size={40} />
 
         <div className="min-w-0 flex-1">
-          <button type="button" className="block w-full text-left" onClick={onOpenDetail}>
-            <div className="flex min-w-0 items-baseline gap-1.5">
-              <span className="truncate text-[0.85rem] font-black">{item.author}</span>
-              <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
-            </div>
+          <div className="flex items-start gap-2">
+            <button type="button" className="block min-w-0 flex-1 text-left" onClick={onOpenDetail}>
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <span className="truncate text-[0.85rem] font-black">{item.author}</span>
+                <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
+              </div>
 
-            <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
-            {item.description && (
-              <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
-                {item.description}
+              <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[0.95rem] font-black">
+                {item.name}
+                {isNew && (
+                  <span className="nb-chip !py-0 !text-[0.6rem]" style={{ background: 'var(--color-lime)' }}>NEW</span>
+                )}
+                {isBuzz && (
+                  <span className="nb-chip !py-0 !text-[0.6rem]" style={{ background: 'var(--color-orange)' }}>🔥 話題</span>
+                )}
               </p>
+              {item.description && (
+                <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
+                  {item.description}
+                </p>
+              )}
+              <p className="mt-1 text-[0.7rem] font-bold opacity-50">
+                {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
+              </p>
+            </button>
+
+            {reorder && (
+              <div className="flex shrink-0 flex-col gap-1.5">
+                <button
+                  type="button"
+                  className="nb-btn !py-0.5 !px-2 text-[0.8rem]"
+                  aria-label="上へ"
+                  disabled={!reorder.canUp}
+                  onClick={reorder.onUp}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="nb-btn !py-0.5 !px-2 text-[0.8rem]"
+                  aria-label="下へ"
+                  disabled={!reorder.canDown}
+                  onClick={reorder.onDown}
+                >
+                  ↓
+                </button>
+              </div>
             )}
-            <p className="mt-1 text-[0.7rem] font-bold opacity-50">
-              {item.keymap.layers.length} レイヤー ・ {item.keymap.combos.length} コンボ
-            </p>
-          </button>
+          </div>
+
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <CategoryChip id={category} />
+            <SimilarityChip value={similarity} />
+          </div>
 
           <div className="mt-1.5">
             <DeviceColors keymap={item.keymap} />
@@ -555,6 +865,15 @@ function PostCard({
         <button
           type="button"
           className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
+          style={saved ? { background: 'var(--color-sand)' } : undefined}
+          aria-label="フォルダに保存"
+          onClick={onSave}
+        >
+          📁 {saved ? '保存済み' : '保存'}
+        </button>
+        <button
+          type="button"
+          className="nb-btn !py-1.5 !px-3 text-[0.85rem]"
           disabled={saving}
           aria-label="画像を保存（全レイヤー）"
           onClick={() => setSaving(true)}
@@ -596,8 +915,8 @@ function PostCard({
 }
 
 function ShareModal({
-  open, onClose, shareName, onShareName,
-  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile, onRequireLogin,
+  open, onClose, shareName, onShareName, shareDesc, onShareDesc,
+  autoCategory, category, onCategory, sharing, onSubmit, shareMsg, profile, onRequireLogin,
 }: {
   open: boolean
   onClose: () => void
@@ -605,6 +924,11 @@ function ShareModal({
   onShareName: (v: string) => void
   shareDesc: string
   onShareDesc: (v: string) => void
+  /** 今の配列から自動判定したカテゴリ */
+  autoCategory: CategoryId
+  /** 投稿者が選び直したカテゴリ。null なら自動判定のまま */
+  category: CategoryId | null
+  onCategory: (c: CategoryId | null) => void
   sharing: boolean
   onSubmit: () => void
   shareMsg: string | null
@@ -685,6 +1009,36 @@ function ShareModal({
               placeholder="どんな配列か一言"
             />
           </label>
+          <div>
+            <span className="nb-eyebrow">フォルダ</span>
+            <p className="mt-0.5 text-[0.7rem] font-bold opacity-60">
+              配列の中身から「{getCategory(autoCategory).label}」と自動で判定しました。違えば選び直せます。
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="投稿のフォルダ">
+              {FEED_CATEGORIES.map((c) => {
+                const selected = (category ?? autoCategory) === c.id
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    title={c.help}
+                    className="nb-chip"
+                    style={{
+                      background: selected ? 'var(--color-lime)' : 'var(--color-paper)',
+                      opacity: selected ? 1 : 0.6,
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => onCategory(c.id === autoCategory ? null : c.id)}
+                  >
+                    {c.emoji} {c.label}
+                    {c.id === autoCategory && <span className="opacity-60">（自動）</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
           {shareMsg && (
             <p className="nb-chip" style={{ background: 'var(--color-lime)' }}>{shareMsg}</p>
           )}

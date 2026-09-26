@@ -1,5 +1,9 @@
 import { isValidKeymapShape, type Keymap } from '../data/types'
+import { isCategoryId, type CategoryId } from '../engine/analyze'
 import { supabase } from './supabase'
+
+/** 一覧に読み込む新着の件数。フォルダ分け・並べ替えはこの範囲をクライアントで行う */
+export const FEED_LIMIT = 100
 
 export interface SharedKeymap {
   id: string
@@ -10,6 +14,8 @@ export interface SharedKeymap {
   created_at: string
   user_id: string | null
   avatar_url: string | null
+  /** 投稿時に決めたカテゴリ。列が無い古い DB や、列を足す前の投稿では null */
+  category: CategoryId | null
 }
 
 export interface FeedExtras {
@@ -32,9 +38,39 @@ export function feedEnabled(): boolean {
   return supabase !== null
 }
 
+/** shared_keymaps の行。古いテーブルには後から足した列が無いこともある */
+interface SharedKeymapRow {
+  id: string
+  name: string
+  author: string
+  description?: string | null
+  keymap: unknown
+  created_at: string
+  user_id?: string | null
+  avatar_url?: string | null
+  category?: unknown
+}
+
+/** DB の行を SharedKeymap に詰め直す。壊れた形の keymap は null を返して弾く */
+function toSharedKeymap(row: SharedKeymapRow): SharedKeymap | null {
+  const keymap = row.keymap
+  if (!isValidKeymapShape(keymap)) return null
+  return {
+    id: row.id,
+    name: row.name,
+    author: row.author,
+    description: row.description ?? null,
+    keymap,
+    created_at: row.created_at,
+    user_id: row.user_id ?? null,
+    avatar_url: row.avatar_url ?? null,
+    category: isCategoryId(row.category) ? row.category : null,
+  }
+}
+
 /**
- * 新しい順に最大 50 件。壊れた形の keymap が紛れ込んでいても落ちないよう弾く。
- * user_id / avatar_url をまだ持たないテーブルでも一覧は出せるよう、列は * で取って埋める。
+ * 新しい順に最大 FEED_LIMIT 件。壊れた形の keymap が紛れ込んでいても落ちないよう弾く。
+ * user_id / avatar_url / category をまだ持たないテーブルでも一覧は出せるよう、列は * で取って埋める。
  */
 export async function fetchFeed(): Promise<SharedKeymap[]> {
   if (!supabase) throw new Error('共有フィードは設定されていません')
@@ -42,20 +78,20 @@ export async function fetchFeed(): Promise<SharedKeymap[]> {
     .from('shared_keymaps')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(FEED_LIMIT)
   if (error) throw error
-  return (data ?? [])
-    .filter((row) => isValidKeymapShape(row.keymap))
-    .map((row) => ({
-      id: row.id,
-      name: row.name,
-      author: row.author,
-      description: row.description ?? null,
-      keymap: row.keymap,
-      created_at: row.created_at,
-      user_id: row.user_id ?? null,
-      avatar_url: row.avatar_url ?? null,
-    }))
+  return (data ?? []).map(toSharedKeymap).filter((x): x is SharedKeymap => x !== null)
+}
+
+/** ID を指定して投稿を取る（新着の範囲より古い投稿を自分のフォルダに入れている場合に使う） */
+export async function fetchKeymapsByIds(ids: string[]): Promise<SharedKeymap[]> {
+  if (!supabase || ids.length === 0) return []
+  const { data, error } = await supabase
+    .from('shared_keymaps')
+    .select('*')
+    .in('id', ids)
+  if (error) throw error
+  return (data ?? []).map(toSharedKeymap).filter((x): x is SharedKeymap => x !== null)
 }
 
 /** 一覧に出す投稿分の、いいね数・自分がいいね済みか・コメント数をまとめて取得する */
@@ -93,17 +129,32 @@ export async function shareKeymap(input: {
   keymap: Keymap
   userId: string
   avatarUrl: string | null
+  category: CategoryId
 }): Promise<void> {
   if (!supabase) throw new Error('共有フィードは設定されていません')
-  const { error } = await supabase.from('shared_keymaps').insert({
+  const row = {
     name: input.name,
     author: input.author,
     description: input.description || null,
     keymap: input.keymap,
     user_id: input.userId,
     avatar_url: input.avatarUrl,
-  })
-  if (error) throw error
+  }
+  const { error } = await supabase.from('shared_keymaps').insert({ ...row, category: input.category })
+  if (!error) return
+  // 005_feed_folders.sql をまだ流していない DB には category 列が無い。
+  // その場合はカテゴリ抜きで投稿し直す（一覧では自動判定で振り分けられる）
+  if (isMissingColumn(error, 'category')) {
+    const retry = await supabase.from('shared_keymaps').insert(row)
+    if (retry.error) throw retry.error
+    return
+  }
+  throw error
+}
+
+/** PostgREST の「その列はありません」エラーか */
+function isMissingColumn(error: { code?: string; message?: string }, column: string): boolean {
+  return (error.code === 'PGRST204' || error.code === '42703') && (error.message ?? '').includes(column)
 }
 
 /** ログイン中のユーザーとして、いいねの ON/OFF を切り替える */

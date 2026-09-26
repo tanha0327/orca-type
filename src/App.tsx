@@ -19,6 +19,7 @@ import {
 import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
 import { authEnabled, profileFromUser, signOut } from './lib/auth'
 import { useAuthStore } from './store/authStore'
+import { useFolderStore } from './store/folderStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 import { useProfileStore } from './store/profileStore'
 
@@ -48,6 +49,8 @@ export function App() {
   const user = useAuthStore((s) => s.user)
   const loadProfile = useProfileStore((s) => s.load)
   const resetProfile = useProfileStore((s) => s.reset)
+  const loadFolders = useFolderStore((s) => s.load)
+  const resetFolders = useFolderStore((s) => s.reset)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
@@ -62,6 +65,12 @@ export function App() {
     if (user) void loadProfile(user)
     else resetProfile()
   }, [user, loadProfile, resetProfile])
+
+  // みんなの配列の「マイフォルダ」もログインしているユーザーのものを読み込む
+  useEffect(() => {
+    if (user) void loadFolders(user)
+    else resetFolders()
+  }, [user, loadFolders, resetFolders])
 
   // コンボの参加キーを選んでいる間は、手元のキーボードのキーでも盤面のキーを追加／解除できる
   useEffect(() => {
