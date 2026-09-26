@@ -1,3 +1,4 @@
+import { PUBLIC_SITE_URL } from './site'
 import { supabase } from './supabase'
 
 /**
@@ -32,7 +33,7 @@ export function xVerificationIntentUrl(code: string): string {
     `確認コード: ${code}`,
     '#Orcaecho',
   ].join('\n')
-  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.origin)}`
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(PUBLIC_SITE_URL)}`
 }
 
 /** 本人確認の関数がまだ DB に無い（SQL が未実行）ときのエラーか */

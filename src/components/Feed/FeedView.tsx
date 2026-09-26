@@ -8,6 +8,7 @@ import {
   deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, fetchKeymapsByIds, feedEnabled,
   postComment, shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
+import { PUBLIC_SITE_URL } from '../../lib/site'
 import { fetchXVerifications, type XVerification } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
 import { useFeedStore } from '../../store/feedStore'
@@ -716,10 +717,11 @@ function PostCard({
 
   // 寿司打の「Xで結果をシェア」のように、その場で文面入りの投稿画面を開くだけにする。
   // window.open() での実装はブラウザによってポップアップブロックの対象になり得るので、
-  // 普通の <a target="_blank"> によるリンク遷移にする（これはブロックされない）
+  // 普通の <a target="_blank"> によるリンク遷移にする（これはブロックされない）。
+  // テスト用のサイトから押しても、ポストには本番の URL を載せる
   const shareXHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
     `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を Orca echo で共有中 #Orcaecho`,
-  )}&url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`
+  )}&url=${encodeURIComponent(PUBLIC_SITE_URL)}`
 
   return (
     <article className="relative border-b-[3px] border-[var(--color-ink)] p-3">
