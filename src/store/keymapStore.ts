@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { createDefaultKeymap } from '../data/defaultKeymap'
 import type { KeyId } from '../data/layout'
 import type { Keycode } from '../data/keycodes'
+import type { SwitchSoundProfile } from '../lib/switchSound'
 import {
   DEFAULT_ESC_COLOR,
   type Binding, type Combo, type EncoderSlot, type Keymap, type KeymapSettings,
@@ -31,6 +32,13 @@ export interface HudOptions {
   showMiniMap: boolean
 }
 
+/** 打鍵音（見た目や割当とは関係ない、この端末での好み） */
+export interface SoundOptions {
+  profile: SwitchSoundProfile
+  /** 0〜1 */
+  volume: number
+}
+
 interface EditorState {
   keymap: Keymap
   /** 編集中のレイヤー */
@@ -45,6 +53,7 @@ interface EditorState {
   hud: HudOptions
   /** HUD をページ内にドッキング表示するか */
   hudDocked: boolean
+  sound: SoundOptions
 
   setEditingLayer: (n: number) => void
   select: (s: Selection | null) => void
@@ -55,6 +64,7 @@ interface EditorState {
   setView: (v: ViewId) => void
   setHud: (patch: Partial<HudOptions>) => void
   setHudDocked: (on: boolean) => void
+  setSound: (patch: Partial<SoundOptions>) => void
 
   setBinding: (layerId: number, target: BindingTarget, binding: Binding) => void
   patchBinding: (layerId: number, target: BindingTarget, patch: Partial<Binding>) => void
@@ -184,6 +194,8 @@ const DEFAULT_HUD: HudOptions = {
   showMiniMap: true,
 }
 
+const DEFAULT_SOUND: SoundOptions = { profile: 'off', volume: 0.6 }
+
 const STORAGE_KEY = 'orca-map/keymap'
 const LEGACY_STORAGE_KEY = 'orca-type/keymap'
 
@@ -214,6 +226,7 @@ export const useKeymapStore = create<EditorState>()(
       view: 'edit',
       hud: DEFAULT_HUD,
       hudDocked: true,
+      sound: DEFAULT_SOUND,
 
       setEditingLayer: (n) => set({ editingLayer: n }),
       select: (s) => set({ selection: s }),
@@ -232,6 +245,7 @@ export const useKeymapStore = create<EditorState>()(
       setView: (v) => set({ view: v }),
       setHud: (patch) => set({ hud: { ...get().hud, ...patch } }),
       setHudDocked: (on) => set({ hudDocked: on }),
+      setSound: (patch) => set({ sound: { ...get().sound, ...patch } }),
 
       setBinding: (layerId, target, binding) =>
         set({ keymap: writeBinding(get().keymap, layerId, target, binding) }),
@@ -344,6 +358,7 @@ export const useKeymapStore = create<EditorState>()(
         keymap: s.keymap,
         hud: s.hud,
         hudDocked: s.hudDocked,
+        sound: s.sound,
         editingLayer: s.editingLayer,
       }),
     },

@@ -18,10 +18,12 @@ import {
   type BodyColor, type EscColor, type TrackballColor,
 } from './data/types'
 import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { useSwitchSound } from './engine/useSwitchSound'
 import { authEnabled, profileFromUser, signOut } from './lib/auth'
 import { feedEnabled } from './lib/feed'
 import { takeXLinkResult, verificationFromUser, xIdentityOf } from './lib/xVerification'
 import { useAuthStore } from './store/authStore'
+import { useFolderStore } from './store/folderStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 import { useProfileStore } from './store/profileStore'
 
@@ -54,11 +56,14 @@ export function App() {
   const resetProfile = useProfileStore((s) => s.reset)
   const syncVerification = useProfileStore((s) => s.syncVerification)
   const openProfileWithNotice = useProfileStore((s) => s.openEditorWithNotice)
+  const loadFolders = useFolderStore((s) => s.load)
+  const resetFolders = useFolderStore((s) => s.reset)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
   useKeyCapture(typeof document !== 'undefined' ? document : null)
   useResetOnCaptureOff()
+  useSwitchSound()
 
   useEffect(() => { initAuth() }, [initAuth])
 
@@ -68,6 +73,12 @@ export function App() {
     if (user) void loadProfile(user)
     else resetProfile()
   }, [user, loadProfile, resetProfile])
+
+  // みんなの配列の「マイフォルダ」もログインしているユーザーのものを読み込む
+  useEffect(() => {
+    if (user) void loadFolders(user)
+    else resetFolders()
+  }, [user, loadFolders, resetFolders])
 
   // X の連携状態（ログイン時・連携した直後・解除した直後）を、他の人から見える本人確認バッジに反映する
   const userId = user?.id ?? null

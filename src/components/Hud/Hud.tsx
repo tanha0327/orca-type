@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { LAYER_COLOR_HEX } from '../../data/types'
 import { OUTPUT_KIND_LABEL, type EngineSnapshot, type OutputEvent } from '../../engine/KeyEngine'
 import { useEngineSnapshot } from '../../engine/useEngine'
+import {
+  playSwitchSound, SWITCH_SOUND_LABEL, SWITCH_SOUND_PROFILES, SWITCH_STEM_COLOR, unlockAudio,
+  type SwitchSoundProfile,
+} from '../../lib/switchSound'
 import { useKeymapStore, type HudOptions } from '../../store/keymapStore'
 import { KeyboardView } from '../Board/KeyboardView'
 
@@ -69,6 +73,7 @@ export function Hud({ variant = 'docked' }: HudProps) {
               </button>
             ))}
           </div>
+          <SoundOptionsRow />
         </section>
       )}
 
@@ -121,6 +126,76 @@ export function Hud({ variant = 'docked' }: HudProps) {
         </p>
       )}
     </div>
+  )
+}
+
+/** 打鍵音の種類と音量。選んだらその場で 1 回鳴らして聞かせる */
+function SoundOptionsRow() {
+  const sound = useKeymapStore((s) => s.sound)
+  const setSound = useKeymapStore((s) => s.setSound)
+
+  const choose = (profile: SwitchSoundProfile) => {
+    setSound({ profile })
+    if (profile === 'off') return
+    // クリック（ユーザー操作）の中で AudioContext を起こし、起きてから試し鳴らしする
+    unlockAudio()
+    window.setTimeout(() => {
+      playSwitchSound('down', profile, sound.volume)
+      window.setTimeout(() => playSwitchSound('up', profile, sound.volume), 90)
+    }, 30)
+  }
+
+  return (
+    <>
+      <p className="nb-eyebrow mb-1.5 mt-2.5 !text-[0.56rem] !opacity-60">打鍵音</p>
+      <div className="flex flex-wrap items-center gap-1">
+        {SWITCH_SOUND_PROFILES.map((p) => {
+          const on = sound.profile === p
+          const stem = SWITCH_STEM_COLOR[p]
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => choose(p)}
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.62rem] font-black"
+              aria-pressed={on}
+              style={{
+                background: on ? 'var(--color-lime)' : 'transparent',
+                color: on ? 'var(--color-ink)' : 'inherit',
+                border: '2px solid currentColor',
+                cursor: 'pointer',
+              }}
+            >
+              {stem && (
+                <span
+                  className="inline-block h-2 w-2 rounded-[2px]"
+                  style={{ background: stem, boxShadow: '0 0 0 1px currentColor' }}
+                />
+              )}
+              {SWITCH_SOUND_LABEL[p]}
+            </button>
+          )
+        })}
+      </div>
+      {sound.profile !== 'off' && (
+        <label className="mt-1.5 flex items-center gap-2 text-[0.62rem] font-black">
+          <span className="shrink-0 opacity-70">音量</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={sound.volume}
+            onChange={(e) => setSound({ volume: Number(e.target.value) })}
+            onPointerUp={() => playSwitchSound('down', sound.profile, sound.volume)}
+            className="min-w-0 flex-1"
+            style={{ accentColor: 'var(--color-lime)' }}
+            aria-label="打鍵音の音量"
+          />
+          <span className="w-8 shrink-0 text-right font-mono opacity-70">{Math.round(sound.volume * 100)}</span>
+        </label>
+      )}
+    </>
   )
 }
 

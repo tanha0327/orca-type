@@ -123,3 +123,50 @@ export function IconHistory({ size }: { size?: number }) {
     </Svg>
   )
 }
+
+/** フォルダに保存。保存済みは塗りつぶし、まだなら中に＋ */
+export function IconFolder({ size, filled = false }: { size?: number; filled?: boolean }) {
+  return (
+    <Svg size={size} fill={filled ? 'currentColor' : 'none'}>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      {!filled && <path d="M12 10.5v5" />}
+      {!filled && <path d="M9.5 13h5" />}
+    </Svg>
+  )
+}
+
+/** 近い順（重なり合う 2 つの円） */
+export function IconNear({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="9" cy="12" r="6" />
+      <circle cx="15" cy="12" r="6" />
+    </Svg>
+  )
+}
+
+/** 手動の並び順（上下の矢印） */
+export function IconReorder({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="m7 9 5-5 5 5" />
+      <path d="m7 15 5 5 5-5" />
+    </Svg>
+  )
+}
+
+export function IconChevronUp({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="m6 15 6-6 6 6" />
+    </Svg>
+  )
+}
+
+export function IconChevronDown({ size }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="m6 9 6 6 6-6" />
+    </Svg>
+  )
+}
