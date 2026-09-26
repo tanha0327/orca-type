@@ -6,11 +6,16 @@
 const PARAM = 'k'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** 今の URL が指している投稿 ID（形式がおかしければ null。uuid 列に変な値を投げないため） */
+/** 投稿 ID（uuid）の形をしているか。uuid 列に変な値を投げないため、DB に聞く前に弾く */
+export function isKeymapId(id: string | null | undefined): id is string {
+  return !!id && UUID_RE.test(id)
+}
+
+/** 今の URL が指している投稿 ID（形式がおかしければ null） */
 export function keymapIdFromUrl(): string | null {
   if (typeof window === 'undefined') return null
   const id = new URLSearchParams(window.location.search).get(PARAM)
-  return id && UUID_RE.test(id) ? id : null
+  return isKeymapId(id) ? id : null
 }
 
 /** X などに貼る、その投稿へ直接飛べる URL */

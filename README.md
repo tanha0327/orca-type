@@ -50,7 +50,15 @@ src/
   store/      keymapStore.ts（Zustand + persist）
   components/ Board / LayerBar / Inspector / Picker / Combos / Gestures / Export / Hud / PipHost
   styles/     theme.css（デザイントークンと共通クラス）
+api/og.ts       共有された配列のカード画像（Vercel Edge Function、@vercel/og）
+middleware.ts   共有リンク（/?k=<投稿ID>）の OGP をその投稿のものに差し替える（Vercel Routing Middleware）
+server/         上の 2 つが使う共通処理（Supabase から 1 件取得・カードの組み立て・フォント）
 ```
+
+X などに共有リンクを貼ると、`middleware.ts` が `og:image` を `/api/og?k=<投稿ID>` に向け、
+その配列の盤面と特徴を並べたカードが出ます。どちらも Vercel 上でだけ動き（`npm run dev` では動かない）、
+アプリと同じ環境変数 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` を読みます。
+カードのデザインを変えたら、`server/meta.ts` の `OG_CARD_VERSION` を上げてください（画像は URL ごとに長くキャッシュされるため）。
 
 割当はキーもエンコーダーもパッドもコンボも `Binding`（`tap` / `hold` / `doubleTap` /
 `tappingTermMs` / `flavor`）という 1 つの型に集約してあり、編集 UI もそれを共有しています。
