@@ -27,7 +27,7 @@ drop function if exists public.sync_x_verification();
 create table if not exists public.x_verifications (
   user_id uuid primary key references auth.users(id) on delete cascade,
   x_username text not null check (x_username ~ '^[A-Za-z0-9_]{1,15}$'),
-  -- 確認に使ったポストの ID。バッジからこのポストを開けるようにする
+  -- 確認に使ったポストの ID（記録用。確認後にポストが消されてもバッジは残す）
   post_id text not null check (post_id ~ '^[0-9]{1,25}$'),
   verified_at timestamptz not null default now()
 );

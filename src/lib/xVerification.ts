@@ -10,7 +10,7 @@ import { supabase } from './supabase'
 export interface XVerification {
   userId: string
   username: string
-  /** 確認に使ったポストの ID。バッジからこのポストを開く */
+  /** 確認に使ったポストの ID（記録用。確認後にポストを消してもバッジは残る） */
   postId: string
 }
 
@@ -18,9 +18,9 @@ export function xVerificationEnabled(): boolean {
   return supabase !== null
 }
 
-/** 確認に使ったポスト。X はポスト ID で開くので、あとで @ユーザー名 が変わっても正しいポストが開く */
-export function xVerificationPostUrl(v: XVerification): string {
-  return `https://x.com/${encodeURIComponent(v.username)}/status/${encodeURIComponent(v.postId)}`
+/** バッジから開く X のプロフィール。確認に使ったポストは消されることがあるので、ポストではなくこちらを開く */
+export function xProfileUrl(v: XVerification): string {
+  return `https://x.com/${encodeURIComponent(v.username)}`
 }
 
 /** 確認コード入りのポストの投稿画面（X の Web Intent。API ではないので無料） */
