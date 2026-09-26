@@ -18,9 +18,9 @@ export function xVerificationEnabled(): boolean {
   return supabase !== null
 }
 
-/** 確認に使ったポスト。@ユーザー名は変わりうるので、ポスト ID だけで開ける形にする */
+/** 確認に使ったポスト。X はポスト ID で開くので、あとで @ユーザー名 が変わっても正しいポストが開く */
 export function xVerificationPostUrl(v: XVerification): string {
-  return `https://x.com/i/web/status/${encodeURIComponent(v.postId)}`
+  return `https://x.com/${encodeURIComponent(v.username)}/status/${encodeURIComponent(v.postId)}`
 }
 
 /** 確認コード入りのポストの投稿画面（X の Web Intent。API ではないので無料） */

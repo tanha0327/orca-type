@@ -148,11 +148,12 @@ begin
   code := 'ORCA-' || upper(substr(encode(sha256(convert_to('orca-map:x-verification:' || uid::text, 'UTF8')), 'hex'), 1, 10));
 
   -- API のリクエストがタイムアウト（8 秒）する前に終わるよう、1 回 3 秒まで・最大 2 回にする。
-  -- まずユーザー名を含まない形の URL で取りに行き、だめなら貼られた形（ユーザー名入り）で取りに行く
+  -- まずユーザー名を含まない形の URL で取りに行き、だめなら貼られた形（ユーザー名入り）で取りに行く。
+  -- どちらの形でも、oEmbed は URL に書いたユーザー名ではなく実際の投稿者を返す（2026-09 に確認）
   begin
     perform extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '3000');
     foreach target in array array[
-      'https://twitter.com/i/web/status/' || post_id,
+      'https://twitter.com/i/status/' || post_id,
       'https://twitter.com/' || m[1] || '/status/' || post_id
     ] loop
       begin
