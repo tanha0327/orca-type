@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { createDefaultKeymap } from '../data/defaultKeymap'
 import type { KeyId } from '../data/layout'
 import type { Keycode } from '../data/keycodes'
+import { keymapIdFromUrl } from '../lib/permalink'
 import {
   DEFAULT_ESC_COLOR,
   type Binding, type Combo, type EncoderSlot, type Keymap, type KeymapSettings,
@@ -211,7 +212,8 @@ export const useKeymapStore = create<EditorState>()(
       captureEnabled: false,
       comboPickId: null,
       keyMenuOpen: false,
-      view: 'edit',
+      // X などで共有された投稿のリンク（?k=<投稿ID>）から来たら、最初から「みんなの配列」を開く
+      view: keymapIdFromUrl() ? 'feed' : 'edit',
       hud: DEFAULT_HUD,
       hudDocked: true,
 

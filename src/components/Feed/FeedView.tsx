@@ -7,9 +7,10 @@ import {
 import { resolveKey } from '../../engine/resolve'
 import { errorMessage } from '../../lib/errors'
 import {
-  deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
-  shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
+  deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, fetchKeymapById, feedEnabled,
+  postComment, shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
+import { keymapIdFromUrl, keymapPermalink, setUrlKeymapId } from '../../lib/permalink'
 import { useAuthStore } from '../../store/authStore'
 import { useKeymapStore } from '../../store/keymapStore'
 import { useProfileStore } from '../../store/profileStore'
@@ -101,6 +102,35 @@ export function FeedView() {
   }
 
   useEffect(() => { void load() }, [user?.id])
+
+  // 共有リンク（?k=<投稿ID>）から来たら、その投稿の詳細を開く。
+  // 一覧は最新 50 件だけなので、古い投稿にも飛べるよう 1 件だけ別に取りに行く。
+  // ID は最初のレンダー時に拾っておく（下の同期で URL から消えた後に読まないように）
+  const [linkedId] = useState(keymapIdFromUrl)
+  useEffect(() => {
+    if (!linkedId || !feedEnabled()) return
+    let cancelled = false
+    fetchKeymapById(linkedId)
+      .then((item) => {
+        if (cancelled) return
+        if (item) setDetailItem(item)
+        else {
+          setUrlKeymapId(null)
+          setShareMsg('リンク先の配列が見つかりませんでした（削除された可能性があります）')
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setShareMsg(`リンク先の配列を読み込めませんでした: ${errorMessage(e)}`)
+      })
+    return () => { cancelled = true }
+  }, [linkedId])
+
+  // 詳細を開いている間はアドレスバーも ?k=<投稿ID> にしておく（そのままコピーして共有できる）
+  useEffect(() => {
+    if (!detailItem) return
+    setUrlKeymapId(detailItem.id)
+    return () => setUrlKeymapId(null)
+  }, [detailItem])
 
   if (!feedEnabled()) {
     return (
@@ -434,10 +464,11 @@ function PostCard({
 
   // 寿司打の「Xで結果をシェア」のように、その場で文面入りの投稿画面を開くだけにする。
   // window.open() での実装はブラウザによってポップアップブロックの対象になり得るので、
-  // 普通の <a target="_blank"> によるリンク遷移にする（これはブロックされない）
+  // 普通の <a target="_blank"> によるリンク遷移にする（これはブロックされない）。
+  // URL はトップではなく、この投稿の詳細が直接開くリンクにする
   const shareXHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
     `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を Orca echo で共有中 #Orcaecho`,
-  )}&url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`
+  )}&url=${encodeURIComponent(keymapPermalink(item.id))}`
 
   return (
     <article className="relative border-b-[3px] border-[var(--color-ink)] p-3">

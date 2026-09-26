@@ -44,18 +44,39 @@ export async function fetchFeed(): Promise<SharedKeymap[]> {
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) throw error
-  return (data ?? [])
-    .filter((row) => isValidKeymapShape(row.keymap))
-    .map((row) => ({
-      id: row.id,
-      name: row.name,
-      author: row.author,
-      description: row.description ?? null,
-      keymap: row.keymap,
-      created_at: row.created_at,
-      user_id: row.user_id ?? null,
-      avatar_url: row.avatar_url ?? null,
-    }))
+  return (data ?? []).filter((row) => isValidKeymapShape(row.keymap)).map(toSharedKeymap)
+}
+
+/** 共有リンク（?k=<投稿ID>）から開くときの 1 件取得。削除済み・壊れた形なら null */
+export async function fetchKeymapById(id: string): Promise<SharedKeymap | null> {
+  if (!supabase) throw new Error('共有フィードは設定されていません')
+  const { data, error } = await supabase
+    .from('shared_keymaps')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return data && isValidKeymapShape(data.keymap) ? toSharedKeymap(data) : null
+}
+
+/** user_id / avatar_url をまだ持たない古いテーブルの行も受けられるよう、その列は省略可にしておく */
+type SharedKeymapRow = Omit<SharedKeymap, 'description' | 'user_id' | 'avatar_url'> & {
+  description?: string | null
+  user_id?: string | null
+  avatar_url?: string | null
+}
+
+function toSharedKeymap(row: SharedKeymapRow): SharedKeymap {
+  return {
+    id: row.id,
+    name: row.name,
+    author: row.author,
+    description: row.description ?? null,
+    keymap: row.keymap,
+    created_at: row.created_at,
+    user_id: row.user_id ?? null,
+    avatar_url: row.avatar_url ?? null,
+  }
 }
 
 /** 一覧に出す投稿分の、いいね数・自分がいいね済みか・コメント数をまとめて取得する */
