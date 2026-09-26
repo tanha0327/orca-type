@@ -1,24 +1,30 @@
 import { useEffect, useState } from 'react'
 import { AppLogo } from './components/AppLogo'
 import { LoginModal } from './components/Auth/LoginModal'
+import { KeyboardPicker } from './components/Board/KeyboardPicker'
 import { KeyboardView } from './components/Board/KeyboardView'
 import { ComboList } from './components/Combos/ComboList'
 import { ExportView } from './components/Export/ExportView'
+import { FeedSide } from './components/Feed/FeedSide'
 import { FeedView } from './components/Feed/FeedView'
 import { Hud } from './components/Hud/Hud'
 import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
 import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
-import { CODE_TO_KEY } from './data/layout'
 import {
   BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_LABEL, ESC_COLORS,
   TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS,
   type BodyColor, type EscColor, type TrackballColor,
 } from './data/types'
-import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { isTypingTarget, keyIdForCode, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { useSwitchSound } from './engine/useSwitchSound'
+import { FIRMWARE_LABEL } from './keyboards/types'
+import { hasBall, keyboardOf } from './keyboards/registry'
 import { authEnabled, profileFromUser, signOut } from './lib/auth'
+import { feedEnabled } from './lib/feed'
 import { useAuthStore } from './store/authStore'
+import { useFolderStore } from './store/folderStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 import { useProfileStore } from './store/profileStore'
 
@@ -43,16 +49,22 @@ export function App() {
   const ballColor = useKeymapStore((s) => s.keymap.trackball.color) ?? 'white'
   const setTrackball = useKeymapStore((s) => s.setTrackball)
   const setSettings = useKeymapStore((s) => s.setSettings)
+  const keyboard = useKeymapStore((s) => keyboardOf(s.keymap))
   const [subLegends, setSubLegends] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const initAuth = useAuthStore((s) => s.init)
   const user = useAuthStore((s) => s.user)
   const loadProfile = useProfileStore((s) => s.load)
   const resetProfile = useProfileStore((s) => s.reset)
+  const loadVerification = useProfileStore((s) => s.loadVerification)
+  const loadFolders = useFolderStore((s) => s.load)
+  const resetFolders = useFolderStore((s) => s.reset)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
   useKeyCapture(typeof document !== 'undefined' ? document : null)
   useResetOnCaptureOff()
+  useSwitchSound()
 
   useEffect(() => { initAuth() }, [initAuth])
 
@@ -63,12 +75,24 @@ export function App() {
     else resetProfile()
   }, [user, loadProfile, resetProfile])
 
+  // みんなの配列の「マイフォルダ」もログインしているユーザーのものを読み込む
+  useEffect(() => {
+    if (user) void loadFolders(user)
+    else resetFolders()
+  }, [user, loadFolders, resetFolders])
+
+  // 自分が X で本人確認済みか（ヘッダーの印・投稿画面・プロフィール画面で使う）
+  const userId = user?.id ?? null
+  useEffect(() => {
+    if (userId) void loadVerification(userId)
+  }, [userId, loadVerification])
+
   // コンボの参加キーを選んでいる間は、手元のキーボードのキーでも盤面のキーを追加／解除できる
   useEffect(() => {
     if (!comboPickId) return
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || isTypingTarget(e.target)) return
-      const keyId = CODE_TO_KEY[e.code]
+      const keyId = keyIdForCode(e.code)
       if (!keyId) return
       e.preventDefault()
       toggleComboKey(comboPickId, keyId)
@@ -98,6 +122,9 @@ export function App() {
 
   // PiP を開いたら自動でキャプチャを入れる（HUD が空だと意味がないので）
   useEffect(() => { if (pip.win && !capture) setCapture(true) }, [pip.win, capture, setCapture])
+
+  // 共有フィードが設定されていない環境では、みんなの配列でもいつもの HUD とレイヤー一覧を出す
+  const feedSide = view === 'feed' && feedEnabled()
 
   return (
     <div className="min-h-full">
@@ -143,7 +170,17 @@ export function App() {
               <section className="nb nb-lg p-4">
                 <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                   <div className="min-w-0">
-                    <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-[1.35rem]">{keyboard.name}</h2>
+                      <span className="nb-chip !py-0 !text-[0.6rem]">{FIRMWARE_LABEL[keyboard.firmware]}</span>
+                      <button
+                        type="button"
+                        className="nb-btn !py-1 text-[0.74rem]"
+                        onClick={() => setPickerOpen(true)}
+                      >
+                        ⌨ キーボードを変える
+                      </button>
+                    </div>
                     <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
                       キー・ホイール・パッドはクリックで割当を編集、キーはダブルクリックで試し打ち。
                       ホイールとパッドはドラッグ／スクロールでも試せます。
@@ -163,30 +200,34 @@ export function App() {
                         />
                       ))}
                     </div>
-                    <div className="flex items-center gap-1" role="group" aria-label="esc キーキャップの色">
-                      <span className="nb-eyebrow mr-0.5">ESC</span>
-                      {ESC_COLORS.map((c) => (
-                        <EscColorSwatch
-                          key={c}
-                          color={c}
-                          active={escColor === c}
-                          onClick={() => setSettings({ escColor: c })}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1" role="group" aria-label="トラックボールの色">
-                      <span className="nb-eyebrow mr-0.5">BALL</span>
-                      {TRACKBALL_COLORS.map((c) => (
-                        <RoundSwatch
-                          key={c}
-                          color={c}
-                          title={`トラックボール: ${TRACKBALL_COLOR_LABEL[c]}`}
-                          ariaLabel={`トラックボールを${TRACKBALL_COLOR_LABEL[c]}にする`}
-                          active={ballColor === c}
-                          onClick={() => setTrackball({ color: c })}
-                        />
-                      ))}
-                    </div>
+                    {keyboard.keys.some((k) => k.accent) && (
+                      <div className="flex items-center gap-1" role="group" aria-label="esc キーキャップの色">
+                        <span className="nb-eyebrow mr-0.5">ESC</span>
+                        {ESC_COLORS.map((c) => (
+                          <EscColorSwatch
+                            key={c}
+                            color={c}
+                            active={escColor === c}
+                            onClick={() => setSettings({ escColor: c })}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {hasBall(keyboard) && (
+                      <div className="flex items-center gap-1" role="group" aria-label="トラックボールの色">
+                        <span className="nb-eyebrow mr-0.5">BALL</span>
+                        {TRACKBALL_COLORS.map((c) => (
+                          <RoundSwatch
+                            key={c}
+                            color={c}
+                            title={`トラックボール: ${TRACKBALL_COLOR_LABEL[c]}`}
+                            ariaLabel={`トラックボールを${TRACKBALL_COLOR_LABEL[c]}にする`}
+                            active={ballColor === c}
+                            onClick={() => setTrackball({ color: c })}
+                          />
+                        ))}
+                      </div>
+                    )}
                     <button
                       type="button"
                       className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
@@ -212,14 +253,22 @@ export function App() {
           {view === 'export' && <ExportView />}
         </div>
 
-        <aside className="min-w-0">
+        {/* みんなの配列では、HUD の場所に「あなたの配列」（比べる基準）、レイヤー一覧の場所に「並び替え」を出す。
+            サイド列が下に回る幅では、並び替えはタイムラインの上に出す */}
+        <aside className={feedSide ? 'hidden min-w-0 lg:block' : 'min-w-0'}>
           <div className="flex flex-col gap-4 lg:sticky lg:top-[5.5rem] lg:h-[calc(100vh-7rem)]">
-            <div className="nb nb-lg min-h-[22rem] overflow-hidden lg:min-h-0 lg:flex-[1.15]">
-              {pip.win ? <PipPlaceholder onClose={pip.close} /> : <Hud />}
-            </div>
-            <div className="min-h-0 lg:flex-1 lg:overflow-y-auto">
-              <LayerBar />
-            </div>
+            {feedSide
+              ? <FeedSide />
+              : (
+                <>
+                  <div className="nb nb-lg min-h-[22rem] overflow-hidden lg:min-h-0 lg:flex-[1.15]">
+                    {pip.win ? <PipPlaceholder onClose={pip.close} /> : <Hud />}
+                  </div>
+                  <div className="min-h-0 lg:flex-1 lg:overflow-y-auto">
+                    <LayerBar />
+                  </div>
+                </>
+              )}
           </div>
         </aside>
       </main>
@@ -230,12 +279,14 @@ export function App() {
 
       <LoginModal />
       <ProfileSetupModal />
+      <KeyboardPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
 
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
-          ORCA MAP は Keychron Orca echo のキーマップを設計するための非公式のコンセプトサイトです。
+          ORCA MAP は Keychron Orca echo をはじめとする自作キーボードのキーマップを設計するための、
+          非公式のコンセプトサイトです。
           実機には接続せず、手元のキーボードの入力を読み替えてシミュレートしています。
-          Keychron / GIZMART とは関係ありません。
+          Keychron / GIZMART をはじめ、各キーボードの作者・メーカーとは関係ありません。
         </p>
       </footer>
     </div>
@@ -317,6 +368,7 @@ function AuthButton() {
   const initializing = useAuthStore((s) => s.initializing)
   const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = useProfileStore((s) => s.profile)
+  const verification = useProfileStore((s) => s.verification)
   const openProfileEditor = useProfileStore((s) => s.openEditor)
 
   if (!authEnabled() || initializing) return null
@@ -341,9 +393,22 @@ function AuthButton() {
         title="プロフィールを編集"
         onClick={openProfileEditor}
       >
-        {avatarUrl
-          ? <img src={avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full" style={{ border: '2px solid var(--color-ink)' }} />
-          : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-black" style={{ background: 'var(--color-lime)', border: '2px solid var(--color-ink)' }}>{name.slice(0, 1)}</span>}
+        <span className="relative shrink-0">
+          {avatarUrl
+            ? <img src={avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full" style={{ border: '2px solid var(--color-ink)' }} />
+            : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-black" style={{ background: 'var(--color-lime)', border: '2px solid var(--color-ink)' }}>{name.slice(0, 1)}</span>}
+          {/* ヘッダーの幅を増やさないよう、本人確認済みの印はアイコンの右下に重ねる */}
+          {verification && (
+            <span
+              className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[0.5rem] font-black leading-none"
+              style={{ background: 'var(--color-cyan)', border: '1.5px solid var(--color-ink)' }}
+              title={`X の @${verification.username} で本人確認済み`}
+              aria-label="X で本人確認済み"
+            >
+              ✓
+            </span>
+          )}
+        </span>
         <span className="max-w-[8rem] truncate text-[0.78rem] font-bold">{name}</span>
       </button>
       <button

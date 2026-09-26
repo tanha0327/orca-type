@@ -1,12 +1,13 @@
 import { getKeycode, type Keycode } from '../data/keycodes'
-import type { KeyId, SensorId } from '../data/layout'
-import type {
-  Binding, Combo, EncoderSlot, Flavor, Keymap, PadSlot,
-} from '../data/types'
+import type { Binding, Combo, Flavor, Keymap } from '../data/types'
+import { findSensor, keyboardOf } from '../keyboards/registry'
+import {
+  SENSOR_SLOT_GLYPH,
+  type KeyId, type SensorId, type SensorSlot,
+} from '../keyboards/types'
 import {
   activeCombos, combinationLabel, computeLayerStack, effectiveFlavor, effectiveTerm,
   glyphOf, layerActionOf, modSymbolOf, nameOf, resolveKey, resolveSensor,
-  type SensorSlot,
 } from './resolve'
 
 export type OutputKind = 'tap' | 'hold' | 'combo' | 'encoder' | 'pad' | 'layer'
@@ -106,9 +107,14 @@ export class KeyEngine {
     this.keymap = keymap
   }
 
-  /** ストアの内容が変わったら差し替える */
+  /**
+   * ストアの内容が変わったら差し替える。
+   * キーボードそのものが変わったり、レイヤーが減ったりしたら、押下中の状態は意味を失うので捨てる。
+   */
   setKeymap(keymap: Keymap) {
+    const stale = keymap.keyboard !== this.keymap.keyboard || keymap.layers.length < this.keymap.layers.length
     this.keymap = keymap
+    if (stale) this.reset()
   }
 
   subscribe(fn: () => void): () => void {
@@ -195,14 +201,11 @@ export class KeyEngine {
     this.publish()
   }
 
-  /** ロータリーエンコーダーの回転 */
-  encoder(slot: EncoderSlot) {
-    this.fireSensor('enc-l', slot, 'encoder')
-  }
-
-  /** スクロールパッドのスワイプ・タップ */
-  pad(sensor: Extract<SensorId, 'pad-l' | 'pad-r'>, slot: PadSlot) {
-    this.fireSensor(sensor, slot, 'pad')
+  /** ロータリーエンコーダーの回転・スクロールパッドのスワイプやタップ */
+  sensor(sensorId: SensorId, slot: SensorSlot) {
+    const def = findSensor(keyboardOf(this.keymap), sensorId)
+    if (!def || def.kind === 'ball') return
+    this.fireSensor(sensorId, slot, def.kind)
   }
 
   /** 盤面クリックなどで単発に発火させたいとき */
@@ -403,11 +406,8 @@ export class KeyEngine {
   }
 
   private sourceOfSensor(sensor: SensorId, slot: SensorSlot): string {
-    const head = sensor === 'enc-l' ? 'ENC' : sensor === 'pad-l' ? 'PAD L' : 'PAD R'
-    const glyphs: Record<string, string> = {
-      cw: '↻', ccw: '↺', up: '↑', down: '↓', tap: '·',
-    }
-    return `${head} ${glyphs[slot] ?? slot}`
+    const head = findSensor(keyboardOf(this.keymap), sensor)?.short ?? sensor
+    return `${head} ${SENSOR_SLOT_GLYPH[slot] ?? slot}`
   }
 
   /* ------------------------------------------------------------ 出力 */

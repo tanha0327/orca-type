@@ -1,10 +1,9 @@
 import { getKeycode, type Keycode } from '../data/keycodes'
-import type { KeyId, SensorId } from '../data/layout'
 import {
   isTrans,
-  type Binding, type Combo, type EncoderSlot, type Flavor,
-  type Keymap, type PadSlot,
+  type Binding, type Combo, type Flavor, type Keymap,
 } from '../data/types'
+import type { KeyId, SensorId, SensorSlot } from '../keyboards/types'
 
 /** レイヤースタック（下から上）。常に L0 が土台。 */
 export function computeLayerStack(toggled: readonly number[], momentary: readonly number[]): number[] {
@@ -40,28 +39,12 @@ export function resolveKey(keymap: Keymap, stack: readonly number[], keyId: KeyI
   return { binding: NONE_BINDING, layerId: 0 }
 }
 
-export type SensorSlot = PadSlot | EncoderSlot
-
-function sensorBinding(keymap: Keymap, layerId: number, sensor: SensorId, slot: SensorSlot): Binding | undefined {
-  const layer = keymap.layers[layerId]
-  if (!layer) return undefined
-  switch (sensor) {
-    case 'enc-l':
-      return layer.encoder[slot as EncoderSlot]
-    case 'pad-l':
-      return layer.padL[slot as PadSlot]
-    case 'pad-r':
-      return layer.padR[slot as PadSlot]
-    default:
-      return undefined
-  }
-}
-
+/** エンコーダーの回転・パッドのスワイプも、キーと同じようにスタックの上から透過を飛ばして解決する */
 export function resolveSensor(
   keymap: Keymap, stack: readonly number[], sensor: SensorId, slot: SensorSlot,
 ): Resolved {
   for (let i = stack.length - 1; i >= 0; i--) {
-    const b = sensorBinding(keymap, stack[i], sensor, slot)
+    const b = keymap.layers[stack[i]]?.sensors[sensor]?.[slot]
     if (!isTrans(b)) return { binding: b!, layerId: stack[i] }
   }
   return { binding: NONE_BINDING, layerId: 0 }

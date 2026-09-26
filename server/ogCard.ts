@@ -1,16 +1,21 @@
 import { getKeycode } from '../src/data/keycodes'
-import { KEYS, SENSORS, halfExtent, type KeyDef, type SensorDef } from '../src/data/layout'
 import {
-  BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_TEXT, FLAVOR_LABEL, LAYER_COLOR_HEX,
+  DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_TEXT, FLAVOR_LABEL, LAYER_COLOR_HEX,
   TRACKBALL_COLOR_DARK, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL,
-  isModTap, type BodyColor, type Keymap, type PadSlot, type TrackballColor,
+  isModTap, type BodyColor, type Keymap, type TrackballColor,
 } from '../src/data/types'
+import { classifyKeymap, getCategory } from '../src/engine/analyze'
 import { glyphOf, resolveKey, resolveSensor } from '../src/engine/resolve'
+import { boardBounds } from '../src/keyboards/geometry'
+import { hasBall, keyboardOf } from '../src/keyboards/registry'
+import { SENSOR_SLOTS, type KeyDef, type SensorDef } from '../src/keyboards/types'
+import { getOsTag, osOf } from '../src/lib/os'
 import type { SharedKeymapRow } from './sharedKeymap'
 
 /*
  * X などに貼られた共有リンクのカード画像（1200×630）。
  * 左に投稿の L0（ベース）レイヤーの盤面、右にその配列の特徴を並べる。
+ * 盤面は投稿のキーボード定義（Orca echo・Corne・取り込んだ定義など）からそのまま描く。
  * 配色はサイトと同じ（黄色の地・黒の太い縁・ハードシャドウ）。
  *
  * Satori（@vercel/og）は React 要素と同じ { type, props } の形を受け取るので、
@@ -24,6 +29,9 @@ const PAD = { top: 28, right: 36, bottom: 36, left: 28 }
 const GAP = 26
 const LEFT_WIDTH = 752
 const RIGHT_WIDTH = CARD_WIDTH - PAD.left - PAD.right - LEFT_WIDTH - GAP
+/** 左のカードの中で盤面に使える大きさ（見出しとレイヤー一覧のぶんを除く） */
+const BOARD_MAX_W = LEFT_WIDTH - 22 * 2 - 8
+const BOARD_MAX_H = 360
 
 const INK = '#111111'
 const PAPER = '#faf7f0'
@@ -58,10 +66,11 @@ function truncate(s: string, max: number): string {
 
 /* ================================================================ 盤面 */
 
-/** 左右の盤面の間隔（ユニット） */
-const HALF_GAP = 0.55
+/** 盤面の縮尺（1u の px）と原点 */
+interface Place { u: number; minX: number; minY: number }
 
-function keyCap(k: KeyDef, left: number, u: number, keymap: Keymap): CardNode {
+function keyCap(k: KeyDef, p: Place, keymap: Keymap): CardNode {
+  const { u } = p
   const dark = (keymap.settings.bodyColor ?? 'white') === 'black'
   let face = dark ? INK : PAPER
   let text = dark ? PAPER : INK
@@ -79,13 +88,23 @@ function keyCap(k: KeyDef, left: number, u: number, keymap: Keymap): CardNode {
   const targetLayer = target !== undefined ? keymap.layers[target] : undefined
 
   const len = [...label].length
-  const fontSize = len <= 2 ? u * 0.4 : len === 3 ? u * 0.3 : len <= 5 ? u * 0.22 : u * 0.17
+  const fontSize = Math.min(len <= 2 ? u * 0.38 : len === 3 ? u * 0.29 : len <= 5 ? u * 0.22 : u * 0.17, 24)
+  const small = Math.min(u * 0.17, 11)
   const inset = u * 0.045
+
+  // 回転（分割キーボードの親指キーなど）。中心 (rx, ry) を、このキー自身の左上からの px に直す
+  const r = k.r ?? 0
+  const rotation: Style = r
+    ? {
+        transform: `rotate(${r}deg)`,
+        transformOrigin: `${((k.rx ?? 0) - k.x) * u - inset}px ${((k.ry ?? 0) - k.y) * u - inset}px`,
+      }
+    : {}
 
   return h('div', {
     position: 'absolute',
-    left: left + k.x * u + inset,
-    top: k.y * u + inset,
+    left: (k.x - p.minX) * u + inset,
+    top: (k.y - p.minY) * u + inset,
     width: k.w * u - inset * 2,
     height: k.h * u - inset * 2,
     display: 'flex',
@@ -97,26 +116,28 @@ function keyCap(k: KeyDef, left: number, u: number, keymap: Keymap): CardNode {
     borderRadius: u * 0.16,
     boxShadow: `2px 2px 0 ${INK}`,
     overflow: 'hidden',
+    ...rotation,
   }, [
     hold && h('div', {
       position: 'absolute', top: u * 0.05, left: 0, right: 0,
       display: 'flex', justifyContent: 'center',
-      fontSize: u * 0.19, fontWeight: 900, color: PINK, lineHeight: 1,
+      fontSize: small * 1.1, fontWeight: 900, color: PINK, lineHeight: 1,
     }, [truncate(hold.modSymbol ?? hold.label, 6)]),
     h('div', { display: 'flex', fontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.02em' }, [truncate(label, 7)]),
     targetLayer && h('div', {
       position: 'absolute', bottom: u * 0.07, left: 0, right: 0,
       display: 'flex', justifyContent: 'center',
-      fontSize: u * 0.16, fontWeight: 900, color: LAYER_COLOR_HEX[targetLayer.color], lineHeight: 1,
+      fontSize: small, fontWeight: 900, color: LAYER_COLOR_HEX[targetLayer.color], lineHeight: 1,
     }, [truncate(targetLayer.name, 7)]),
   ])
 }
 
-function sensorView(s: SensorDef, left: number, u: number, keymap: Keymap): CardNode {
+function sensorView(s: SensorDef, p: Place, keymap: Keymap): CardNode {
+  const { u } = p
   const box: Style = {
     position: 'absolute',
-    left: left + s.x * u,
-    top: s.y * u,
+    left: (s.x - p.minX) * u,
+    top: (s.y - p.minY) * u,
     width: s.w * u,
     height: s.h * u,
     border: `2px solid ${INK}`,
@@ -147,8 +168,6 @@ function sensorView(s: SensorDef, left: number, u: number, keymap: Keymap): Card
 
   // スクロールパッド: 上スワイプ / タップ / 下スワイプ の割当を縦に並べる
   const [, mid] = TRACKBALL_COLOR_GRADIENT[ball]
-  const text = TRACKBALL_COLOR_DARK[ball] ? PAPER : INK
-  const order: PadSlot[] = ['up', 'tap', 'down']
   return h('div', {
     ...box,
     borderRadius: u * 0.14,
@@ -158,28 +177,29 @@ function sensorView(s: SensorDef, left: number, u: number, keymap: Keymap): Card
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: `${u * 0.1}px 0`,
-    color: text,
-    fontSize: u * 0.17,
+    color: TRACKBALL_COLOR_DARK[ball] ? PAPER : INK,
+    fontSize: Math.min(u * 0.17, 11),
     fontWeight: 900,
     lineHeight: 1,
-  }, order.map((slot) => h('div', { display: 'flex' }, [
+  }, SENSOR_SLOTS.pad.map((slot) => h('div', { display: 'flex' }, [
     truncate(glyphOf(resolveSensor(keymap, [0], s.id, slot).binding.tap) || '·', 6),
   ])))
 }
 
-function keyboard(keymap: Keymap, width: number): CardNode {
-  const L = halfExtent('L')
-  const R = halfExtent('R')
-  const u = width / (L.w + HALF_GAP + R.w)
-  const offset = { L: 0, R: (L.w + HALF_GAP) * u }
+/** 盤面全体。キーボードの形に合わせて、決められた枠に収まる縮尺で描く */
+function board(keymap: Keymap): CardNode {
+  const def = keyboardOf(keymap)
+  const b = boardBounds(def)
+  const u = Math.min(BOARD_MAX_W / b.w, BOARD_MAX_H / b.h)
+  const p: Place = { u, minX: b.minX, minY: b.minY }
   return h('div', {
     position: 'relative',
     display: 'flex',
-    width,
-    height: Math.max(L.h, R.h) * u,
+    width: b.w * u,
+    height: b.h * u,
   }, [
-    ...SENSORS.map((s) => sensorView(s, offset[s.half], u, keymap)),
-    ...KEYS.map((k) => keyCap(k, offset[k.half], u, keymap)),
+    ...(def.sensors ?? []).map((s) => sensorView(s, p, keymap)),
+    ...def.keys.map((k) => keyCap(k, p, keymap)),
   ])
 }
 
@@ -193,24 +213,35 @@ function colorDot(color: TrackballColor | BodyColor): CardNode {
   })
 }
 
-function features(keymap: Keymap): [string, CardChild[]][] {
+/**
+ * 右に並べる特徴。枠に収まるよう最大 6 項目。
+ * 絵文字は描画時に CDN から取ってくるので出たり出なかったりする。カードでは文字だけにする
+ */
+function features(item: CardInput): [string, CardChild[]][] {
+  const { keymap } = item
+  const def = keyboardOf(keymap)
+  const category = getCategory(item.category ?? classifyKeymap(keymap))
+  const os = osOf(keymap)
   const combos = keymap.combos.filter((c) => c.enabled).length
   const modTaps = keymap.layers.reduce(
-    (n, layer) => n + Object.values(layer.keys).filter((b) => isModTap(b)).length, 0,
+    (n, layer) => n + Object.values(layer.keys ?? {}).filter((b) => isModTap(b)).length, 0,
   )
-  const body: BodyColor = keymap.settings.bodyColor ?? 'white'
   const ball: TrackballColor = keymap.trackball.color ?? 'white'
-  return [
+
+  const rows: [string, CardChild[]][] = [
+    ['キーボード', [truncate(def.name, 22)]],
+    ['タイプ', [category.label]],
     ['レイヤー', [`${keymap.layers.length} レイヤー`]],
-    ['コンボ', [combos > 0 ? `${combos} 個` : 'なし']],
-    ['長押し（MOD-TAP）', [modTaps > 0 ? `${modTaps} か所` : 'なし']],
-    ['タッピングターム', [`${keymap.settings.tappingTermMs} ms・${FLAVOR_LABEL[keymap.settings.flavor] ?? ''}`]],
-    ['トラックボール', [`${keymap.trackball.dpi} DPI`]],
-    ['本体 / ボール', [
-      colorDot(body), `${BODY_COLOR_LABEL[body]}`,
-      h('div', { width: 14 }), colorDot(ball), `${TRACKBALL_COLOR_LABEL[ball]}`,
+    ['コンボ / 長押し（MOD-TAP）', [
+      `${combos > 0 ? `${combos} 個` : 'なし'} / ${modTaps > 0 ? `${modTaps} か所` : 'なし'}`,
     ]],
   ]
+  if (os) rows.push(['OS', [getOsTag(os).label]])
+  if (hasBall(def)) {
+    rows.push(['トラックボール', [colorDot(ball), `${TRACKBALL_COLOR_LABEL[ball]}・${keymap.trackball.dpi} DPI`]])
+  }
+  rows.push(['タッピングターム', [`${keymap.settings.tappingTermMs} ms・${FLAVOR_LABEL[keymap.settings.flavor] ?? ''}`]])
+  return rows.slice(0, 6)
 }
 
 /* ================================================================ カード全体 */
@@ -227,7 +258,9 @@ const cardFrame: Style = {
   boxShadow: `8px 8px 0 ${INK}`,
 }
 
-export function buildCard(item: Pick<SharedKeymapRow, 'name' | 'author' | 'keymap'>): CardNode {
+type CardInput = Pick<SharedKeymapRow, 'name' | 'author' | 'keymap' | 'category'>
+
+export function buildCard(item: CardInput): CardNode {
   const { keymap } = item
   const base = keymap.layers[0]
   const nameLen = [...item.name].length
@@ -240,25 +273,25 @@ export function buildCard(item: Pick<SharedKeymapRow, 'name' | 'author' | 'keyma
 
   const left = h('div', { ...cardFrame, width: LEFT_WIDTH, padding: 22 }, [
     h('div', { display: 'flex', alignItems: 'center', fontSize: 17, fontWeight: 900 }, [
-      base && chip(`L0 ${base.name}`, LAYER_COLOR_HEX[base.color]),
+      base && chip(`L0 ${truncate(base.name, 12)}`, LAYER_COLOR_HEX[base.color]),
       h('div', { display: 'flex', marginLeft: 10, color: MUTED, fontWeight: 700 }, ['ベースレイヤーの配列']),
     ]),
     h('div', { display: 'flex', flexGrow: 1, alignItems: 'center', justifyContent: 'center' }, [
-      keyboard(keymap, LEFT_WIDTH - 22 * 2 - 8),
+      board(keymap),
     ]),
     h('div', { display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 15, fontWeight: 900 },
-      keymap.layers.map((l) => chip(`L${l.id} ${truncate(l.name, 10)}`, LAYER_COLOR_HEX[l.color]))),
+      keymap.layers.slice(0, 12).map((l) => chip(`L${l.id} ${truncate(l.name, 10)}`, LAYER_COLOR_HEX[l.color]))),
   ])
 
-  const right = h('div', { ...cardFrame, width: RIGHT_WIDTH, padding: '26px 24px 22px' }, [
+  const right = h('div', { ...cardFrame, width: RIGHT_WIDTH, padding: '24px 24px 20px' }, [
     h('div', {
       display: 'flex', fontSize: titleSize, fontWeight: 900, lineHeight: 1.12, letterSpacing: '-0.02em',
     }, [truncate(item.name, 30)]),
     h('div', { display: 'flex', marginTop: 8, fontSize: 18, fontWeight: 700, color: MUTED }, [
       `${truncate(item.author, 16)} さんの配列`,
     ]),
-    h('div', { display: 'flex', flexDirection: 'column', marginTop: 16, gap: 9 },
-      features(keymap).map(([label, value]) => h('div', { display: 'flex', flexDirection: 'column' }, [
+    h('div', { display: 'flex', flexDirection: 'column', marginTop: 14, gap: 8 },
+      features(item).map(([label, value]) => h('div', { display: 'flex', flexDirection: 'column' }, [
         h('div', { display: 'flex', fontSize: 13, fontWeight: 700, color: MUTED }, [label]),
         h('div', { display: 'flex', alignItems: 'center', fontSize: 21, fontWeight: 900, lineHeight: 1.2 }, value),
       ]))),

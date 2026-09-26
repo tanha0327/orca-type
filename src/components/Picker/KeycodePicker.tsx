@@ -3,6 +3,7 @@ import {
   CATEGORY_LABEL, CATEGORY_ORDER, CODE_TO_KEYCODE, getKeycode, searchKeycodes,
   type Keycode, type KeycodeCategory,
 } from '../../data/keycodes'
+import { useKeymapStore } from '../../store/keymapStore'
 
 export interface KeycodePickerProps {
   open: boolean
@@ -18,6 +19,8 @@ export function KeycodePicker({ open, title, value, allowNone, onPick, onClose }
   const [query, setQuery] = useState('')
   const [cat, setCat] = useState<KeycodeCategory | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // 存在しないレイヤーを指すキーコードは出さない（レイヤーの枚数はキーボードごとに違う）
+  const layerCount = useKeymapStore((s) => s.keymap.layers.length)
 
   useEffect(() => {
     if (!open) return
@@ -35,8 +38,8 @@ export function KeycodePicker({ open, title, value, allowNone, onPick, onClose }
   }, [open, onClose, onPick])
 
   const results = useMemo(
-    () => (open ? searchKeycodes(query, cat ?? undefined) : []),
-    [open, query, cat],
+    () => (open ? searchKeycodes(query, cat ?? undefined, layerCount) : []),
+    [open, query, cat, layerCount],
   )
 
   if (!open) return null

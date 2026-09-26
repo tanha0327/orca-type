@@ -4,6 +4,7 @@ import { profileFromUser } from '../lib/auth'
 import {
   fetchProfileRow, profileEnabled, resolveProfile, saveProfile, type Profile, type ProfileRow,
 } from '../lib/profile'
+import { fetchXVerifications, type XVerification } from '../lib/xVerification'
 
 interface ProfileState {
   userId: string | null
@@ -14,12 +15,20 @@ interface ProfileState {
   editorOpen: boolean
   /** 行が無い状態で開いた＝初回サインイン */
   isFirstSignIn: boolean
+  /** ログイン中のユーザーの X 本人確認（未確認なら null） */
+  verification: XVerification | null
+  /** 自分の本人確認が変わるたびに増える。フィードのバッジを取り直す合図 */
+  verificationRevision: number
 
   /** ログイン中のユーザーのプロフィールを読み込む。行が無ければ編集モーダルを自動で開く */
   load: (user: User) => Promise<void>
   reset: () => void
   openEditor: () => void
   closeEditor: () => void
+  /** ログイン中のユーザーの X 本人確認を読み込む */
+  loadVerification: (userId: string) => Promise<void>
+  /** 本人確認した・取り消したときに、手元の状態とフィードのバッジを更新する */
+  setVerification: (verification: XVerification | null) => void
   save: (userId: string, input: { name: string; avatarUrl: string }) => Promise<void>
 }
 
@@ -30,6 +39,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   profile: null,
   editorOpen: false,
   isFirstSignIn: false,
+  verification: null,
+  verificationRevision: 0,
 
   load: async (user) => {
     if (get().userId === user.id && get().loaded) return
@@ -48,7 +59,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         row,
         profile: resolveProfile(user, row),
         loaded: true,
-        editorOpen: firstSignIn,
+        // 読み込み中に自分で開いていたら、読み込み完了で閉じてしまわないようにする
+        editorOpen: firstSignIn || get().editorOpen,
         isFirstSignIn: firstSignIn,
       })
     } catch {
@@ -58,11 +70,25 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   },
 
   reset: () => set({
-    userId: null, loaded: false, row: null, profile: null, editorOpen: false, isFirstSignIn: false,
+    userId: null, loaded: false, row: null, profile: null, editorOpen: false, isFirstSignIn: false, verification: null,
   }),
 
   openEditor: () => set({ editorOpen: true }),
   closeEditor: () => set({ editorOpen: false }),
+
+  loadVerification: async (userId) => {
+    try {
+      const found = await fetchXVerifications([userId])
+      if (get().userId === userId) set({ verification: found[userId] ?? null })
+    } catch {
+      // 本人確認のテーブルがまだ無い環境でも、アプリは動かす（バッジが出ないだけ）
+    }
+  },
+
+  setVerification: (verification) => set((s) => ({
+    verification,
+    verificationRevision: s.verificationRevision + 1,
+  })),
 
   save: async (userId, input) => {
     await saveProfile(userId, input)

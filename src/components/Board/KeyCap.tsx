@@ -1,11 +1,14 @@
 import type React from 'react'
 import { getKeycode } from '../../data/keycodes'
-import type { KeyDef } from '../../data/layout'
 import type { Binding } from '../../data/types'
 import type { PressView } from '../../engine/KeyEngine'
+import { keyRotation, placeRect, u, type Bounds } from '../../keyboards/geometry'
+import type { KeyDef } from '../../keyboards/types'
 
 export interface KeyCapProps {
   keyDef: KeyDef
+  /** 盤面の外形。キーの位置を % に直すのに使う */
+  bounds: Bounds
   binding: Binding | undefined
   /** 下のレイヤーから落ちてきた（このレイヤーでは透過）割当か */
   inherited: boolean
@@ -28,8 +31,6 @@ export interface KeyCapProps {
   subLegends?: { glyph: string; color: string }[]
   /** false なら読み取り専用（HUD のミニキーマップ）。支援技術からも隠す */
   interactive?: boolean
-  totalW: number
-  totalH: number
   onSelect: (e: React.MouseEvent<HTMLElement>) => void
   onPulse: () => void
 }
@@ -41,8 +42,8 @@ export interface CapTone {
 }
 
 export function KeyCap({
-  keyDef, binding, inherited, selected, selectedTone, dimmed, diff, dark, capTone, press, comboCount, accent,
-  subLegends, interactive = true, totalW, totalH, onSelect, onPulse,
+  keyDef, bounds, binding, inherited, selected, selectedTone, dimmed, diff, dark, capTone, press, comboCount, accent,
+  subLegends, interactive = true, onSelect, onPulse,
 }: KeyCapProps) {
   const kc = getKeycode(binding?.tap)
   const hold = binding?.hold ? getKeycode(binding.hold) : undefined
@@ -68,9 +69,9 @@ export function KeyCap({
   const label = kc.code === 'NONE' ? '' : kc.label || kc.code
   // 文字数でフォントを落とす。fn2 のような 3 文字が折り返さないようにする
   const mainFontSize =
-    label.length <= 2 ? 'clamp(9px, 4.6cqw, 21px)'
-      : label.length === 3 ? 'clamp(7px, 3.5cqw, 16px)'
-        : 'clamp(6px, 2.6cqw, 13px)'
+    label.length <= 2 ? `clamp(9px, ${u(0.32)}, 21px)`
+      : label.length === 3 ? `clamp(7px, ${u(0.245)}, 16px)`
+        : `clamp(6px, ${u(0.18)}, 13px)`
 
   const Tag = interactive ? 'button' : 'div'
   const interactiveProps = interactive
@@ -87,11 +88,9 @@ export function KeyCap({
       {...interactiveProps}
       className="absolute select-none"
       style={{
-        left: `${(keyDef.x / totalW) * 100}%`,
-        top: `${(keyDef.y / totalH) * 100}%`,
-        width: `${(keyDef.w / totalW) * 100}%`,
-        height: `${(keyDef.h / totalH) * 100}%`,
-        padding: '0.18cqw',
+        ...placeRect(keyDef, bounds),
+        ...keyRotation(keyDef),
+        padding: u(0.0125),
       }}
     >
       <span
@@ -103,7 +102,7 @@ export function KeyCap({
           border: `${selected ? 3.5 : diff ? 3 : 2.5}px solid ${
             selected ? selectedBorder : diff ? 'var(--color-pink)' : borderDefault
           }`,
-          borderRadius: 'clamp(5px, 1.5cqw, 11px)',
+          borderRadius: `clamp(5px, ${u(0.105)}, 11px)`,
           background: isDown
             ? accent
             : selected
@@ -125,7 +124,7 @@ export function KeyCap({
         {kc.shifted && (
           <span
             className="absolute font-black leading-none opacity-45"
-            style={{ top: '6%', right: '9%', fontSize: 'clamp(6px, 2.3cqw, 11px)' }}
+            style={{ top: '6%', right: '9%', fontSize: `clamp(6px, ${u(0.16)}, 11px)` }}
           >
             {kc.shifted}
           </span>
@@ -153,7 +152,7 @@ export function KeyCap({
               left: '50%',
               transform: 'translateX(-50%)',
               color: isDown ? 'var(--color-ink)' : 'var(--color-pink)',
-              fontSize: 'clamp(6px, 2.4cqw, 11px)',
+              fontSize: `clamp(6px, ${u(0.168)}, 11px)`,
               opacity: isHeld ? 1 : 0.9,
             }}
           >
@@ -165,7 +164,7 @@ export function KeyCap({
         {subLegends && subLegends.length > 0 && (
           <span
             className="absolute flex items-center gap-[0.35em] font-black leading-none"
-            style={{ bottom: '7%', fontSize: 'clamp(5px, 2.2cqw, 10px)' }}
+            style={{ bottom: '7%', fontSize: `clamp(5px, ${u(0.154)}, 10px)` }}
           >
             {subLegends.map((s, i) => (
               <span key={i} style={{ color: s.color }}>{s.glyph}</span>
@@ -179,7 +178,7 @@ export function KeyCap({
             className="absolute rounded-full"
             style={{
               top: '8%', left: '9%',
-              width: 'clamp(3px, 1.3cqw, 6px)', height: 'clamp(3px, 1.3cqw, 6px)',
+              width: `clamp(3px, ${u(0.09)}, 6px)`, height: `clamp(3px, ${u(0.09)}, 6px)`,
               background: 'var(--color-purple)',
               border: '1px solid var(--color-ink)',
             }}

@@ -1,22 +1,21 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { createDefaultKeymap } from '../data/defaultKeymap'
-import type { KeyId } from '../data/layout'
-import type { Keycode } from '../data/keycodes'
+import { MAX_LAYERS, type Keycode } from '../data/keycodes'
+import { normalizeKeymap } from '../data/normalize'
 import { keymapIdFromUrl } from '../lib/permalink'
+import { SWITCH_SOUND_PROFILES, type SwitchSoundProfile } from '../lib/switchSound'
 import {
   DEFAULT_ESC_COLOR,
-  type Binding, type Combo, type EncoderSlot, type Keymap, type KeymapSettings,
-  type LayerColor, type PadSlot, type TrackballConfig,
+  type Binding, type Combo, type Keymap, type KeymapSettings,
+  type LayerColor, type TrackballConfig,
 } from '../data/types'
+import { blankLayer, createKeymap, DEFAULT_KEYBOARD, keyboardOf } from '../keyboards/registry'
+import type { KeyboardDefinition, KeyId, SensorId, SensorSlot } from '../keyboards/types'
 
-export type PadSensor = 'pad-l' | 'pad-r'
-
-/** 編集対象。キー・エンコーダー・パッド・コンボを同じ型で指す */
+/** 編集対象。キー・センサー（エンコーダー／パッド）のスロット・コンボを同じ型で指す */
 export type BindingTarget =
   | { kind: 'key'; keyId: KeyId }
-  | { kind: 'encoder'; slot: EncoderSlot }
-  | { kind: 'pad'; sensor: PadSensor; slot: PadSlot }
+  | { kind: 'sensor'; sensorId: SensorId; slot: SensorSlot }
   | { kind: 'combo'; comboId: string }
 
 export type Selection = BindingTarget | { kind: 'ball' }
@@ -32,8 +31,20 @@ export interface HudOptions {
   showMiniMap: boolean
 }
 
+/** 打鍵音（見た目や割当とは関係ない、この端末での好み） */
+export interface SoundOptions {
+  profile: SwitchSoundProfile
+  /** 0〜1 */
+  volume: number
+}
+
 interface EditorState {
   keymap: Keymap
+  /**
+   * 編集中でないキーボードのキーマップ（キーボード ID → キーマップ）。
+   * キーボードを切り替えても、前のキーボードの編集内容はここに残しておき、戻ったときに復元する。
+   */
+  savedKeymaps: Record<string, Keymap>
   /** 編集中のレイヤー */
   editingLayer: number
   selection: Selection | null
@@ -46,6 +57,7 @@ interface EditorState {
   hud: HudOptions
   /** HUD をページ内にドッキング表示するか */
   hudDocked: boolean
+  sound: SoundOptions
 
   setEditingLayer: (n: number) => void
   select: (s: Selection | null) => void
@@ -56,6 +68,7 @@ interface EditorState {
   setView: (v: ViewId) => void
   setHud: (patch: Partial<HudOptions>) => void
   setHudDocked: (on: boolean) => void
+  setSound: (patch: Partial<SoundOptions>) => void
 
   setBinding: (layerId: number, target: BindingTarget, binding: Binding) => void
   patchBinding: (layerId: number, target: BindingTarget, patch: Partial<Binding>) => void
@@ -65,6 +78,10 @@ interface EditorState {
   renameLayer: (layerId: number, name: string) => void
   recolorLayer: (layerId: number, color: LayerColor) => void
   clearLayer: (layerId: number) => void
+  /** 白紙のレイヤーを末尾に足す（MAX_LAYERS まで） */
+  addLayer: () => void
+  /** 末尾のレイヤーを消す（最低 1 枚は残す） */
+  removeLastLayer: () => void
 
   addCombo: () => string
   updateCombo: (id: string, patch: Partial<Combo>) => void
@@ -73,8 +90,13 @@ interface EditorState {
   setTrackball: (patch: Partial<TrackballConfig>) => void
   setSettings: (patch: Partial<KeymapSettings>) => void
 
+  /** 読み込んだキーマップに差し替える。別のキーボードのものなら、いまのキーマップは保存しておいて切り替える */
   importKeymap: (km: Keymap) => void
   resetKeymap: () => void
+  /** 編集するキーボードを切り替える。そのキーボードの前回のキーマップがあれば復元し、無ければ初期キーマップを作る */
+  switchKeyboard: (def: KeyboardDefinition) => void
+  /** 保存しておいた別のキーボードのキーマップを消す */
+  forgetKeyboard: (keyboardId: string) => void
 }
 
 /* -------------------------------------------------- 割当の読み書き補助 */
@@ -85,14 +107,9 @@ export function getBinding(keymap: Keymap, layerId: number, target: BindingTarge
   }
   const layer = keymap.layers[layerId]
   if (!layer) return undefined
-  switch (target.kind) {
-    case 'key':
-      return layer.keys[target.keyId]
-    case 'encoder':
-      return layer.encoder[target.slot]
-    case 'pad':
-      return (target.sensor === 'pad-l' ? layer.padL : layer.padR)[target.slot]
-  }
+  return target.kind === 'key'
+    ? layer.keys[target.keyId]
+    : layer.sensors[target.sensorId]?.[target.slot]
 }
 
 function writeBinding(keymap: Keymap, layerId: number, target: BindingTarget, binding: Binding): Keymap {
@@ -104,74 +121,33 @@ function writeBinding(keymap: Keymap, layerId: number, target: BindingTarget, bi
   }
   const layers = keymap.layers.map((layer) => {
     if (layer.id !== layerId) return layer
-    switch (target.kind) {
-      case 'key':
-        return { ...layer, keys: { ...layer.keys, [target.keyId]: binding } }
-      case 'encoder':
-        return { ...layer, encoder: { ...layer.encoder, [target.slot]: binding } }
-      case 'pad':
-        return target.sensor === 'pad-l'
-          ? { ...layer, padL: { ...layer.padL, [target.slot]: binding } }
-          : { ...layer, padR: { ...layer.padR, [target.slot]: binding } }
+    if (target.kind === 'key') {
+      return { ...layer, keys: { ...layer.keys, [target.keyId]: binding } }
     }
+    const slots = { ...layer.sensors[target.sensorId], [target.slot]: binding }
+    return { ...layer, sensors: { ...layer.sensors, [target.sensorId]: slots } }
   })
   return { ...keymap, layers }
-}
-
-export function targetLabel(target: Selection): string {
-  switch (target.kind) {
-    case 'key': return `キー ${target.keyId}`
-    case 'encoder': return 'ロータリーエンコーダー'
-    case 'pad': return target.sensor === 'pad-l' ? '左スクロールパッド' : '右スクロールパッド'
-    case 'combo': return 'コンボ'
-    case 'ball': return 'トラックボール'
-  }
 }
 
 export function sameTarget(a: Selection | null, b: Selection | null): boolean {
   if (!a || !b || a.kind !== b.kind) return false
   if (a.kind === 'key' && b.kind === 'key') return a.keyId === b.keyId
-  if (a.kind === 'encoder' && b.kind === 'encoder') return a.slot === b.slot
-  if (a.kind === 'pad' && b.kind === 'pad') return a.sensor === b.sensor && a.slot === b.slot
+  if (a.kind === 'sensor' && b.kind === 'sensor') return a.sensorId === b.sensorId && a.slot === b.slot
   if (a.kind === 'combo' && b.kind === 'combo') return a.comboId === b.comboId
   return a.kind === 'ball'
 }
 
-/* -------------------------------------------------- 旧キーコードの移行 */
+/** 編集中の状態をまっさらにして、キーマップを差し替えるときの共通部分 */
+const freshEditing = { selection: null, editingLayer: 0, comboPickId: null } as const
 
-/** v1 で MO_1/MO_2/MO_3 と呼んでいたキーコードを fn1/fn2/fn3 の新コードへ */
-const LEGACY_LAYER_CODE_MAP: Record<string, Keycode> = {
-  MO_1: 'FN_1',
-  MO_2: 'FN_2',
-  MO_3: 'FN_3',
-}
-
-function remapBinding(b: Binding): Binding {
-  return {
-    ...b,
-    tap: LEGACY_LAYER_CODE_MAP[b.tap] ?? b.tap,
-    ...(b.hold ? { hold: LEGACY_LAYER_CODE_MAP[b.hold] ?? b.hold } : {}),
-  }
-}
-
-function remapBindingsRecord<T extends Record<string, Binding>>(rec: T): T {
-  const out = {} as Record<string, Binding>
-  for (const k of Object.keys(rec)) out[k] = remapBinding(rec[k])
-  return out as T
-}
-
-function remapLegacyKeymap(km: Keymap): Keymap {
-  return {
-    ...km,
-    layers: km.layers.map((l) => ({
-      ...l,
-      keys: remapBindingsRecord(l.keys),
-      encoder: remapBindingsRecord(l.encoder),
-      padL: remapBindingsRecord(l.padL),
-      padR: remapBindingsRecord(l.padR),
-    })),
-    combos: km.combos.map((c) => ({ ...c, binding: remapBinding(c.binding) })),
-  }
+/** いまのキーマップを棚に戻し、next を編集対象にする */
+function swapIn(state: Pick<EditorState, 'keymap' | 'savedKeymaps'>, next: Keymap) {
+  const { [next.keyboard]: _taken, ...rest } = state.savedKeymaps
+  const savedKeymaps = state.keymap.keyboard === next.keyboard
+    ? rest
+    : { ...rest, [state.keymap.keyboard]: state.keymap }
+  return { keymap: next, savedKeymaps, ...freshEditing }
 }
 
 /* -------------------------------------------------- ストア本体 */
@@ -185,7 +161,10 @@ const DEFAULT_HUD: HudOptions = {
   showMiniMap: true,
 }
 
+const DEFAULT_SOUND: SoundOptions = { profile: 'off', volume: 0.6 }
+
 const STORAGE_KEY = 'orca-map/keymap'
+const STORAGE_VERSION = 3
 const LEGACY_STORAGE_KEY = 'orca-type/keymap'
 
 /** ORCA TYPE 時代の保存データを一度だけ新しいキーへ引き継ぐ */
@@ -206,7 +185,8 @@ migrateLegacyStorage()
 export const useKeymapStore = create<EditorState>()(
   persist(
     (set, get) => ({
-      keymap: createDefaultKeymap(),
+      keymap: createKeymap(DEFAULT_KEYBOARD),
+      savedKeymaps: {},
       editingLayer: 0,
       selection: null,
       captureEnabled: false,
@@ -216,6 +196,7 @@ export const useKeymapStore = create<EditorState>()(
       view: keymapIdFromUrl() ? 'feed' : 'edit',
       hud: DEFAULT_HUD,
       hudDocked: true,
+      sound: DEFAULT_SOUND,
 
       setEditingLayer: (n) => set({ editingLayer: n }),
       select: (s) => set({ selection: s }),
@@ -234,6 +215,7 @@ export const useKeymapStore = create<EditorState>()(
       setView: (v) => set({ view: v }),
       setHud: (patch) => set({ hud: { ...get().hud, ...patch } }),
       setHudDocked: (on) => set({ hudDocked: on }),
+      setSound: (patch) => set({ sound: { ...get().sound, ...patch } }),
 
       setBinding: (layerId, target, binding) =>
         set({ keymap: writeBinding(get().keymap, layerId, target, binding) }),
@@ -278,6 +260,27 @@ export const useKeymapStore = create<EditorState>()(
             layers: get().keymap.layers.map((l) => (l.id === layerId ? { ...l, keys: {} } : l)),
           },
         }),
+
+      addLayer: () => {
+        const keymap = get().keymap
+        if (keymap.layers.length >= MAX_LAYERS) return
+        const layer = blankLayer(keyboardOf(keymap), keymap.layers.length)
+        set({ keymap: { ...keymap, layers: [...keymap.layers, layer] }, editingLayer: layer.id })
+      },
+
+      removeLastLayer: () => {
+        const keymap = get().keymap
+        if (keymap.layers.length <= 1) return
+        const removed = keymap.layers.length - 1
+        const combos = keymap.combos.map((c) => (
+          c.layers.includes(removed) ? { ...c, layers: c.layers.filter((n) => n !== removed) } : c
+        ))
+        set({
+          keymap: { ...keymap, layers: keymap.layers.slice(0, removed), combos },
+          editingLayer: Math.min(get().editingLayer, removed - 1),
+          selection: null,
+        })
+      },
 
       addCombo: () => {
         const id = `combo-${Date.now().toString(36)}`
@@ -326,26 +329,64 @@ export const useKeymapStore = create<EditorState>()(
         set({ keymap: { ...keymap, trackball, settings: { ...keymap.settings, ...linked, ...patch } } })
       },
 
-      importKeymap: (km) => set({ keymap: km, selection: null, editingLayer: 0 }),
+      importKeymap: (km) => set(swapIn(get(), km)),
 
-      resetKeymap: () => set({ keymap: createDefaultKeymap(), selection: null, editingLayer: 0 }),
+      resetKeymap: () => set({ keymap: createKeymap(keyboardOf(get().keymap)), ...freshEditing }),
+
+      switchKeyboard: (def) => {
+        const state = get()
+        if (state.keymap.keyboard === def.id) return
+        set(swapIn(state, state.savedKeymaps[def.id] ?? createKeymap(def)))
+      },
+
+      forgetKeyboard: (keyboardId) => {
+        const { [keyboardId]: _gone, ...rest } = get().savedKeymaps
+        set({ savedKeymaps: rest })
+      },
     }),
     {
       name: STORAGE_KEY,
-      version: 2,
+      version: STORAGE_VERSION,
+      // v1: Orca echo 専用の形 / v2: MO_n → FN_n の改名 / v3: キーボード定義を参照する形。
+      // どの版から来ても、キーマップは normalizeKeymap で今の形にそろえる
       migrate: (persisted, version) => {
-        const state = persisted as Partial<
-          Pick<EditorState, 'keymap' | 'hud' | 'hudDocked' | 'editingLayer'>
-        >
-        if (version < 2 && state?.keymap) {
-          return { ...state, keymap: remapLegacyKeymap(state.keymap) } as EditorState
+        const state = (persisted ?? {}) as Partial<EditorState>
+        if (version >= STORAGE_VERSION) return state as EditorState
+        const keymap = normalizeKeymap(state.keymap) ?? createKeymap(DEFAULT_KEYBOARD)
+        return { ...state, keymap, savedKeymaps: {}, editingLayer: 0 } as EditorState
+      },
+      // 同じ版の保存データでも、壊れていたり手で書き換えられていたりしたら初期状態に戻す
+      merge: (persisted, current) => {
+        const state = (persisted ?? {}) as Partial<EditorState>
+        const keymap = normalizeKeymap(state.keymap) ?? current.keymap
+        const savedKeymaps: Record<string, Keymap> = {}
+        for (const km of Object.values(state.savedKeymaps ?? {})) {
+          const n = normalizeKeymap(km)
+          if (n && n.keyboard !== keymap.keyboard) savedKeymaps[n.keyboard] = n
         }
-        return state as EditorState
+        const editingLayer = typeof state.editingLayer === 'number' && state.editingLayer < keymap.layers.length
+          ? state.editingLayer
+          : 0
+        const sound = state.sound
+        return {
+          ...current,
+          ...(state.hud ? { hud: { ...current.hud, ...state.hud } } : {}),
+          ...(typeof state.hudDocked === 'boolean' ? { hudDocked: state.hudDocked } : {}),
+          ...(sound && SWITCH_SOUND_PROFILES.includes(sound.profile)
+            && typeof sound.volume === 'number' && sound.volume >= 0 && sound.volume <= 1
+            ? { sound: { profile: sound.profile, volume: sound.volume } }
+            : {}),
+          keymap,
+          savedKeymaps,
+          editingLayer,
+        }
       },
       partialize: (s) => ({
         keymap: s.keymap,
+        savedKeymaps: s.savedKeymaps,
         hud: s.hud,
         hudDocked: s.hudDocked,
+        sound: s.sound,
         editingLayer: s.editingLayer,
       }),
     },

@@ -1,3 +1,4 @@
+import { keyboardOf } from '../src/keyboards/registry'
 import type { SharedKeymapRow } from './sharedKeymap'
 
 /**
@@ -28,7 +29,7 @@ export function withKeymapMeta(html: string, item: SharedKeymapRow, origin: stri
   const { keymap } = item
   const combos = keymap.combos.filter((c) => c.enabled).length
   const description = item.description?.trim()
-    || `${keymap.layers.length} レイヤー・コンボ ${combos} 個の Keychron Orca echo キーマップ。`
+    || `${keymap.layers.length} レイヤー・コンボ ${combos} 個の ${keyboardOf(keymap).name} のキーマップ。`
       + 'ORCA MAP で全レイヤーを見て、そのまま読み込んで編集できます。'
   const image = new URL('/api/og', origin)
   image.searchParams.set('k', item.id)

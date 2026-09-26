@@ -18,9 +18,14 @@ export function keymapIdFromUrl(): string | null {
   return isKeymapId(id) ? id : null
 }
 
-/** X などに貼る、その投稿へ直接飛べる URL */
-export function keymapPermalink(id: string): string {
-  const url = new URL(window.location.pathname, window.location.origin)
+/**
+ * X などに貼る、その投稿へ直接飛べる URL。
+ * base には外に出すサイトの URL（lib/site の PUBLIC_SITE_URL）を渡す。
+ * ここで site.ts を読み込まないのは、このファイルを Vercel の middleware からも使うため
+ * （site.ts の import.meta.env は Vite でビルドしたアプリの中にしか無い）
+ */
+export function keymapPermalink(id: string, base: string): string {
+  const url = new URL(base)
   url.searchParams.set(PARAM, id)
   return url.toString()
 }
