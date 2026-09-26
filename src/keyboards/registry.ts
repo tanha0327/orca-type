@@ -6,6 +6,16 @@ import {
 import { ANSI_60 } from './ansi60'
 import { CORNE } from './corne'
 import { ORCA_ECHO } from './orcaEcho'
+import { ERGODOX_EZ } from './presets/ergodox'
+import { IRIS } from './presets/iris'
+import { KEYBALL44 } from './presets/keyball44'
+import { KYRIA } from './presets/kyria'
+import { LILY58 } from './presets/lily58'
+import { MOONLANDER } from './presets/moonlander'
+import { PLANCK } from './presets/planck'
+import { PREONIC } from './presets/preonic'
+import { SOFLE } from './presets/sofle'
+import { FERRIS_SWEEP } from './presets/sweep'
 import {
   SENSOR_SLOTS,
   type KeyboardDefinition, type KeyDef, type KeyId, type LayerSeed, type SensorBindings,
@@ -14,10 +24,31 @@ import {
 
 /* ================================================================
    組み込みのキーボード
-   新しい機種を足すときは、KeyboardDefinition を 1 つ書いてここに並べるだけでよい。
+   新しい機種を足すときは、KeyboardDefinition を 1 つ書いてここに並べるだけでよい
+   （presets/ の定義は、公開されている QMK / ZMK / KLE の定義から写したもの）。
+
+   並びは Orca echo のあとに、よく知られている順。
+   目安は QMK 0.22（2023 年）に集まっていたコミュニティのキーマップの数
+   （Planck 203 / ErgoDox 122 / 60% 90 / Corne 62 / Iris 57 / Preonic 57 / Kyria 39 / Lily58 31 / Sofle 14）で、
+   QMK の外で使われることが多い機種（Moonlander は ZSA の Oryx、Keyball は独自のリポジトリ、
+   Sweep は ZMK が中心）は、いまの人気を見てその後ろに並べた。
    ================================================================ */
 
-export const BUILTIN_KEYBOARDS: readonly KeyboardDefinition[] = [ORCA_ECHO, CORNE, ANSI_60]
+export const BUILTIN_KEYBOARDS: readonly KeyboardDefinition[] = [
+  ORCA_ECHO,
+  PLANCK,
+  ERGODOX_EZ,
+  ANSI_60,
+  CORNE,
+  IRIS,
+  PREONIC,
+  KYRIA,
+  LILY58,
+  SOFLE,
+  MOONLANDER,
+  KEYBALL44,
+  FERRIS_SWEEP,
+]
 
 /** キーボードの指定が無い古い保存データは Orca echo のもの */
 export const DEFAULT_KEYBOARD: KeyboardDefinition = ORCA_ECHO

@@ -10,7 +10,7 @@
 
 | | |
 |---|---|
-| **いろいろなキーボード** | 組み込みの Orca echo / Corne / 60% ANSI に加え、QMK・VIA・KLE・ZMK の配列データを貼り付けて取り込める（下記） |
+| **いろいろなキーボード** | 13 機種を組み込み済み（下記）。ほかの機種も QMK・VIA・KLE・ZMK の配列データを貼り付けて取り込める |
 | **レイヤー** | 名前・色つきのレイヤーを最大 16 枚（Orca echo は 8 枚から）。`MO` / `TG` / `TO` / layer-tap に対応 |
 | **MOD-TAP** | すべての割当に単押し・長押し・ダブルタップ。タッピングタームとフレーバー（長押し優先／バランス／単押し優先）も個別に指定可能 |
 | **コンボ** | 同時押しの割当。参加キー・判定時間・有効レイヤーを編集でき、盤面クリックでキーを選べる |
@@ -61,10 +61,36 @@ PiP（Document Picture-in-Picture API）は Chrome / Edge で動きます。
 - **既定のキーマップ・レイヤー数・読み替え表**（`capture`）… 読み替え表に書いていないキーは、
   ベースレイヤーの割当から自動で対応づけます（L0 で `A` を出すキー ← 手元の `A` キー）。
 
+### 組み込みのキーボード
+
+Orca echo のあとに、よく知られている順に並べています。目安は QMK 0.22（2023 年）に集まっていた
+コミュニティのキーマップの数で、QMK の外で使われることが多い機種（Moonlander・Keyball44・Sweep）は
+いまの人気を見てその後ろに置いています。
+
+| | キーボード | 形 | 座標と初期キーマップの出どころ |
+|---|---|---|---|
+| 1 | Keychron Orca echo | 分割 49 キー・パッド 2・エンコーダー・トラックボール | 実機写真 |
+| 2 | Planck | 4×12 格子 | ZMK |
+| 3 | ErgoDox EZ | 分割 76 キー・傾いた親指クラスタ | KLE（座標）/ QMK（キーマップ） |
+| 4 | 60% ANSI | 一体型 61 キー | QMK |
+| 5 | Corne（6 列） | 分割 42 キー | ZMK |
+| 6 | Iris | 分割 56 キー | QMK |
+| 7 | Preonic | 5×12 格子 | ZMK |
+| 8 | Kyria | 分割 50 キー・エンコーダー 2 | ZMK |
+| 9 | Lily58 | 分割 58 キー | ZMK |
+| 10 | Sofle | 分割 60 キー・エンコーダー 2 | ZMK |
+| 11 | Moonlander Mark I | 分割 72 キー | QMK |
+| 12 | Keyball44 | 分割 44 キー・トラックボール | Yowkees/keyball（JIS 前提の記号は実際に出る文字に直した） |
+| 13 | Ferris Sweep | 分割 34 キー・ホームロー修飾 | ZMK |
+
+RGB の効果切替や Keyball の CPI 調整のような機種独自のキーは、ORCA MAP のキーコードに無いので未割当にしています。
+
 ### 組み込みのキーボードを足す
 
-`src/keyboards/` に定義を 1 つ書き（`corne.ts` や `ansi60.ts` が短い例です）、
-`src/keyboards/registry.ts` の `BUILTIN_KEYBOARDS` に並べるだけです。
+`src/keyboards/presets/` に定義を 1 つ書き、`src/keyboards/registry.ts` の `BUILTIN_KEYBOARDS` に並べるだけです。
+`preset()`（`presets/preset.ts`）を使うと、キーは `[x, y, 幅, 高さ, 回転, 回転の中心 x, 回転の中心 y]`、
+キーマップはキーの順に空白で区切った割当（`_` 透過・`x` 未割当・`A@LSHFT` 長押しつき）で書けます。
+各ファイルの冒頭に、写したもとの QMK / ZMK の定義の場所を書いてあります。
 画面の「キーボードを変える」→「配列を取り込む」→「定義を JSON で保存」で、既存の配列データから
 定義の下書きを作ることもできます。
 
@@ -99,7 +125,8 @@ localStorage・JSON ファイル・共有フィードから来たキーマップ
 ```
 src/
   keyboards/  types.ts（キーボード定義の型）/ registry.ts（組み込みの一覧・キーマップの生成・読み替え）
-              geometry.ts / orcaEcho.ts / corne.ts / ansi60.ts / import/（QMK・VIA・KLE・ZMK の取り込み）
+              geometry.ts / orcaEcho.ts / corne.ts / ansi60.ts / presets/（ほかの組み込み機種）
+              import/（QMK・VIA・KLE・ZMK の取り込み）
   data/       keycodes.ts / types.ts / normalize.ts（外から来たデータの検証と移行）
   engine/     resolve.ts（純粋な解決関数）/ KeyEngine.ts（状態機械）/ zmk.ts / qmk.ts / useEngine.ts
   store/      keymapStore.ts（Zustand + persist）

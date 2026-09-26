@@ -1,5 +1,6 @@
 import { getKeycode } from '../data/keycodes'
 import type { Binding, Keymap, Layer } from '../data/types'
+import { keyCenter } from '../keyboards/geometry'
 import { bindableSensors, hasBall, keyboardOf, keyPosition } from '../keyboards/registry'
 import type { KeyboardDefinition, KeyDef } from '../keyboards/types'
 
@@ -45,15 +46,16 @@ function bindingText(b: Binding | undefined): string {
 
 /**
  * キーを書き出す順（= 定義の順）のまま、見た目の段ごとに改行する。
- * 左から右へ並べていって x が戻ったら次の段。分割キーボードは左右の境目に | を挟む。
+ * 左から右へ並べていって（回転を反映した）キーの中心が左に戻ったら次の段。
  */
 export function visualRows(def: KeyboardDefinition): KeyDef[][] {
   const rows: KeyDef[][] = []
-  let prev: KeyDef | undefined
+  let prevX = Infinity
   for (const k of def.keys) {
-    if (!prev || k.x < prev.x - 0.01) rows.push([])
+    const x = keyCenter(k)[0]
+    if (x < prevX - 0.01) rows.push([])
     rows[rows.length - 1].push(k)
-    prev = k
+    prevX = x
   }
   return rows
 }
