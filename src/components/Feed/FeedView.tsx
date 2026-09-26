@@ -10,6 +10,7 @@ import {
   postComment, shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
 import { detectOs, getOsTag, OS_TAGS, osOf, withOs } from '../../lib/os'
+import { keymapIdFromUrl, keymapPermalink, setUrlKeymapId } from '../../lib/permalink'
 import { PUBLIC_SITE_URL } from '../../lib/site'
 import { fetchXVerifications, type XVerification } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
@@ -280,6 +281,35 @@ export function FeedView() {
   // 新しい順のときだけ、バズった投稿を「話題の配列」として先にまとめる
   const buzzSection = activeSort === 'new' ? (visible ?? []).filter((it) => isBuzz(it.id)) : []
   const restSection = activeSort === 'new' ? (visible ?? []).filter((it) => !isBuzz(it.id)) : (visible ?? [])
+
+  // 共有リンク（?k=<投稿ID>）から来たら、その投稿を大きく見るモーダルで開く。
+  // 一覧に入っているとは限らない（古い投稿・並び順）ので、1 件だけ別に取りに行く。
+  // ID は最初のレンダー時に拾っておく（下の同期で URL から消えた後に読まないように）
+  const [linkedId] = useState(keymapIdFromUrl)
+  useEffect(() => {
+    if (!linkedId || !feedEnabled()) return
+    let cancelled = false
+    fetchKeymapsByIds([linkedId])
+      .then(([item]) => {
+        if (cancelled) return
+        if (item) openViewer(item)
+        else {
+          setUrlKeymapId(null)
+          setShareMsg('リンク先の配列が見つかりませんでした（削除された可能性があります）')
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setShareMsg(`リンク先の配列を読み込めませんでした: ${errorMessage(e)}`)
+      })
+    return () => { cancelled = true }
+  }, [linkedId, openViewer])
+
+  // 投稿を開いている間はアドレスバーも ?k=<投稿ID> にしておく（そのままコピーして共有できる）
+  useEffect(() => {
+    if (!viewer) return
+    setUrlKeymapId(viewer.id)
+    return () => setUrlKeymapId(null)
+  }, [viewer])
 
   if (!feedEnabled()) {
     return (
@@ -751,11 +781,12 @@ function PostCard({
   // 寿司打の「Xで結果をシェア」のように、その場で文面入りの投稿画面を開くだけにする。
   // window.open() での実装はブラウザによってポップアップブロックの対象になり得るので、
   // 普通の <a target="_blank"> によるリンク遷移にする（これはブロックされない）。
-  // テスト用のサイトから押しても、ポストには本番の URL を載せる
+  // テスト用のサイトから押しても、ポストには本番の URL を載せる。
+  // URL はトップではなく、この投稿の詳細が直接開くリンクにする
   const board = keyboardOf(item.keymap)
   const shareXHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
     `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を ${board.name} で共有中${board.hashtag ? ` #${board.hashtag}` : ''}`,
-  )}&url=${encodeURIComponent(PUBLIC_SITE_URL)}`
+  )}&url=${encodeURIComponent(keymapPermalink(item.id, PUBLIC_SITE_URL))}`
 
   return (
     <article className="relative border-b-[3px] border-[var(--color-ink)] p-3">
