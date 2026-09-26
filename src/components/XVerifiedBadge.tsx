@@ -1,8 +1,8 @@
-import { xVerificationPostUrl, type XVerification } from '../lib/xVerification'
+import { xProfileUrl, type XVerification } from '../lib/xVerification'
 
 /**
  * X のポストで本人確認済みのユーザーに付けるバッジ。
- * クリックすると確認に使ったポスト（確認コード入り）が開き、本当にその人のアカウントかを確かめられる。
+ * クリックするとその X アカウントのプロフィールが開き、本当にその人かを確かめられる。
  * 画像として書き出すときなどリンクにできない場所では link={false} で表示だけにする。
  */
 export function XVerifiedBadge({
@@ -33,13 +33,13 @@ export function XVerifiedBadge({
   )
   return (
     <a
-      href={xVerificationPostUrl(verification)}
+      href={xProfileUrl(verification)}
       target="_blank"
       rel="noopener noreferrer"
       className={`nb-chip min-w-0 ${className}`}
       style={style}
       title={title}
-      aria-label={`${title}（確認に使った X のポストを開く）`}
+      aria-label={`${title}（X のプロフィールを開く）`}
     >
       {content}
     </a>

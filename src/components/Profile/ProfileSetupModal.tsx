@@ -295,7 +295,7 @@ function XVerifySection({ user }: { user: User }) {
       const v = await verifyXPost(user.id, postUrl.trim())
       setVerification(v)
       setPostUrl('')
-      setDone(`@${v.username} で本人確認できました！ 投稿やコメントにバッジが付きます。`)
+      setDone(`@${v.username} で本人確認できました！ 投稿やコメントにバッジが付きます。確認に使ったポストは消しても大丈夫です。`)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -341,7 +341,7 @@ function XVerifySection({ user }: { user: User }) {
           <div className="nb nb-flat mt-1.5 space-y-2.5 p-2.5">
             <p className="text-[0.74rem] font-bold leading-relaxed opacity-70">
               確認コード入りのポストを X にすると、投稿やコメントに「✓ 𝕏 @ユーザー名」のバッジが付きます。
-              バッジからそのポストを開けるので、本人だと確かめてもらえます。
+              バッジから X のプロフィールを開けるので、本人だと確かめてもらえます。
             </p>
 
             <div>
@@ -394,7 +394,7 @@ function XVerifySection({ user }: { user: User }) {
             </div>
 
             <p className="text-[0.68rem] font-bold leading-relaxed opacity-50">
-              鍵アカウントのポストでは確認できません。確認したあともポストは残しておいてください（バッジから開けます）。
+              鍵アカウントのポストでは確認できません。確認が終わったら、ポストは消しても大丈夫です（バッジはそのまま残ります）。
             </p>
           </div>
         )}
