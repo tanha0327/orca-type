@@ -1,11 +1,13 @@
 import {
   TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS, type TrackballColor,
 } from '../../data/types'
+import { keyboardOf } from '../../keyboards/registry'
 import { useKeymapStore } from '../../store/keymapStore'
 
 export function TrackballPanel() {
   const ball = useKeymapStore((s) => s.keymap.trackball)
   const setTrackball = useKeymapStore((s) => s.setTrackball)
+  const sensor = useKeymapStore((s) => keyboardOf(s.keymap).sensors?.find((x) => x.kind === 'ball'))
 
   return (
     <div className="nb nb-lg overflow-hidden">
@@ -13,8 +15,8 @@ export function TrackballPanel() {
         className="border-b-[3px] border-[var(--color-ink)] p-3"
         style={{ background: 'linear-gradient(100deg, #ff8a9b, #d21f3c)' }}
       >
-        <p className="nb-eyebrow !opacity-80">右手・親指</p>
-        <h3 className="text-[1.15rem]">19mm トラックボール</h3>
+        <p className="nb-eyebrow !opacity-80">ポインティングデバイス</p>
+        <h3 className="text-[1.15rem]">{sensor?.name ?? 'トラックボール'}</h3>
         <p className="text-[0.72rem] font-bold opacity-80">
           ポインタの設定はレイヤーをまたいで共通です
         </p>

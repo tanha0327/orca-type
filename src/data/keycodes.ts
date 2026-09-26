@@ -1,6 +1,7 @@
 /**
- * ZMK 準拠のキーコードカタログ。
- * Orca echo は ZMK ファームなので、コード名は ZMK の behavior/keycode 名に寄せている。
+ * キーコードカタログ。
+ * 内部のコード名は ZMK の behavior/keycode 名に寄せてあり、QMK へは書き出し時に読み替える。
+ * どのキーボードでも同じカタログを使う。
  */
 
 export type KeycodeCategory =
@@ -163,6 +164,7 @@ const navs: [string, string, string][] = [
   ['PG_UP', 'pgup', 'ページアップ'],
   ['PG_DN', 'pgdn', 'ページダウン'],
   ['INS', 'ins', 'インサート'],
+  ['K_APP', 'menu', 'アプリケーション（メニュー）'],
 ]
 for (const [code, label, jp] of navs) {
   def({ code, label, name: jp, category: 'nav', keywords: [jp, label, 'やじるし', 'カーソル'], wide: label.length > 2 })
@@ -224,10 +226,11 @@ def({ code: 'BT_NXT', label: 'BT▸', name: '次のプロファイルへ', categ
 def({ code: 'OUT_TOG', label: '((•))', name: '出力切替（USB ⇄ 無線）', category: 'bt', keywords: ['むせん', '無線', '切替', 'usb'], wide: true })
 
 /* ---------------------------------------------------------------- レイヤー */
-export const LAYER_COUNT = 8
-/** キーキャップに fn1/fn2/fn3 と印字されているレイヤー（実機写真準拠） */
+/** キーマップに持てるレイヤーの上限。レイヤー系のキーコードはこの数だけ用意し、ピッカーでは実際の枚数に絞る */
+export const MAX_LAYERS = 16
+/** キーキャップに fn1/fn2/fn3 と印字されているレイヤー（Orca echo の実機写真準拠） */
 const FN_LAYERS = new Set([1, 2, 3])
-for (let n = 0; n < LAYER_COUNT; n++) {
+for (let n = 0; n < MAX_LAYERS; n++) {
   if (FN_LAYERS.has(n)) {
     def({ code: `FN_${n}`, label: `fn${n}`, name: `fn${n}（レイヤー ${n} を押している間だけ有効）`, category: 'layer', layerAction: 'MO', layerTarget: n, keywords: ['もーめんたり', 'momentary', 'レイヤー', 'fn', `fn${n}`, `${n}`] })
   } else {
@@ -284,11 +287,11 @@ export const CODE_TO_KEYCODE: Record<string, Keycode> = {
   AltLeft: 'LALT', AltRight: 'RALT',
   MetaLeft: 'LGUI', MetaRight: 'RGUI',
 
-  Space: 'SPACE', Enter: 'ENTER', Backspace: 'BSPC', Delete: 'DEL',
+  Escape: 'ESC', Space: 'SPACE', Enter: 'ENTER', Backspace: 'BSPC', Delete: 'DEL',
   Tab: 'TAB', CapsLock: 'CAPS', Lang1: 'LANG1', Lang2: 'LANG2',
 
   ArrowLeft: 'LEFT', ArrowRight: 'RIGHT', ArrowUp: 'UP', ArrowDown: 'DOWN',
-  Home: 'HOME', End: 'END', PageUp: 'PG_UP', PageDown: 'PG_DN', Insert: 'INS',
+  Home: 'HOME', End: 'END', PageUp: 'PG_UP', PageDown: 'PG_DN', Insert: 'INS', ContextMenu: 'K_APP',
 
   F1: 'F1', F2: 'F2', F3: 'F3', F4: 'F4', F5: 'F5', F6: 'F6',
   F7: 'F7', F8: 'F8', F9: 'F9', F10: 'F10', F11: 'F11', F12: 'F12',
@@ -298,11 +301,15 @@ export const CODE_TO_KEYCODE: Record<string, Keycode> = {
   MediaPlayPause: 'C_PP', MediaTrackNext: 'C_NEXT', MediaTrackPrevious: 'C_PREV', MediaStop: 'C_STOP',
 }
 
-/** ピッカーの検索。コード名・正式名・キーワード・表記のいずれかに前方/部分一致 */
-export function searchKeycodes(query: string, category?: KeycodeCategory): KeycodeDef[] {
+/**
+ * ピッカーの検索。コード名・正式名・キーワード・表記のいずれかに前方/部分一致。
+ * layerCount を渡すと、存在しないレイヤーを指すキーコードは出さない。
+ */
+export function searchKeycodes(query: string, category?: KeycodeCategory, layerCount?: number): KeycodeDef[] {
   const q = query.trim().toLowerCase()
   return defs.filter((d) => {
     if (category && d.category !== category) return false
+    if (layerCount !== undefined && d.layerTarget !== undefined && d.layerTarget >= layerCount) return false
     if (!q) return true
     if (d.code.toLowerCase().includes(q)) return true
     if (d.name.toLowerCase().includes(q)) return true

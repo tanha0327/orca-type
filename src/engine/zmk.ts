@@ -1,6 +1,7 @@
 import { getKeycode } from '../data/keycodes'
-import { KEYS, type KeyId } from '../data/layout'
 import type { Binding, Keymap, Layer } from '../data/types'
+import { bindableSensors, hasBall, keyboardOf, keyPosition } from '../keyboards/registry'
+import type { KeyboardDefinition, KeyDef } from '../keyboards/types'
 
 /** 内部コード → ZMK の振る舞い表記 */
 function behavior(code: string | undefined): string {
@@ -42,68 +43,81 @@ function bindingText(b: Binding | undefined): string {
   return `&mt ${holdKc.code} ${tapKc.code}`
 }
 
-function padCell(text: string, width: number): string {
-  return text.padEnd(width, ' ')
+/**
+ * キーを書き出す順（= 定義の順）のまま、見た目の段ごとに改行する。
+ * 左から右へ並べていって x が戻ったら次の段。分割キーボードは左右の境目に | を挟む。
+ */
+export function visualRows(def: KeyboardDefinition): KeyDef[][] {
+  const rows: KeyDef[][] = []
+  let prev: KeyDef | undefined
+  for (const k of def.keys) {
+    if (!prev || k.x < prev.x - 0.01) rows.push([])
+    rows[rows.length - 1].push(k)
+    prev = k
+  }
+  return rows
 }
 
-const ROWS = [0, 1, 2, 3]
-
-function keysOfRow(half: 'L' | 'R', row: number): KeyId[] {
-  return KEYS
-    .filter((k) => k.half === half && k.row === row && k.kind === 'key')
-    .sort((a, b) => a.col - b.col)
-    .map((k) => k.id)
+/**
+ * レイヤーの割当を、段ごとに桁をそろえた文字列の行にする（ZMK / QMK の書き出しで共通）。
+ * 分割キーボードの左右の境目には separator を挟む。
+ */
+export function bindingsGrid(
+  def: KeyboardDefinition,
+  layer: Layer,
+  cell: (b: Binding | undefined, index: number) => string,
+  separator = ' | ',
+): string[] {
+  let index = 0
+  const rows = visualRows(def).map((row) => row.flatMap((k, i) => {
+    const text = cell(layer.keys[k.id], index++)
+    const prev = row[i - 1]
+    return prev?.half && k.half && prev.half !== k.half ? [SEPARATOR, text] : [text]
+  }))
+  const width = Math.max(...rows.flat().map((c) => c.length)) + 2
+  return rows.map((row) => row.map((c) => (c === SEPARATOR ? separator : c.padEnd(width, ' '))).join('').trimEnd())
 }
 
-function layerBlock(layer: Layer, keymap: Keymap): string {
-  const lines: string[] = []
-  const cells: string[][] = []
+const SEPARATOR = '\u0000|'
 
-  for (const row of ROWS) {
-    const left = keysOfRow('L', row).map((id) => bindingText(layer.keys[id]))
-    const right = keysOfRow('R', row).map((id) => bindingText(layer.keys[id]))
-    cells.push([...left, '|', ...right])
-  }
-  // 親指 + トラックボール列
-  cells.push([bindingText(layer.keys['LT0']), '|'])
+const code = (b: Binding | undefined) => getKeycode(b?.tap ?? 'TRANS').code
 
-  const width = Math.max(
-    ...cells.flat().map((c) => c.length),
-  ) + 2
+function layerBlock(layer: Layer, def: KeyboardDefinition, last: boolean): string {
+  const encoders = bindableSensors(def).filter((s) => s.kind === 'encoder')
+  const pads = bindableSensors(def).filter((s) => s.kind === 'pad')
 
-  for (const row of cells) {
-    lines.push('                ' + row.map((c) => (c === '|' ? ' | ' : padCell(c, width))).join('').trimEnd())
-  }
+  const sensorCells = encoders.map((s) => {
+    const slots = layer.sensors[s.id] ?? {}
+    const cw = slots.cw
+    const ccw = slots.ccw
+    if ((!cw || cw.tap === 'TRANS') && (!ccw || ccw.tap === 'TRANS')) return '&trans'
+    return `&inc_dec_kp ${code(cw)} ${code(ccw)}`
+  })
 
-  const sensor = [
-    `&inc_dec_kp ${getKeycode(layer.encoder.cw.tap).code} ${getKeycode(layer.encoder.ccw.tap).code}`,
-  ]
+  const padComment = pads.map((s) => {
+    const slots = layer.sensors[s.id] ?? {}
+    return `            /* ${s.name}: ↑${code(slots.up)}  ↓${code(slots.down)}  タップ${code(slots.tap)} */`
+  })
 
-  const padComment = (name: string, cfg: Layer['padL']) =>
-    `            /* ${name}: ↑${getKeycode(cfg.up.tap).code}  ↓${getKeycode(cfg.down.tap).code}` +
-    `  タップ${getKeycode(cfg.tap.tap).code} */`
-
-  const id = layer.id
-  const slug = layer.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `layer_${id}`
+  const slug = layer.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `layer_${layer.id}`
 
   return [
     `        ${slug}_layer {`,
     `            display-name = "${layer.name}";`,
-    padComment('左スクロールパッド', layer.padL),
-    padComment('右スクロールパッド', layer.padR),
+    ...padComment,
     `            bindings = <`,
-    ...lines,
+    ...bindingsGrid(def, layer, bindingText).map((line) => `                ${line}`),
     `            >;`,
-    `            sensor-bindings = <${sensor.join(' ')}>;`,
+    ...(sensorCells.length > 0 ? [`            sensor-bindings = <${sensorCells.join(' ')}>;`] : []),
     `        };`,
-  ].join('\n') + (keymap.layers.length - 1 === id ? '' : '\n')
+  ].join('\n') + (last ? '' : '\n')
 }
 
-function comboBlock(keymap: Keymap): string {
+function comboBlock(keymap: Keymap, def: KeyboardDefinition): string {
   if (keymap.combos.length === 0) return ''
   const items = keymap.combos.map((c) => {
     const positions = c.keys
-      .map((id) => KEYS.findIndex((k) => k.id === id))
+      .map((id) => keyPosition(def, id))
       .filter((n) => n >= 0)
       .join(' ')
     const slug = c.id.replace(/[^a-z0-9]+/gi, '_')
@@ -126,24 +140,28 @@ function comboBlock(keymap: Keymap): string {
   ].join('\n')
 }
 
-/** Keychron Launcher / ZMK に貼れる形の「風」プレビューを作る */
+/** ZMK の .keymap に貼れる形の「風」プレビューを作る */
 export function toZmkKeymap(keymap: Keymap): string {
+  const def = keyboardOf(keymap)
   return [
     '/*',
-    ` * ${keymap.name} — Keychron Orca echo`,
+    ` * ${keymap.name} — ${def.name}`,
     ' * ORCA MAP で書き出したキーマップのプレビューです。',
     ` * タッピングターム ${keymap.settings.tappingTermMs}ms / フレーバー ${keymap.settings.flavor}`,
-    ` * トラックボール ${keymap.trackball.dpi}dpi / 角度 ${keymap.trackball.angle}° / 精密 ${Math.round(keymap.trackball.snipeRatio * 100)}%`,
+    ...(hasBall(def)
+      ? [` * トラックボール ${keymap.trackball.dpi}dpi / 角度 ${keymap.trackball.angle}° / 精密 ${Math.round(keymap.trackball.snipeRatio * 100)}%`]
+      : []),
     ' */',
     '',
     '/ {',
     '    keymap {',
     '        compatible = "zmk,keymap";',
     '',
-    ...keymap.layers.map((l) => layerBlock(l, keymap)),
+    ...keymap.layers.map((l, i) => layerBlock(l, def, i === keymap.layers.length - 1)),
     '    };',
-    comboBlock(keymap),
+    comboBlock(keymap, def),
     '};',
     '',
   ].join('\n')
 }
+

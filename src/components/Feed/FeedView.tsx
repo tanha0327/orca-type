@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { KEYS, type KeyId } from '../../data/layout'
 import {
   BODY_COLOR_LABEL, LAYER_COLOR_HEX, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL,
   type BodyColor, type Keymap, type TrackballColor,
 } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
+import { hasBall, keyboardOf } from '../../keyboards/registry'
+import type { KeyId } from '../../keyboards/types'
 import { errorMessage } from '../../lib/errors'
 import {
   deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
@@ -18,11 +19,12 @@ import { Ring } from '../Ring'
 
 const EMPTY_EXTRAS: FeedExtras = { likeCounts: {}, likedByMe: new Set(), commentCounts: {} }
 
-/** 2 つのキーマップで、指定レイヤーの割当（単押し・長押し）が違うキーの ID 集合 */
+/** 2 つのキーマップで、指定レイヤーの割当（単押し・長押し）が違うキーの ID 集合。別のキーボード同士なら比べない */
 function diffKeysForLayer(a: Keymap, b: Keymap, layerIndex: number): Set<KeyId> {
   const stack = layerIndex === 0 ? [0] : [0, layerIndex]
   const diffs = new Set<KeyId>()
-  for (const k of KEYS) {
+  if (a.keyboard !== b.keyboard) return diffs
+  for (const k of keyboardOf(a).keys) {
     const ra = resolveKey(a, stack, k.id).binding
     const rb = resolveKey(b, stack, k.id).binding
     if (ra.tap !== rb.tap || ra.hold !== rb.hold) diffs.add(k.id)
@@ -140,7 +142,10 @@ export function FeedView() {
   }
 
   const doImport = (item: SharedKeymap) => {
-    if (!confirm(`「${item.name}」を読み込みますか？ 今編集中の内容は上書きされます。`)) return
+    const message = item.keymap.keyboard === keymap.keyboard
+      ? `「${item.name}」を読み込みますか？ 今編集中の内容は上書きされます。`
+      : `「${item.name}」は ${keyboardOf(item.keymap).name} の配列です。読み込むと編集するキーボードが切り替わります（いまのキーマップは保存しておきます）。読み込みますか？`
+    if (!confirm(message)) return
     importKeymap(item.keymap)
     setView('edit')
   }
@@ -351,20 +356,26 @@ function ColorDot({ color, size = 14 }: { color: TrackballColor | BodyColor; siz
   )
 }
 
-/** 投稿主が設定した本体色・トラックボール色をまとめて表示する */
+/** 投稿主のキーボードと、設定した本体色・トラックボール色をまとめて表示する */
 function DeviceColors({ keymap }: { keymap: Keymap }) {
+  const def = keyboardOf(keymap)
   const bodyColor = keymap.settings.bodyColor ?? 'white'
   const ballColor = keymap.trackball.color ?? 'white'
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      <span className="nb-chip" style={{ background: 'var(--color-sand)' }}>
+        ⌨ {def.name}
+      </span>
       <span className="nb-chip flex items-center gap-1.5" style={{ background: 'var(--color-paper)' }}>
         <ColorDot color={bodyColor} />
         本体: {BODY_COLOR_LABEL[bodyColor]}
       </span>
-      <span className="nb-chip flex items-center gap-1.5" style={{ background: 'var(--color-paper)' }}>
-        <ColorDot color={ballColor} />
-        ボール: {TRACKBALL_COLOR_LABEL[ballColor]}
-      </span>
+      {hasBall(def) && (
+        <span className="nb-chip flex items-center gap-1.5" style={{ background: 'var(--color-paper)' }}>
+          <ColorDot color={ballColor} />
+          ボール: {TRACKBALL_COLOR_LABEL[ballColor]}
+        </span>
+      )}
     </div>
   )
 }
@@ -435,8 +446,9 @@ function PostCard({
   // 寿司打の「Xで結果をシェア」のように、その場で文面入りの投稿画面を開くだけにする。
   // window.open() での実装はブラウザによってポップアップブロックの対象になり得るので、
   // 普通の <a target="_blank"> によるリンク遷移にする（これはブロックされない）
+  const board = keyboardOf(item.keymap)
   const shareXHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-    `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を Orca echo で共有中 #Orcaecho`,
+    `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を ${board.name} で共有中${board.hashtag ? ` #${board.hashtag}` : ''}`,
   )}&url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`
 
   return (
@@ -775,7 +787,9 @@ function CompareModal({
                 border: '2px solid var(--color-pink)',
               }}
             />
-            縁がピンクのキーは、あなたの配列と割当が違います
+            {item.keymap.keyboard === myKeymap.keyboard
+              ? ' 縁がピンクのキーは、あなたの配列と割当が違います'
+              : ` 別のキーボード（${keyboardOf(item.keymap).name}）の配列なので、キーごとの違いは出していません`}
           </p>
 
           <div className="space-y-4">

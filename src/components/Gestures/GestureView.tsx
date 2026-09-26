@@ -1,18 +1,22 @@
 import { getKeycode } from '../../data/keycodes'
-import {
-  ENCODER_SLOTS, ENCODER_SLOT_GLYPH, ENCODER_SLOT_LABEL,
-  LAYER_COLOR_HEX, PAD_SLOTS, PAD_SLOT_GLYPH, PAD_SLOT_LABEL,
-  type EncoderSlot, type PadSlot,
-} from '../../data/types'
+import { LAYER_COLOR_HEX } from '../../data/types'
 import { engine } from '../../engine/useEngine'
 import { resolveSensor } from '../../engine/resolve'
+import { bindableSensors, hasBall, keyboardOf } from '../../keyboards/registry'
+import {
+  SENSOR_SLOT_GLYPH, SENSOR_SLOT_LABEL, SENSOR_SLOTS,
+  type SensorId, type SensorSlot,
+} from '../../keyboards/types'
 import { sameTarget, useKeymapStore, type Selection } from '../../store/keymapStore'
+
+const SENSOR_TONES = ['var(--color-purple)', 'var(--color-lime)', 'var(--color-cyan)', 'var(--color-sand)']
 
 export function GestureView() {
   const keymap = useKeymapStore((s) => s.keymap)
   const editingLayer = useKeymapStore((s) => s.editingLayer)
   const layer = keymap.layers[editingLayer]
   const hex = LAYER_COLOR_HEX[layer?.color ?? 'gray']
+  const def = keyboardOf(keymap)
 
   return (
     <section className="nb nb-lg p-4">
@@ -26,74 +30,45 @@ export function GestureView() {
       </p>
 
       <div className="space-y-5">
-        <Group
-          title="左ロータリーエンコーダー"
-          note="ホイールを回したときの出力。初期設定は右回しで →、左回しで ←。"
-          tone="var(--color-purple)"
-        >
-          {ENCODER_SLOTS.map((slot: EncoderSlot) => (
-            <SlotCard
-              key={slot}
-              glyph={ENCODER_SLOT_GLYPH[slot]}
-              label={ENCODER_SLOT_LABEL[slot]}
-              sensor="enc-l"
-              slotKey={slot}
-              target={{ kind: 'encoder', slot }}
-              onTry={() => engine.encoder(slot)}
-            />
-          ))}
-        </Group>
-
-        <Group
-          title="左スクロールパッド"
-          note="初期設定は上下スワイプで音量、タップでミュート。"
-          tone="var(--color-lime)"
-        >
-          {PAD_SLOTS.map((slot: PadSlot) => (
-            <SlotCard
-              key={slot}
-              glyph={PAD_SLOT_GLYPH[slot]}
-              label={PAD_SLOT_LABEL[slot]}
-              sensor="pad-l"
-              slotKey={slot}
-              target={{ kind: 'pad', sensor: 'pad-l', slot }}
-              onTry={() => engine.pad('pad-l', slot)}
-            />
-          ))}
-        </Group>
-
-        <Group
-          title="右スクロールパッド"
-          note="初期設定は上下で縦スクロール、タップで左クリック。"
-          tone="var(--color-cyan)"
-        >
-          {PAD_SLOTS.map((slot: PadSlot) => (
-            <SlotCard
-              key={slot}
-              glyph={PAD_SLOT_GLYPH[slot]}
-              label={PAD_SLOT_LABEL[slot]}
-              sensor="pad-r"
-              slotKey={slot}
-              target={{ kind: 'pad', sensor: 'pad-r', slot }}
-              onTry={() => engine.pad('pad-r', slot)}
-            />
-          ))}
-        </Group>
-
-        <Group title="トラックボール" note="DPI・角度・精密モードの設定。" tone="#d21f3c">
-          <button
-            type="button"
-            className="nb-btn !w-full !justify-start !p-3"
-            onClick={() => useKeymapStore.getState().select({ kind: 'ball' })}
+        {bindableSensors(def).map((sensor, i) => (
+          <Group
+            key={sensor.id}
+            title={sensor.name}
+            note={sensor.kind === 'encoder' ? 'ホイールを回したときの出力。' : 'スワイプ・タップしたときの出力。'}
+            tone={SENSOR_TONES[i % SENSOR_TONES.length]}
           >
-            <span className="flex flex-col text-left">
-              <span className="nb-eyebrow !text-[0.6rem]">19mm トラックボール</span>
-              <span className="text-[0.85rem] font-black">
-                {keymap.trackball.dpi} dpi / {keymap.trackball.angle}° / 精密 {Math.round(keymap.trackball.snipeRatio * 100)}%
+            {SENSOR_SLOTS[sensor.kind].map((slot) => (
+              <SlotCard
+                key={slot}
+                glyph={SENSOR_SLOT_GLYPH[slot]}
+                label={SENSOR_SLOT_LABEL[slot]}
+                sensor={sensor.id}
+                slotKey={slot}
+                target={{ kind: 'sensor', sensorId: sensor.id, slot }}
+                onTry={() => engine.sensor(sensor.id, slot)}
+              />
+            ))}
+          </Group>
+        ))}
+
+        {hasBall(def) && (
+          <Group title="トラックボール" note="DPI・角度・精密モードの設定。" tone="#d21f3c">
+            <button
+              type="button"
+              className="nb-btn !w-full !justify-start !p-3"
+              onClick={() => useKeymapStore.getState().select({ kind: 'ball' })}
+            >
+              <span className="flex flex-col text-left">
+                <span className="nb-eyebrow !text-[0.6rem]">
+                  {def.sensors?.find((s) => s.kind === 'ball')?.name}
+                </span>
+                <span className="text-[0.85rem] font-black">
+                  {keymap.trackball.dpi} dpi / {keymap.trackball.angle}° / 精密 {Math.round(keymap.trackball.snipeRatio * 100)}%
+                </span>
               </span>
-            </span>
-          </button>
-        </Group>
+            </button>
+          </Group>
+        )}
       </div>
     </section>
   )
@@ -119,8 +94,8 @@ function SlotCard({
 }: {
   glyph: string
   label: string
-  sensor: 'enc-l' | 'pad-l' | 'pad-r'
-  slotKey: string
+  sensor: SensorId
+  slotKey: SensorSlot
   target: Selection
   onTry: () => void
 }) {
@@ -129,8 +104,8 @@ function SlotCard({
   const selection = useKeymapStore((s) => s.selection)
   const select = useKeymapStore((s) => s.select)
 
-  const own = resolveSensor(keymap, [editingLayer], sensor, slotKey as never)
-  const fallback = resolveSensor(keymap, [0, editingLayer], sensor, slotKey as never)
+  const own = resolveSensor(keymap, [editingLayer], sensor, slotKey)
+  const fallback = resolveSensor(keymap, [0, editingLayer], sensor, slotKey)
   const inherited = own.binding.tap === 'NONE' && editingLayer !== 0
   const kc = getKeycode(fallback.binding.tap)
   const active = sameTarget(selection, target)

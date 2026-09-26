@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
-import { CODE_TO_KEY } from '../data/layout'
+import type { Binding } from '../data/types'
+import { buildCaptureMap, keyboardOf } from '../keyboards/registry'
+import type { KeyboardDefinition, KeyId } from '../keyboards/types'
 import { useKeymapStore } from '../store/keymapStore'
 import { KeyEngine, type EngineSnapshot } from './KeyEngine'
 
@@ -8,6 +10,26 @@ export const engine = new KeyEngine(useKeymapStore.getState().keymap)
 
 // キーマップを編集したら、その場でエンジンに反映する
 useKeymapStore.subscribe((state) => engine.setKeymap(state.keymap))
+
+let captureCache: {
+  def: KeyboardDefinition
+  base: Record<KeyId, Binding> | undefined
+  map: Record<string, KeyId>
+} | null = null
+
+/**
+ * 手元のキーボードの `event.code` → いま編集しているキーボードの KeyId。
+ * キーボードかベースレイヤーが変わったときだけ作り直す。
+ */
+export function keyIdForCode(code: string): KeyId | undefined {
+  const { keymap } = useKeymapStore.getState()
+  const def = keyboardOf(keymap)
+  const base = keymap.layers[0]?.keys
+  if (!captureCache || captureCache.def !== def || captureCache.base !== base) {
+    captureCache = { def, base, map: buildCaptureMap(def, base) }
+  }
+  return Object.prototype.hasOwnProperty.call(captureCache.map, code) ? captureCache.map[code] : undefined
+}
 
 export function useEngineSnapshot(): EngineSnapshot {
   return useSyncExternalStore(
@@ -25,7 +47,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 /**
- * 実キーボードの入力を Orca echo のキー位置に読み替えてエンジンへ流す。
+ * 実キーボードの入力を、編集中のキーボードのキー位置に読み替えてエンジンへ流す。
  * PiP ウィンドウにフォーカスが移っても止まらないよう、document ごとに張る。
  */
 export function attachKeyCapture(doc: Document): () => void {
@@ -34,7 +56,7 @@ export function attachKeyCapture(doc: Document): () => void {
     if (isTypingTarget(e.target)) return
     // ブラウザ自体のショートカット（⌘R など）は邪魔しない
     if (e.metaKey && e.code !== 'MetaLeft' && e.code !== 'MetaRight') return
-    const keyId = CODE_TO_KEY[e.code]
+    const keyId = keyIdForCode(e.code)
     if (!keyId) return
     e.preventDefault()
     if (e.repeat) return
@@ -43,7 +65,7 @@ export function attachKeyCapture(doc: Document): () => void {
 
   const onUp = (e: KeyboardEvent) => {
     if (!useKeymapStore.getState().captureEnabled) return
-    const keyId = CODE_TO_KEY[e.code]
+    const keyId = keyIdForCode(e.code)
     if (!keyId) return
     e.preventDefault()
     engine.keyUp(keyId)

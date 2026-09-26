@@ -1,4 +1,5 @@
-import { isValidKeymapShape, type Keymap } from '../data/types'
+import { normalizeKeymap } from '../data/normalize'
+import type { Keymap } from '../data/types'
 import { supabase } from './supabase'
 
 export interface SharedKeymap {
@@ -33,7 +34,8 @@ export function feedEnabled(): boolean {
 }
 
 /**
- * 新しい順に最大 50 件。壊れた形の keymap が紛れ込んでいても落ちないよう弾く。
+ * 新しい順に最大 50 件。keymap は normalizeKeymap で今の形にそろえ、
+ * 壊れた形のものや、このアプリで描けないキーボードのものは弾く。
  * user_id / avatar_url をまだ持たないテーブルでも一覧は出せるよう、列は * で取って埋める。
  */
 export async function fetchFeed(): Promise<SharedKeymap[]> {
@@ -44,14 +46,16 @@ export async function fetchFeed(): Promise<SharedKeymap[]> {
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) throw error
-  return (data ?? [])
-    .filter((row) => isValidKeymapShape(row.keymap))
-    .map((row) => ({
+  return (data ?? []).flatMap((row) => {
+    const keymap = normalizeKeymap(row.keymap)
+    return keymap ? [{ row, keymap }] : []
+  })
+    .map(({ row, keymap }) => ({
       id: row.id,
       name: row.name,
       author: row.author,
       description: row.description ?? null,
-      keymap: row.keymap,
+      keymap,
       created_at: row.created_at,
       user_id: row.user_id ?? null,
       avatar_url: row.avatar_url ?? null,

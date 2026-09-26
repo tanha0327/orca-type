@@ -1,8 +1,8 @@
 # ORCA MAP
 
-**Keychron Orca echo** のキーマップを設計するための、非公式のコンセプト・エディタです。
+**Keychron Orca echo** をはじめとする自作キーボードのキーマップを設計するための、非公式のコンセプト・エディタです。
 
-実機に接続せず、手元の普通のキーボードの打鍵を Orca echo の配列として読み替え、
+実機に接続せず、手元の普通のキーボードの打鍵を編集中のキーボードの配列として読み替え、
 「この組み合わせなら何が出るのか」「いまのは単押しか長押しか」を
 **Picture-in-Picture の常時最前面ウィンドウ**に出しながら設計できます。
 
@@ -10,14 +10,15 @@
 
 | | |
 |---|---|
-| **8 レイヤー** | 名前・色つきのレイヤーを 8 枚。`MO` / `TG` / `TO` / layer-tap に対応 |
+| **いろいろなキーボード** | 組み込みの Orca echo / Corne / 60% ANSI に加え、QMK・VIA・KLE・ZMK の配列データを貼り付けて取り込める（下記） |
+| **レイヤー** | 名前・色つきのレイヤーを最大 16 枚（Orca echo は 8 枚から）。`MO` / `TG` / `TO` / layer-tap に対応 |
 | **MOD-TAP** | すべての割当に単押し・長押し・ダブルタップ。タッピングタームとフレーバー（長押し優先／バランス／単押し優先）も個別に指定可能 |
 | **コンボ** | 同時押しの割当。参加キー・判定時間・有効レイヤーを編集でき、盤面クリックでキーを選べる |
 | **ロータリーエンコーダー** | 左ホイールの右回し／左回し／押し込み。初期設定は **右回しで `→`、左回しで `←`** |
 | **スワイプ** | 左右のスクロールパッドに上下左右スワイプ・タップ・ダブルタップ。初期設定は **上下で音量、左右で水平スクロール** |
 | **トラックボール** | 19mm ボールの DPI・取り付け角度・反転・精密モード倍率・スクロール粒度 |
 | **出力 HUD** | 現在レイヤー／組み合わせ→出力／単押し・長押しの判定とタッピングターム進行バー／コンボ発火／スワイプ／直近ログ／ミニキーマップ。PiP で常時最前面に出せる |
-| **入出力** | localStorage への自動保存、JSON の書き出し・読み込み、ZMK `.keymap` 風のプレビュー |
+| **入出力** | localStorage への自動保存（キーボードごと）、JSON の書き出し・読み込み、ZMK `.keymap` 風 / QMK `keymap.c` 風のプレビュー |
 
 ## 動かす
 
@@ -33,29 +34,83 @@ PiP（Document Picture-in-Picture API）は Chrome / Edge で動きます。
 
 ## 使い方
 
-1. 盤面のキーをクリックして、右のインスペクタで単押しと長押しを決める
-2. ヘッダーの「入力キャプチャ ON」で打鍵の読み替えを開始する
-3. HUD にいま何が出力されたかが出る（キーをダブルクリックすれば試し打ちも可）
-4. 「PiP で常時表示」で HUD を別ウィンドウに逃がし、他のアプリを使いながら確認する
+1. 盤面の上の「キーボードを変える」で、編集するキーボードを選ぶ（または配列データを取り込む）
+2. 盤面のキーをクリックして、出てくるメニューで単押しと長押しを決める
+3. ヘッダーの「入力キャプチャ ON」で打鍵の読み替えを開始する
+4. HUD にいま何が出力されたかが出る（キーをダブルクリックすれば試し打ちも可）
+5. 「PiP で常時表示」で HUD を別ウィンドウに逃がし、他のアプリを使いながら確認する
 
 キャプチャ中はブラウザのショートカットを除くほとんどのキーがページに取り込まれます。
 文字を入力したいときは OFF に戻してください。
+
+## いろいろな自作キーボードに対応する
+
+盤面の描画・打鍵の読み替え・書き出しは、どれも **キーボード定義**（`KeyboardDefinition`）という
+1 つのデータから組み立てています。Orca echo もその定義の 1 つにすぎません。
+
+### キーボード定義（`src/keyboards/types.ts`）
+
+- **キー** … `x` / `y` / `w` / `h`（1u 単位）と回転 `r` / `rx` / `ry`。QMK の info.json・KLE・ZMK の
+  physical layout と同じ座標系なので、分割・一体型・カラムスタッガー・回転した親指キー・幅の違うキーを
+  そのまま表せます。**配列の順番がファームウェア上のキーの順番**（QMK の `LAYOUT` の引数順・ZMK の
+  bindings の順）で、書き出しやコンボの `key-positions` はこの順に従います。
+  マトリクス位置（`matrix`）も取り込み元にあれば保持しています。
+- **センサー** … `encoder`（右回し・左回し）/ `pad`（上下スワイプ・タップ）/ `ball`（DPI などの設定のみ）。
+  いくつあっても、レイヤーごとの割当は `layer.sensors[センサー ID][スロット]` に入ります。
+- **ファームウェア** … `zmk` / `qmk`。書き出しの形式の初期値になります（どちらにも切り替え可能）。
+- **既定のキーマップ・レイヤー数・読み替え表**（`capture`）… 読み替え表に書いていないキーは、
+  ベースレイヤーの割当から自動で対応づけます（L0 で `A` を出すキー ← 手元の `A` キー）。
+
+### 組み込みのキーボードを足す
+
+`src/keyboards/` に定義を 1 つ書き（`corne.ts` や `ansi60.ts` が短い例です）、
+`src/keyboards/registry.ts` の `BUILTIN_KEYBOARDS` に並べるだけです。
+画面の「キーボードを変える」→「配列を取り込む」→「定義を JSON で保存」で、既存の配列データから
+定義の下書きを作ることもできます。
+
+### 配列データの取り込み（`src/keyboards/import/`）
+
+「キーボードを変える」から、次のどれかを貼り付けるかファイルで読み込めます。
+
+| 形式 | 例 |
+|---|---|
+| QMK | `keyboards/<name>/info.json`・`keyboard.json`（`layouts`。複数あれば選べる。エンコーダーの数も読む） |
+| VIA / Vial | 定義 JSON（`layouts.keymap`。配列オプションは既定の選択肢、`e0` のエンコーダーにも対応） |
+| KLE | keyboard-layout-editor の Raw data / JSON（印字からベースレイヤーの下書きを作る） |
+| ZMK | physical layout（`&key_physical_attrs` を並べた `.dtsi`。複数あれば選べる） |
+
+取り込んだ定義はキーマップに同梱して保存・共有するので、共有フィードで他の人が見ても同じ盤面が出ます。
+
+### 保存データ
+
+`Keymap` は `keyboard`（定義の ID）を持ち、組み込みに無いキーボードは `keyboardDef` に定義ごと入ります。
+キーボードを切り替えても、前のキーボードのキーマップは `savedKeymaps` に残ります。
+localStorage・JSON ファイル・共有フィードから来たキーマップは、どれも `src/data/normalize.ts` を通して
+形を検証し、Orca echo 専用だった古い形（`encoder` / `padL` / `padR`）は今の形に移行します。
+
+### これから
+
+- VIA / Vial 対応キーボードへの WebHID での書き込み（`matrix` と `usb` の VID / PID はそのための保持）
+- QMK の `keymap.json` / VIA のバックアップからのレイヤーの取り込み
+- ISO Enter のような L 字のキー、トラックボールが複数ある機種の個別設定
 
 ## 構成
 
 ```
 src/
-  data/       layout.ts（49 キーの物理配列）/ keycodes.ts / defaultKeymap.ts / types.ts
-  engine/     resolve.ts（純粋な解決関数）/ KeyEngine.ts（状態機械）/ zmk.ts / useEngine.ts
+  keyboards/  types.ts（キーボード定義の型）/ registry.ts（組み込みの一覧・キーマップの生成・読み替え）
+              geometry.ts / orcaEcho.ts / corne.ts / ansi60.ts / import/（QMK・VIA・KLE・ZMK の取り込み）
+  data/       keycodes.ts / types.ts / normalize.ts（外から来たデータの検証と移行）
+  engine/     resolve.ts（純粋な解決関数）/ KeyEngine.ts（状態機械）/ zmk.ts / qmk.ts / useEngine.ts
   store/      keymapStore.ts（Zustand + persist）
   components/ Board / LayerBar / Inspector / Picker / Combos / Gestures / Export / Hud / PipHost
   styles/     theme.css（デザイントークンと共通クラス）
 ```
 
-割当はキーもエンコーダーもパッドもコンボも `Binding`（`tap` / `hold` / `doubleTap` /
+割当はキーもエンコーダーもパッドもコンボも `Binding`（`tap` / `hold` /
 `tappingTermMs` / `flavor`）という 1 つの型に集約してあり、編集 UI もそれを共有しています。
 
 ## 注意
 
-ORCA MAP は非公式のコンセプトサイトです。Keychron / GIZMART とは関係ありません。
+ORCA MAP は非公式のコンセプトサイトです。Keychron / GIZMART をはじめ、各キーボードの作者・メーカーとは関係ありません。
 実機のファームウェアへの書き込みは行いません。

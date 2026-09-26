@@ -1,21 +1,20 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { targetTitle } from '../Inspector/Inspector'
-import { getSensor, type KeyId } from '../../data/layout'
-import {
-  LAYER_COLOR_HEX, PAD_SLOT_LABEL,
-  type Binding, type EncoderSlot, type PadSlot,
-} from '../../data/types'
+import { LAYER_COLOR_HEX, type Binding } from '../../data/types'
 import { engine } from '../../engine/useEngine'
+import { findSensor, keyboardOf } from '../../keyboards/registry'
+import {
+  SENSOR_SLOT_LABEL, SENSOR_SLOTS,
+  type KeyId, type SensorDef, type SensorId,
+} from '../../keyboards/types'
 import { getBinding, useKeymapStore, type BindingTarget } from '../../store/keymapStore'
 import { BindingSlot, KeycodePicker } from '../Picker/KeycodePicker'
-
-export type SensorMenuId = 'enc-l' | 'pad-l' | 'pad-r'
 
 /** クイック編集メニューの対象。キー 1 つ、またはエンコーダー／スクロールパッド 1 つ（全スロット） */
 export type BoardMenuTarget =
   | { kind: 'key'; keyId: KeyId }
-  | { kind: 'sensor'; sensor: SensorMenuId }
+  | { kind: 'sensor'; sensorId: SensorId }
 
 interface SlotRow {
   label: string
@@ -23,25 +22,12 @@ interface SlotRow {
   onTry: () => void
 }
 
-/** メニュー幅に収まる短い呼び名（横向きのホイールなので左右で呼ぶ） */
-const ENCODER_MENU_LABEL: Record<EncoderSlot, string> = {
-  ccw: '左に回す',
-  cw: '右に回す',
-}
-
 /** 読む順（左→右、上→下）に並べたセンサーのスロット */
-function sensorRows(sensor: SensorMenuId): SlotRow[] {
-  if (sensor === 'enc-l') {
-    return (['ccw', 'cw'] as EncoderSlot[]).map((slot) => ({
-      label: ENCODER_MENU_LABEL[slot],
-      target: { kind: 'encoder', slot },
-      onTry: () => engine.encoder(slot),
-    }))
-  }
-  return (['up', 'tap', 'down'] as PadSlot[]).map((slot) => ({
-    label: PAD_SLOT_LABEL[slot],
-    target: { kind: 'pad', sensor, slot },
-    onTry: () => engine.pad(sensor, slot),
+function sensorRows(sensor: SensorDef): SlotRow[] {
+  return SENSOR_SLOTS[sensor.kind].map((slot) => ({
+    label: SENSOR_SLOT_LABEL[slot],
+    target: { kind: 'sensor', sensorId: sensor.id, slot },
+    onTry: () => engine.sensor(sensor.id, slot),
   }))
 }
 
@@ -70,16 +56,18 @@ export function KeyMenu({
 
   const layer = keymap.layers[editingLayer]
   const hex = LAYER_COLOR_HEX[layer?.color ?? 'gray']
+  const def = keyboardOf(keymap)
+  const sensor = target.kind === 'sensor' ? findSensor(def, target.sensorId) : undefined
   const bindingOf = (t: BindingTarget): Binding => getBinding(keymap, editingLayer, t) ?? { tap: 'TRANS' }
 
   const keyTarget: BindingTarget | null = target.kind === 'key' ? { kind: 'key', keyId: target.keyId } : null
   const keyHold = keyTarget ? bindingOf(keyTarget).hold : undefined
 
   const header = target.kind === 'key'
-    ? targetTitle({ kind: 'key', keyId: target.keyId })
+    ? targetTitle(def, { kind: 'key', keyId: target.keyId })
     : {
-        title: getSensor(target.sensor).name,
-        sub: target.sensor === 'enc-l' ? '左右に回したときの出力' : 'スワイプ・タップしたときの出力',
+        title: sensor?.name ?? '',
+        sub: sensor?.kind === 'encoder' ? '左右に回したときの出力' : 'スワイプ・タップしたときの出力',
       }
   const width = target.kind === 'key' ? 232 : 300
 
@@ -169,9 +157,9 @@ export function KeyMenu({
             onClear={keyHold && keyHold !== 'NONE' ? () => setHold(editingLayer, keyTarget, undefined) : undefined}
           />
         </div>
-      ) : target.kind === 'sensor' && (
+      ) : sensor && (
         <div className="space-y-2 p-2">
-          {sensorRows(target.sensor).map((row) => (
+          {sensorRows(sensor).map((row) => (
             <div key={row.label} className="flex items-stretch gap-1.5">
               <div className="min-w-0 flex-1">{tapSlot(row, hex)}</div>
               <button
