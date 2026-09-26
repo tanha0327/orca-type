@@ -191,6 +191,20 @@ export interface KeymapSettings {
   bodyColor: BodyColor
   /** esc キーキャップの色（見た目のみ）。古い保存データには無いので DEFAULT_ESC_COLOR で補う */
   escColor?: EscColor
+  /** みんなの配列に出す OS のタグ（投稿時に選ぶ）。古い保存データや「指定しない」では無い */
+  os?: KeymapOs
+}
+
+/**
+ * 配列を使っている OS。⌘ と Ctrl、英数／かなと変換／無変換のように、
+ * 同じ Orca echo でも OS によって割当の作りが変わるので、みんなの配列でタグとして出す
+ */
+export type KeymapOs = 'mac' | 'windows'
+
+export const KEYMAP_OSES: KeymapOs[] = ['mac', 'windows']
+
+export function isKeymapOs(x: unknown): x is KeymapOs {
+  return KEYMAP_OSES.includes(x as KeymapOs)
 }
 
 export interface Keymap {

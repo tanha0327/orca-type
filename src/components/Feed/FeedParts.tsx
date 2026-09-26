@@ -3,6 +3,7 @@ import {
   type BodyColor, type Keymap, type TrackballColor,
 } from '../../data/types'
 import type { SharedKeymap } from '../../lib/feed'
+import { getOsTag, osOf } from '../../lib/os'
 import { useKeymapStore } from '../../store/keymapStore'
 
 /* タイムライン・右上の比較パネル・拡大モーダルで共通に使う部品 */
@@ -60,6 +61,22 @@ export function DeviceColors({ keymap }: { keymap: Keymap }) {
         ボール: {TRACKBALL_COLOR_LABEL[ballColor]}
       </span>
     </div>
+  )
+}
+
+/** 投稿の OS タグ（🍎 Mac / 🪟 Windows）。タグの無い投稿では何も出さない */
+export function OsChip({ keymap }: { keymap: Keymap }) {
+  const os = osOf(keymap)
+  if (!os) return null
+  const tag = getOsTag(os)
+  return (
+    <span
+      className="nb-chip"
+      style={{ background: os === 'mac' ? 'var(--color-sand)' : 'var(--color-cyan)' }}
+      title={tag.help}
+    >
+      {tag.emoji} {tag.label}
+    </span>
   )
 }
 
