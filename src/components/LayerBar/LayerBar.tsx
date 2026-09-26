@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { MAX_LAYERS } from '../../data/keycodes'
 import { LAYER_COLOR_HEX, LAYER_COLORS, type Layer, type LayerColor } from '../../data/types'
 import { useEngineSnapshot } from '../../engine/useEngine'
 import { useKeymapStore } from '../../store/keymapStore'
@@ -12,11 +13,7 @@ function countAssignments(layer: Layer): number {
 }
 
 function countSensors(layer: Layer): number {
-  const all = [
-    ...Object.values(layer.encoder),
-    ...Object.values(layer.padL),
-    ...Object.values(layer.padR),
-  ]
+  const all = Object.values(layer.sensors).flatMap((slots) => Object.values(slots))
   return all.filter((b) => b && b.tap !== 'TRANS' && b.tap !== 'NONE').length
 }
 
@@ -27,6 +24,8 @@ export function LayerBar() {
   const renameLayer = useKeymapStore((s) => s.renameLayer)
   const recolorLayer = useKeymapStore((s) => s.recolorLayer)
   const clearLayer = useKeymapStore((s) => s.clearLayer)
+  const addLayer = useKeymapStore((s) => s.addLayer)
+  const removeLastLayer = useKeymapStore((s) => s.removeLastLayer)
   const snap = useEngineSnapshot()
 
   const active = keymap.layers[editingLayer]
@@ -43,7 +42,7 @@ export function LayerBar() {
     <section aria-label="レイヤー">
       <div className="mb-3 flex items-end justify-between gap-3">
         <h2 className="text-[1.35rem] sm:text-[1.6rem]">レイヤー</h2>
-        <p className="nb-eyebrow">8 LAYERS</p>
+        <p className="nb-eyebrow">{keymap.layers.length} LAYERS</p>
       </div>
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-5">
@@ -103,6 +102,29 @@ export function LayerBar() {
             </div>
           )
         })}
+      </div>
+
+      {/* レイヤーの枚数はキーボードによって違うので、足したり減らしたりできる */}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="nb-btn flex-1 !py-1.5 text-[0.8rem]"
+          disabled={keymap.layers.length >= MAX_LAYERS}
+          onClick={addLayer}
+        >
+          ＋ レイヤーを追加
+        </button>
+        <button
+          type="button"
+          className="nb-btn flex-1 !py-1.5 text-[0.8rem]"
+          disabled={keymap.layers.length <= 1}
+          onClick={() => {
+            const last = keymap.layers[keymap.layers.length - 1]
+            if (confirm(`L${last.id} 「${last.name}」を削除しますか？（このレイヤーの割当も消えます）`)) removeLastLayer()
+          }}
+        >
+          最後のレイヤーを削除
+        </button>
       </div>
 
       {/* 編集中レイヤーの名前と色 */}

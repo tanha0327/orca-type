@@ -1,4 +1,5 @@
-import { isValidKeymapShape, type Keymap } from '../data/types'
+import { normalizeKeymap } from '../data/normalize'
+import type { Keymap } from '../data/types'
 import { isCategoryId, type CategoryId } from '../engine/analyze'
 import { supabase } from './supabase'
 
@@ -74,18 +75,21 @@ export function feedEnabled(): boolean {
 }
 
 /**
- * 壊れた形の keymap が紛れ込んでいても落ちないよう弾く。
+ * keymap は normalizeKeymap で今の形にそろえ、壊れた形のものや、このアプリで描けないキーボードのものは弾く。
  * user_id / avatar_url をまだ持たないテーブルでも一覧は出せるよう、列は * で取って埋める。
  */
 function toSharedKeymaps(rows: any[] | null): SharedKeymap[] {
   return (rows ?? [])
-    .filter((row) => isValidKeymapShape(row.keymap))
-    .map((row) => ({
+    .flatMap((row) => {
+      const keymap = normalizeKeymap(row.keymap)
+      return keymap ? [{ row, keymap }] : []
+    })
+    .map(({ row, keymap }) => ({
       id: row.id,
       name: row.name,
       author: row.author,
       description: row.description ?? null,
-      keymap: row.keymap,
+      keymap,
       created_at: row.created_at,
       user_id: row.user_id ?? null,
       avatar_url: row.avatar_url ?? null,

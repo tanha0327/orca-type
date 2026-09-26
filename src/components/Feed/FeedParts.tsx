@@ -2,6 +2,7 @@ import {
   BODY_COLOR_LABEL, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL,
   type BodyColor, type Keymap, type TrackballColor,
 } from '../../data/types'
+import { hasBall, keyboardOf } from '../../keyboards/registry'
 import type { SharedKeymap } from '../../lib/feed'
 import { getOsTag, osOf } from '../../lib/os'
 import { useKeymapStore } from '../../store/keymapStore'
@@ -22,10 +23,16 @@ export function relativeTime(iso: string): string {
   return `${d.getMonth() + 1}月${d.getDate()}日`
 }
 
-/** 共有された配列を編集画面に読み込む（今の内容は上書きされるので確認を挟む） */
+/**
+ * 共有された配列を編集画面に読み込む（今の内容は上書きされるので確認を挟む）。
+ * 別のキーボードの配列なら、編集するキーボードが切り替わる（いまのキーマップは保存しておく）
+ */
 export function importSharedKeymap(item: SharedKeymap) {
-  if (!confirm(`「${item.name}」を読み込みますか？ 今編集中の内容は上書きされます。`)) return
-  const { importKeymap, setView } = useKeymapStore.getState()
+  const { importKeymap, setView, keymap } = useKeymapStore.getState()
+  const message = item.keymap.keyboard === keymap.keyboard
+    ? `「${item.name}」を読み込みますか？ 今編集中の内容は上書きされます。`
+    : `「${item.name}」は ${keyboardOf(item.keymap).name} の配列です。読み込むと編集するキーボードが切り替わります（いまのキーマップは保存しておきます）。読み込みますか？`
+  if (!confirm(message)) return
   importKeymap(item.keymap)
   setView('edit')
 }
@@ -46,20 +53,26 @@ function ColorDot({ color, size = 14 }: { color: TrackballColor | BodyColor; siz
   )
 }
 
-/** 投稿主が設定した本体色・トラックボール色をまとめて表示する */
+/** 投稿主のキーボードと、設定した本体色・トラックボール色をまとめて表示する */
 export function DeviceColors({ keymap }: { keymap: Keymap }) {
+  const def = keyboardOf(keymap)
   const bodyColor = keymap.settings.bodyColor ?? 'white'
   const ballColor = keymap.trackball.color ?? 'white'
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      <span className="nb-chip" style={{ background: 'var(--color-sand)' }}>
+        ⌨ {def.name}
+      </span>
       <span className="nb-chip flex items-center gap-1.5" style={{ background: 'var(--color-paper)' }}>
         <ColorDot color={bodyColor} />
         本体: {BODY_COLOR_LABEL[bodyColor]}
       </span>
-      <span className="nb-chip flex items-center gap-1.5" style={{ background: 'var(--color-paper)' }}>
-        <ColorDot color={ballColor} />
-        ボール: {TRACKBALL_COLOR_LABEL[ballColor]}
-      </span>
+      {hasBall(def) && (
+        <span className="nb-chip flex items-center gap-1.5" style={{ background: 'var(--color-paper)' }}>
+          <ColorDot color={ballColor} />
+          ボール: {TRACKBALL_COLOR_LABEL[ballColor]}
+        </span>
+      )}
     </div>
   )
 }

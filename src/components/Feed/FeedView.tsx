@@ -3,6 +3,7 @@ import { LAYER_COLOR_HEX, type Keymap, type KeymapOs } from '../../data/types'
 import {
   classifyKeymap, FEED_CATEGORIES, getCategory, keymapSimilarity, type CategoryId,
 } from '../../engine/analyze'
+import { keyboardOf } from '../../keyboards/registry'
 import { errorMessage } from '../../lib/errors'
 import {
   deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, fetchKeymapsByIds, feedEnabled,
@@ -751,8 +752,9 @@ function PostCard({
   // window.open() での実装はブラウザによってポップアップブロックの対象になり得るので、
   // 普通の <a target="_blank"> によるリンク遷移にする（これはブロックされない）。
   // テスト用のサイトから押しても、ポストには本番の URL を載せる
+  const board = keyboardOf(item.keymap)
   const shareXHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-    `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を Orca echo で共有中 #Orcaecho`,
+    `『${item.name}』（${item.author}さん・${item.keymap.layers.length}レイヤー）を ${board.name} で共有中${board.hashtag ? ` #${board.hashtag}` : ''}`,
   )}&url=${encodeURIComponent(PUBLIC_SITE_URL)}`
 
   return (
@@ -817,7 +819,8 @@ function PostCard({
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <OsChip keymap={item.keymap} />
             <CategoryChip id={category} />
-            <SimilarityChip value={similarity} />
+            {/* 別のキーボードの配列はキーの位置が対応しないので、一致度は出さない */}
+            {item.keymap.keyboard === myKeymap.keyboard && <SimilarityChip value={similarity} />}
           </div>
 
           <div className="mt-1.5">

@@ -1,5 +1,7 @@
 import type { Keycode } from './keycodes'
-import type { KeyId } from './layout'
+import type {
+  KeyboardDefinition, KeyId, SensorBindings, SensorId,
+} from '../keyboards/types'
 
 /** ホールドタップの解決方針（ZMK の flavor に対応） */
 export type Flavor = 'hold-preferred' | 'balanced' | 'tap-preferred'
@@ -27,32 +29,6 @@ export interface Binding {
   tappingTermMs?: number
   flavor?: Flavor
 }
-
-export type PadSlot = 'up' | 'down' | 'tap'
-export type EncoderSlot = 'cw' | 'ccw'
-
-export const PAD_SLOTS: PadSlot[] = ['up', 'down', 'tap']
-export const ENCODER_SLOTS: EncoderSlot[] = ['cw', 'ccw']
-
-export const PAD_SLOT_LABEL: Record<PadSlot, string> = {
-  up: '上スワイプ',
-  down: '下スワイプ',
-  tap: 'タップ',
-}
-export const PAD_SLOT_GLYPH: Record<PadSlot, string> = {
-  up: '↑', down: '↓', tap: '·',
-}
-
-export const ENCODER_SLOT_LABEL: Record<EncoderSlot, string> = {
-  cw: '右回し（時計回り）',
-  ccw: '左回し（反時計回り）',
-}
-export const ENCODER_SLOT_GLYPH: Record<EncoderSlot, string> = {
-  cw: '↻', ccw: '↺',
-}
-
-export type PadConfig = Record<PadSlot, Binding>
-export type EncoderConfig = Record<EncoderSlot, Binding>
 
 /** 実機で選べる 19mm トラックボール／スクロールパッドの色（交換パーツ、セットで揃う） */
 export type TrackballColor = 'white' | 'black' | 'red' | 'blue' | 'yellow'
@@ -104,7 +80,7 @@ export interface TrackballConfig {
 export type LayerColor =
   | 'gray' | 'pink' | 'green' | 'purple' | 'cyan' | 'lime' | 'sand' | 'orange'
 
-export const LAYER_COLORS: LayerColor[] = [
+export const LAYER_COLORS: readonly LayerColor[] = [
   'gray', 'pink', 'green', 'purple', 'cyan', 'lime', 'sand', 'orange',
 ]
 
@@ -120,13 +96,14 @@ export const LAYER_COLOR_HEX: Record<LayerColor, string> = {
 }
 
 export interface Layer {
+  /** 常に keymap.layers の添字と同じ */
   id: number
   name: string
   color: LayerColor
+  /** 書いていないキーは「透過」 */
   keys: Record<KeyId, Binding>
-  encoder: EncoderConfig
-  padL: PadConfig
-  padR: PadConfig
+  /** エンコーダー・スクロールパッドの割当（センサー ID → スロット → 割当）。書いていないスロットは「透過」 */
+  sensors: Record<SensorId, SensorBindings>
 }
 
 export interface Combo {
@@ -208,7 +185,15 @@ export function isKeymapOs(x: unknown): x is KeymapOs {
 }
 
 export interface Keymap {
-  version: 1
+  /** 2: キーボード定義を参照する形（センサーの割当が sensors にまとまった） */
+  version: 2
+  /** どのキーボードのキーマップか（KeyboardDefinition.id） */
+  keyboard: string
+  /**
+   * 組み込みに無いキーボード（QMK / VIA / ZMK から取り込んだもの）の定義。
+   * キーマップに同梱しておき、共有フィードで他の人が見ても盤面を描けるようにする。
+   */
+  keyboardDef?: KeyboardDefinition
   name: string
   layers: Layer[]
   combos: Combo[]

@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
-import type { SensorDef } from '../../data/layout'
 import {
   TRACKBALL_COLOR_DARK, TRACKBALL_COLOR_GRADIENT,
-  type BodyColor, type EncoderSlot, type PadSlot, type TrackballColor,
+  type BodyColor, type TrackballColor,
 } from '../../data/types'
-
-interface Geo { totalW: number; totalH: number }
+import { placeRect, u, type Bounds } from '../../keyboards/geometry'
+import type { EncoderSlot, PadSlot, SensorDef } from '../../keyboards/types'
 
 /** 表示専用のときは、操作も支援技術への露出も止める */
 function inertProps(interactive: boolean, label: string) {
@@ -15,25 +14,16 @@ function inertProps(interactive: boolean, label: string) {
     : { 'aria-hidden': true as const }
 }
 
-function place(def: SensorDef, { totalW, totalH }: Geo) {
-  return {
-    left: `${(def.x / totalW) * 100}%`,
-    top: `${(def.y / totalH) * 100}%`,
-    width: `${(def.w / totalW) * 100}%`,
-    height: `${(def.h / totalH) * 100}%`,
-  }
-}
-
 /* ================================================================
-   ロータリーエンコーダー（左）
-   実機は横向きのホイールなので、左右ドラッグ・横スクロール・← → で回す。
+   ロータリーエンコーダー
+   Orca echo の実機は横向きのホイールなので、左右ドラッグ・横スクロール・← → で回す。
    縦ホイールしかないマウスでも回せるよう、縦スクロールも受け付ける。
    ================================================================ */
 export function EncoderView({
-  def, geo, selected, glyphs, color = 'white', onSlot, onSelect, interactive = true,
+  def, bounds, selected, glyphs, color = 'white', onSlot, onSelect, interactive = true,
 }: {
   def: SensorDef
-  geo: Geo
+  bounds: Bounds
   selected: boolean
   glyphs: Record<EncoderSlot, string>
   color?: BodyColor
@@ -82,10 +72,10 @@ export function EncoderView({
   return (
     <div
       ref={rootRef}
-      {...inertProps(interactive, '左ロータリーエンコーダー')}
+      {...inertProps(interactive, def.name)}
       title="左右ドラッグ／ホイールで回す・クリックで割当を編集"
       className="absolute touch-none"
-      style={{ ...place(def, geo), cursor: interactive ? 'ew-resize' : 'default', pointerEvents: interactive ? undefined : 'none' }}
+      style={{ ...placeRect(def, bounds), cursor: interactive ? 'ew-resize' : 'default', pointerEvents: interactive ? undefined : 'none' }}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture(e.pointerId)
         dragging.current = true
@@ -123,7 +113,7 @@ export function EncoderView({
         className="relative h-full w-full overflow-hidden"
         style={{
           border: `${selected ? 3.5 : 2.5}px solid var(--color-ink)`,
-          borderRadius: 'clamp(4px, 1.2cqw, 9px)',
+          borderRadius: `clamp(4px, ${u(0.084)}, 9px)`,
           background: mid,
           boxShadow: '2px 2px 0 var(--color-ink)',
         }}
@@ -149,7 +139,7 @@ export function EncoderView({
       {/* 回転方向の割当を脇に出す（左に回す／右に回す の並び） */}
       <div
         className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-black"
-        style={{ top: '104%', fontSize: 'clamp(5px, 2cqw, 9px)' }}
+        style={{ top: '104%', fontSize: `clamp(5px, ${u(0.14)}, 9px)` }}
       >
         <span style={{ color: 'var(--color-pink)' }}>↺{glyphs.ccw}</span>
         <span className="opacity-30"> / </span>
@@ -160,14 +150,14 @@ export function EncoderView({
 }
 
 /* ================================================================
-   スクロールパッド（左右）
+   スクロールパッド
    上下ドラッグ／ホイールでスワイプ、クリックでタップ。
    ================================================================ */
 export function PadView({
-  def, geo, selectedSlot, glyphs, color = 'white', onSlot, onSelect, interactive = true,
+  def, bounds, selectedSlot, glyphs, color = 'white', onSlot, onSelect, interactive = true,
 }: {
   def: SensorDef
-  geo: Geo
+  bounds: Bounds
   selectedSlot: PadSlot | null
   glyphs: Record<PadSlot, string>
   color?: BodyColor
@@ -197,14 +187,12 @@ export function PadView({
     }
   }
 
-  const label = def.id === 'pad-l' ? '左パッド' : '右パッド'
-
   return (
     <div
-      {...inertProps(interactive, `${label}（スワイプ）`)}
+      {...inertProps(interactive, `${def.name}（スワイプ）`)}
       title="上下ドラッグでスワイプ・クリックでタップ（割当の編集メニューも開く）"
       className="absolute touch-none"
-      style={{ ...place(def, geo), pointerEvents: interactive ? undefined : 'none' }}
+      style={{ ...placeRect(def, bounds), pointerEvents: interactive ? undefined : 'none' }}
       onWheel={(e) => { e.preventDefault(); feedWheel(e.deltaY) }}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture(e.pointerId)
@@ -235,7 +223,7 @@ export function PadView({
         className="relative h-full w-full overflow-hidden"
         style={{
           border: `${selectedSlot ? 3.5 : 2.5}px solid var(--color-ink)`,
-          borderRadius: 'clamp(5px, 1.5cqw, 11px)',
+          borderRadius: `clamp(5px, ${u(0.105)}, 11px)`,
           background: mid,
           boxShadow: '2px 2px 0 var(--color-ink)',
           animation: flash ? 'orca-ring 420ms ease-out' : undefined,
@@ -246,7 +234,7 @@ export function PadView({
           className="absolute inset-[10%]"
           style={{
             backgroundImage: `radial-gradient(${dotColor} 38%, transparent 40%)`,
-            backgroundSize: 'clamp(4px, 1.4cqw, 8px) clamp(4px, 1.4cqw, 8px)',
+            backgroundSize: `clamp(4px, ${u(0.098)}, 8px) clamp(4px, ${u(0.098)}, 8px)`,
             opacity: 0.55,
           }}
         />
@@ -262,12 +250,12 @@ export function PadView({
 }
 
 function PadTag({ glyph, active, dark }: { glyph: string; active: boolean; dark: boolean }) {
-  if (!glyph) return <span style={{ fontSize: 'clamp(5px, 1.8cqw, 8px)' }} />
+  if (!glyph) return <span style={{ fontSize: `clamp(5px, ${u(0.126)}, 8px)` }} />
   return (
     <span
       className="whitespace-nowrap rounded-full px-[0.3em] font-black leading-tight"
       style={{
-        fontSize: 'clamp(5px, 2.1cqw, 9px)',
+        fontSize: `clamp(5px, ${u(0.147)}, 9px)`,
         color: active ? 'var(--color-ink)' : dark ? 'var(--color-paper)' : 'var(--color-ink)',
         background: active ? 'var(--color-lime)' : 'transparent',
       }}
@@ -278,13 +266,13 @@ function PadTag({ glyph, active, dark }: { glyph: string; active: boolean; dark:
 }
 
 /* ================================================================
-   トラックボール（右・19mm）
+   トラックボール
    ================================================================ */
 export function BallView({
-  def, geo, selected, onSelect, dpi, color = 'white', interactive = true,
+  def, bounds, selected, onSelect, dpi, color = 'white', interactive = true,
 }: {
   def: SensorDef
-  geo: Geo
+  bounds: Bounds
   selected: boolean
   onSelect: () => void
   dpi: number
@@ -297,10 +285,10 @@ export function BallView({
 
   return (
     <div
-      {...inertProps(interactive, '19mm トラックボール')}
+      {...inertProps(interactive, def.name)}
       title="ドラッグで転がす・クリックで設定"
       className="absolute touch-none"
-      style={{ ...place(def, geo), cursor: interactive ? 'grab' : 'default', pointerEvents: interactive ? undefined : 'none' }}
+      style={{ ...placeRect(def, bounds), cursor: interactive ? 'grab' : 'default', pointerEvents: interactive ? undefined : 'none' }}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture(e.pointerId)
         dragging.current = true
@@ -334,7 +322,7 @@ export function BallView({
       </div>
       <div
         className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-black opacity-60"
-        style={{ top: '102%', fontSize: 'clamp(5px, 1.9cqw, 9px)' }}
+        style={{ top: '102%', fontSize: `clamp(5px, ${u(0.133)}, 9px)` }}
       >
         {dpi} DPI
       </div>

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
-import { KEYS } from '../../data/layout'
 import { LAYER_COLOR_HEX, type Combo } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
+import { keyboardOf } from '../../keyboards/registry'
 import { useKeymapStore } from '../../store/keymapStore'
 import { BindingSlot, KeycodePicker } from '../Picker/KeycodePicker'
 
@@ -21,7 +21,7 @@ export function ComboEditor({ combo }: { combo: Combo }) {
 
   const listResults = useMemo(() => {
     const q = listQuery.trim().toLowerCase()
-    return KEYS.filter((k) => {
+    return keyboardOf(keymap).keys.filter((k) => {
       if (!q) return true
       const label = getKeycode(resolveKey(keymap, [0, combo.layers[0] ?? 0], k.id).binding.tap).label
       return k.id.toLowerCase().includes(q) || label.toLowerCase().includes(q)

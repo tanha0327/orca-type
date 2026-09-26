@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
-import { getKey, KEYS } from '../../data/layout'
 import {
-  ENCODER_SLOT_GLYPH, ENCODER_SLOT_LABEL, FLAVOR_HELP, FLAVOR_LABEL,
-  LAYER_COLOR_HEX, PAD_SLOT_GLYPH, PAD_SLOT_LABEL,
+  FLAVOR_HELP, FLAVOR_LABEL, LAYER_COLOR_HEX,
   type Binding, type Flavor,
 } from '../../data/types'
 import { engine } from '../../engine/useEngine'
 import { resolveKey } from '../../engine/resolve'
+import { describeKey, findSensor, keyboardOf } from '../../keyboards/registry'
+import { SENSOR_SLOT_LABEL, type KeyboardDefinition } from '../../keyboards/types'
 import {
   getBinding, sameTarget, useKeymapStore, type BindingTarget,
 } from '../../store/keymapStore'
@@ -52,7 +52,7 @@ function KeyListPicker() {
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return KEYS.filter((k) => {
+    return keyboardOf(keymap).keys.filter((k) => {
       if (!q) return true
       const label = getKeycode(resolveKey(keymap, [0, editingLayer], k.id).binding.tap).label
       return k.id.toLowerCase().includes(q) || label.toLowerCase().includes(q)
@@ -107,7 +107,7 @@ function EmptyState() {
       <p className="text-[2rem] leading-none">👆</p>
       <h3 className="text-[1.05rem]">編集したいところを選ぶ</h3>
       <p className="text-[0.82rem] font-bold leading-relaxed opacity-70">
-        盤面のキー・ロータリーエンコーダー・スクロールパッド・トラックボールをクリックするか、
+        盤面のキー・ロータリーエンコーダー・スクロールパッド・トラックボールなどをクリックするか、
         上の「リストからキーを選ぶ」で検索すると、
         ここで<strong>単押し</strong>と<strong>長押し（MOD-TAP）</strong>を編集できます。
       </p>
@@ -118,22 +118,12 @@ function EmptyState() {
   )
 }
 
-export function targetTitle(target: BindingTarget): { title: string; sub: string } {
+export function targetTitle(def: KeyboardDefinition, target: BindingTarget): { title: string; sub: string } {
   switch (target.kind) {
-    case 'key': {
-      const k = getKey(target.keyId)
-      return {
-        title: `キー ${target.keyId}`,
-        sub: k ? `${k.half === 'L' ? '左' : '右'}手 / ${k.kind === 'thumb' ? '親指' : `${k.row + 1} 段 ${k.col + 1} 列`}` : '',
-      }
-    }
-    case 'encoder':
-      return { title: ENCODER_SLOT_LABEL[target.slot], sub: '左ロータリーエンコーダー' }
-    case 'pad':
-      return {
-        title: PAD_SLOT_LABEL[target.slot],
-        sub: target.sensor === 'pad-l' ? '左スクロールパッド' : '右スクロールパッド',
-      }
+    case 'key':
+      return { title: `キー ${target.keyId}`, sub: describeKey(def, target.keyId) }
+    case 'sensor':
+      return { title: SENSOR_SLOT_LABEL[target.slot], sub: findSensor(def, target.sensorId)?.name ?? '' }
     default:
       return { title: '', sub: '' }
   }
@@ -149,7 +139,7 @@ function BindingInspector({ target, layerId }: { target: BindingTarget; layerId:
   const binding: Binding = getBinding(keymap, layerId, target) ?? { tap: 'TRANS' }
   const layer = keymap.layers[layerId]
   const hex = LAYER_COLOR_HEX[layer?.color ?? 'gray']
-  const { title, sub } = targetTitle(target)
+  const { title, sub } = targetTitle(keyboardOf(keymap), target)
   const isTrans = binding.tap === 'TRANS'
   const term = binding.tappingTermMs ?? keymap.settings.tappingTermMs
   const flavor: Flavor = binding.flavor ?? keymap.settings.flavor
@@ -321,4 +311,3 @@ function Preview({ binding }: { binding: Binding }) {
   )
 }
 
-export { PAD_SLOT_GLYPH, ENCODER_SLOT_GLYPH }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AppLogo } from './components/AppLogo'
 import { LoginModal } from './components/Auth/LoginModal'
+import { KeyboardPicker } from './components/Board/KeyboardPicker'
 import { KeyboardView } from './components/Board/KeyboardView'
 import { ComboList } from './components/Combos/ComboList'
 import { ExportView } from './components/Export/ExportView'
@@ -11,14 +12,15 @@ import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
 import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
-import { CODE_TO_KEY } from './data/layout'
 import {
   BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_LABEL, ESC_COLORS,
   TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS,
   type BodyColor, type EscColor, type TrackballColor,
 } from './data/types'
-import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
+import { isTypingTarget, keyIdForCode, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
 import { useSwitchSound } from './engine/useSwitchSound'
+import { FIRMWARE_LABEL } from './keyboards/types'
+import { hasBall, keyboardOf } from './keyboards/registry'
 import { authEnabled, profileFromUser, signOut } from './lib/auth'
 import { feedEnabled } from './lib/feed'
 import { useAuthStore } from './store/authStore'
@@ -47,7 +49,9 @@ export function App() {
   const ballColor = useKeymapStore((s) => s.keymap.trackball.color) ?? 'white'
   const setTrackball = useKeymapStore((s) => s.setTrackball)
   const setSettings = useKeymapStore((s) => s.setSettings)
+  const keyboard = useKeymapStore((s) => keyboardOf(s.keymap))
   const [subLegends, setSubLegends] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const initAuth = useAuthStore((s) => s.init)
   const user = useAuthStore((s) => s.user)
   const loadProfile = useProfileStore((s) => s.load)
@@ -88,7 +92,7 @@ export function App() {
     if (!comboPickId) return
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || isTypingTarget(e.target)) return
-      const keyId = CODE_TO_KEY[e.code]
+      const keyId = keyIdForCode(e.code)
       if (!keyId) return
       e.preventDefault()
       toggleComboKey(comboPickId, keyId)
@@ -166,7 +170,17 @@ export function App() {
               <section className="nb nb-lg p-4">
                 <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                   <div className="min-w-0">
-                    <h2 className="text-[1.35rem]">Keychron Orca echo</h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-[1.35rem]">{keyboard.name}</h2>
+                      <span className="nb-chip !py-0 !text-[0.6rem]">{FIRMWARE_LABEL[keyboard.firmware]}</span>
+                      <button
+                        type="button"
+                        className="nb-btn !py-1 text-[0.74rem]"
+                        onClick={() => setPickerOpen(true)}
+                      >
+                        ⌨ キーボードを変える
+                      </button>
+                    </div>
                     <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
                       キー・ホイール・パッドはクリックで割当を編集、キーはダブルクリックで試し打ち。
                       ホイールとパッドはドラッグ／スクロールでも試せます。
@@ -186,30 +200,34 @@ export function App() {
                         />
                       ))}
                     </div>
-                    <div className="flex items-center gap-1" role="group" aria-label="esc キーキャップの色">
-                      <span className="nb-eyebrow mr-0.5">ESC</span>
-                      {ESC_COLORS.map((c) => (
-                        <EscColorSwatch
-                          key={c}
-                          color={c}
-                          active={escColor === c}
-                          onClick={() => setSettings({ escColor: c })}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1" role="group" aria-label="トラックボールの色">
-                      <span className="nb-eyebrow mr-0.5">BALL</span>
-                      {TRACKBALL_COLORS.map((c) => (
-                        <RoundSwatch
-                          key={c}
-                          color={c}
-                          title={`トラックボール: ${TRACKBALL_COLOR_LABEL[c]}`}
-                          ariaLabel={`トラックボールを${TRACKBALL_COLOR_LABEL[c]}にする`}
-                          active={ballColor === c}
-                          onClick={() => setTrackball({ color: c })}
-                        />
-                      ))}
-                    </div>
+                    {keyboard.keys.some((k) => k.accent) && (
+                      <div className="flex items-center gap-1" role="group" aria-label="esc キーキャップの色">
+                        <span className="nb-eyebrow mr-0.5">ESC</span>
+                        {ESC_COLORS.map((c) => (
+                          <EscColorSwatch
+                            key={c}
+                            color={c}
+                            active={escColor === c}
+                            onClick={() => setSettings({ escColor: c })}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {hasBall(keyboard) && (
+                      <div className="flex items-center gap-1" role="group" aria-label="トラックボールの色">
+                        <span className="nb-eyebrow mr-0.5">BALL</span>
+                        {TRACKBALL_COLORS.map((c) => (
+                          <RoundSwatch
+                            key={c}
+                            color={c}
+                            title={`トラックボール: ${TRACKBALL_COLOR_LABEL[c]}`}
+                            ariaLabel={`トラックボールを${TRACKBALL_COLOR_LABEL[c]}にする`}
+                            active={ballColor === c}
+                            onClick={() => setTrackball({ color: c })}
+                          />
+                        ))}
+                      </div>
+                    )}
                     <button
                       type="button"
                       className="nb-btn shrink-0 !py-1.5 text-[0.76rem]"
@@ -261,12 +279,14 @@ export function App() {
 
       <LoginModal />
       <ProfileSetupModal />
+      <KeyboardPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
 
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
-          ORCA MAP は Keychron Orca echo のキーマップを設計するための非公式のコンセプトサイトです。
+          ORCA MAP は Keychron Orca echo をはじめとする自作キーボードのキーマップを設計するための、
+          非公式のコンセプトサイトです。
           実機には接続せず、手元のキーボードの入力を読み替えてシミュレートしています。
-          Keychron / GIZMART とは関係ありません。
+          Keychron / GIZMART をはじめ、各キーボードの作者・メーカーとは関係ありません。
         </p>
       </footer>
     </div>

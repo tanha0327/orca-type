@@ -1,14 +1,15 @@
+import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getKeycode } from '../../data/keycodes'
 import {
-  halfExtent, KEYS, SENSORS, type Half, type KeyId,
-} from '../../data/layout'
-import {
   DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_TEXT, LAYER_COLOR_HEX,
-  type EncoderSlot, type EscColor, type Keymap, type PadSlot,
+  type EscColor, type Keymap,
 } from '../../data/types'
 import { engine, useEngineSnapshot } from '../../engine/useEngine'
 import { resolveKey } from '../../engine/resolve'
+import { boardBounds } from '../../keyboards/geometry'
+import { keyboardOf } from '../../keyboards/registry'
+import type { KeyId, PadSlot, SensorSlot } from '../../keyboards/types'
 import { sameTarget, useKeymapStore, type Selection } from '../../store/keymapStore'
 import { KeyCap, type CapTone } from './KeyCap'
 import { KeyMenu, type BoardMenuTarget } from './KeyMenu'
@@ -118,144 +119,133 @@ export function KeyboardView({
     select(null)
   }, [select])
 
-  const renderHalf = (half: Half) => {
-    const ext = halfExtent(half)
-    const layer = keymap.layers[viewLayer]
-    const keys = KEYS.filter((k) => k.half === half)
-    const sensors = SENSORS.filter((s) => s.half === half)
+  const def = keyboardOf(keymap)
+  const bounds = boardBounds(def)
+  const layer = keymap.layers[viewLayer]
 
-    return (
-      <div
-        className="relative w-full"
-        style={{
-          containerType: 'inline-size',
-          aspectRatio: `${ext.w} / ${ext.h}`,
-        }}
-      >
-        {keys.map((k) => {
-          const own = layer?.keys[k.id]
-          const resolved = resolveKey(keymap, displayStack, k.id)
-          const inherited = !own || own.tap === 'TRANS'
-          // レイヤー切替キーは、行き先のレイヤー名をその色で添える。
-          // ミニキーマップでは文字が潰れて主表記に重なるので、副表記は一切出さない。
-          const targetLayer = getKeycode(resolved.binding.tap).layerTarget
-          const subs = compact
-            ? undefined
-            : targetLayer !== undefined && keymap.layers[targetLayer]
-              ? [{
-                  glyph: keymap.layers[targetLayer].name,
-                  color: LAYER_COLOR_HEX[keymap.layers[targetLayer].color],
-                }]
-              : subLegends && viewLayer === 0
-                ? ([1, 2] as const).flatMap((n) => {
-                    const b = keymap.layers[n]?.keys[k.id]
-                    const g = sensorGlyph(b?.tap)
-                    return g ? [{ glyph: g, color: LAYER_COLOR_HEX[keymap.layers[n].color] }] : []
-                  })
-                : undefined
+  const renderBoard = () => (
+    <div
+      className="relative w-full"
+      style={{
+        containerType: 'inline-size',
+        aspectRatio: `${bounds.w} / ${bounds.h}`,
+        // 1u（キー 1 個分）の幅。文字や線の太さはこれに比例させて、どの大きさのキーボードでも同じ見た目にする
+        '--u': `calc(100cqw / ${bounds.w})`,
+      } as React.CSSProperties}
+    >
+      {def.keys.map((k) => {
+        const own = layer?.keys[k.id]
+        const resolved = resolveKey(keymap, displayStack, k.id)
+        const inherited = !own || own.tap === 'TRANS'
+        // レイヤー切替キーは、行き先のレイヤー名をその色で添える。
+        // ミニキーマップでは文字が潰れて主表記に重なるので、副表記は一切出さない。
+        const targetLayer = getKeycode(resolved.binding.tap).layerTarget
+        const subs = compact
+          ? undefined
+          : targetLayer !== undefined && keymap.layers[targetLayer]
+            ? [{
+                glyph: keymap.layers[targetLayer].name,
+                color: LAYER_COLOR_HEX[keymap.layers[targetLayer].color],
+              }]
+            : subLegends && viewLayer === 0
+              ? ([1, 2] as const).flatMap((n) => {
+                  const b = keymap.layers[n]?.keys[k.id]
+                  const g = sensorGlyph(b?.tap)
+                  return g ? [{ glyph: g, color: LAYER_COLOR_HEX[keymap.layers[n].color] }] : []
+                })
+              : undefined
 
+        return (
+          <KeyCap
+            key={k.id}
+            keyDef={k}
+            bounds={bounds}
+            binding={resolved.binding}
+            inherited={inherited && viewLayer !== 0}
+            selected={
+              comboPickId
+                ? (keymap.combos.find((c) => c.id === comboPickId)?.keys.includes(k.id) ?? false)
+                : sameTarget(selection, { kind: 'key', keyId: k.id })
+            }
+            selectedTone={comboPickId ? 'var(--color-purple)' : undefined}
+            dimmed={interactive && !comboPickId && selection?.kind === 'key' && selection.keyId !== k.id}
+            diff={diffKeys?.has(k.id) ?? false}
+            dark={dark}
+            capTone={k.accent ? escTone : undefined}
+            press={pressByKey.get(k.id)}
+            comboCount={comboCount.get(k.id) ?? 0}
+            accent={accent}
+            subLegends={subs}
+            interactive={interactive}
+            onSelect={(e) => {
+              doSelect({ kind: 'key', keyId: k.id })
+              openMenu({ kind: 'key', keyId: k.id }, e.currentTarget.getBoundingClientRect())
+            }}
+            onPulse={() => engine.pulse(k.id)}
+          />
+        )
+      })}
+
+      {(def.sensors ?? []).map((s) => {
+        const slots = layer?.sensors[s.id]
+        const glyph = (slot: SensorSlot) => sensorGlyph(slots?.[slot]?.tap)
+        const selectedSlot = selection?.kind === 'sensor' && selection.sensorId === s.id ? selection.slot : null
+        const onSelect = (slot: SensorSlot, rect: DOMRect) => {
+          doSelect({ kind: 'sensor', sensorId: s.id, slot })
+          openMenu({ kind: 'sensor', sensorId: s.id }, rect)
+        }
+        if (s.kind === 'encoder') {
           return (
-            <KeyCap
-              key={k.id}
-              keyDef={k}
-              binding={resolved.binding}
-              inherited={inherited && viewLayer !== 0}
-              selected={
-                comboPickId
-                  ? (keymap.combos.find((c) => c.id === comboPickId)?.keys.includes(k.id) ?? false)
-                  : sameTarget(selection, { kind: 'key', keyId: k.id })
-              }
-              selectedTone={comboPickId ? 'var(--color-purple)' : undefined}
-              dimmed={interactive && !comboPickId && selection?.kind === 'key' && selection.keyId !== k.id}
-              diff={diffKeys?.has(k.id) ?? false}
-              dark={dark}
-              capTone={k.accent ? escTone : undefined}
-              press={pressByKey.get(k.id)}
-              comboCount={comboCount.get(k.id) ?? 0}
-              accent={accent}
-              subLegends={subs}
-              interactive={interactive}
-              totalW={ext.w}
-              totalH={ext.h}
-              onSelect={(e) => {
-                doSelect({ kind: 'key', keyId: k.id })
-                openMenu({ kind: 'key', keyId: k.id }, e.currentTarget.getBoundingClientRect())
-              }}
-              onPulse={() => engine.pulse(k.id)}
-            />
-          )
-        })}
-
-        {sensors.map((s) => {
-          if (s.kind === 'encoder') {
-            const e = layer?.encoder
-            return (
-              <EncoderView
-                key={s.id}
-                def={s}
-                geo={{ totalW: ext.w, totalH: ext.h }}
-                selected={selection?.kind === 'encoder'}
-                glyphs={{
-                  cw: sensorGlyph(e?.cw.tap),
-                  ccw: sensorGlyph(e?.ccw.tap),
-                }}
-                color={bodyColor}
-                interactive={interactive}
-                onSlot={(slot: EncoderSlot) => engine.encoder(slot)}
-                onSelect={(slot, rect) => {
-                  doSelect({ kind: 'encoder', slot })
-                  openMenu({ kind: 'sensor', sensor: 'enc-l' }, rect)
-                }}
-              />
-            )
-          }
-          if (s.kind === 'pad') {
-            const cfg = s.id === 'pad-l' ? layer?.padL : layer?.padR
-            const sensorId = s.id as 'pad-l' | 'pad-r'
-            const g = (slot: PadSlot) => sensorGlyph(cfg?.[slot].tap)
-            return (
-              <PadView
-                key={s.id}
-                def={s}
-                geo={{ totalW: ext.w, totalH: ext.h }}
-                selectedSlot={
-                  selection?.kind === 'pad' && selection.sensor === sensorId ? selection.slot : null
-                }
-                glyphs={{ up: g('up'), down: g('down'), tap: g('tap') }}
-                color={bodyColor}
-                interactive={interactive}
-                onSlot={(slot) => engine.pad(sensorId, slot)}
-                onSelect={(slot, rect) => {
-                  doSelect({ kind: 'pad', sensor: sensorId, slot })
-                  openMenu({ kind: 'sensor', sensor: sensorId }, rect)
-                }}
-              />
-            )
-          }
-          return (
-            <BallView
+            <EncoderView
               key={s.id}
               def={s}
-              geo={{ totalW: ext.w, totalH: ext.h }}
-              selected={selection?.kind === 'ball'}
-              dpi={keymap.trackball.dpi}
-              color={keymap.trackball.color ?? 'white'}
+              bounds={bounds}
+              selected={selectedSlot !== null}
+              glyphs={{ cw: glyph('cw'), ccw: glyph('ccw') }}
+              color={bodyColor}
               interactive={interactive}
-              onSelect={() => { setMenu(null); doSelect({ kind: 'ball' }) }}
+              onSlot={(slot) => engine.sensor(s.id, slot)}
+              onSelect={onSelect}
             />
           )
-        })}
-      </div>
-    )
-  }
+        }
+        if (s.kind === 'pad') {
+          return (
+            <PadView
+              key={s.id}
+              def={s}
+              bounds={bounds}
+              selectedSlot={selectedSlot as PadSlot | null}
+              glyphs={{ up: glyph('up'), down: glyph('down'), tap: glyph('tap') }}
+              color={bodyColor}
+              interactive={interactive}
+              onSlot={(slot) => engine.sensor(s.id, slot)}
+              onSelect={onSelect}
+            />
+          )
+        }
+        return (
+          <BallView
+            key={s.id}
+            def={s}
+            bounds={bounds}
+            selected={selection?.kind === 'ball'}
+            dpi={keymap.trackball.dpi}
+            color={keymap.trackball.color ?? 'white'}
+            interactive={interactive}
+            onSelect={() => { setMenu(null); doSelect({ kind: 'ball' }) }}
+          />
+        )
+      })}
+    </div>
+  )
 
   // 別の方法で選択が変わったり、コンボ選択中に入ったら、古い位置のメニューは出さない
   const menuMatchesSelection = (() => {
     if (!menu || !selection) return false
     const t = menu.target
     if (t.kind === 'key') return selection.kind === 'key' && selection.keyId === t.keyId
-    if (t.sensor === 'enc-l') return selection.kind === 'encoder'
-    return selection.kind === 'pad' && selection.sensor === t.sensor
+    return selection.kind === 'sensor' && selection.sensorId === t.sensorId
   })()
   const showMenu = !!menu && !comboPickId && menuMatchesSelection
 
@@ -280,9 +270,8 @@ export function KeyboardView({
   }, [showMenu, setKeyMenuOpen])
 
   return (
-    <div ref={boardRef} className={`flex w-full items-start ${compact ? 'gap-2' : 'gap-3 sm:gap-6'}`}>
-      <div className="min-w-0 flex-1">{renderHalf('L')}</div>
-      <div className="min-w-0 flex-1">{renderHalf('R')}</div>
+    <div ref={boardRef} className="w-full">
+      {renderBoard()}
       {showMenu && menu && (
         <KeyMenu target={menu.target} anchorRect={menu.rect} onClose={closeMenu} />
       )}

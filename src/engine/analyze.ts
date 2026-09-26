@@ -1,9 +1,7 @@
 import { getKeycode } from '../data/keycodes'
-import { KEYS, type KeyId } from '../data/layout'
-import {
-  ENCODER_SLOTS, PAD_SLOTS, isTrans,
-  type Binding, type Keymap, type Layer,
-} from '../data/types'
+import { isTrans, type Binding, type Keymap, type Layer } from '../data/types'
+import { bindableSensors, keyboardOf } from '../keyboards/registry'
+import { SENSOR_SLOTS, type KeyId } from '../keyboards/types'
 import { modSymbolOf } from './resolve'
 
 /* ================================================================
@@ -43,28 +41,37 @@ export function isCategoryId(x: unknown): x is CategoryId {
   return typeof x === 'string' && CATEGORY_BY_ID.has(x as CategoryId)
 }
 
-/** ホームロー（A S D F / J K L ;） */
-const HOME_ROW_KEYS: KeyId[] = ['L11', 'L12', 'L13', 'L14', 'R12', 'R13', 'R14', 'R15']
-/** H J K L の位置と、Vim の矢印の対応 */
-const VIM_ARROWS: [KeyId, string][] = [['R11', 'LEFT'], ['R12', 'DOWN'], ['R13', 'UP'], ['R14', 'RIGHT']]
+/** Vim の H J K L と、その位置に置く矢印 */
+const VIM_ARROWS: [string, string][] = [['H', 'LEFT'], ['J', 'DOWN'], ['K', 'UP'], ['L', 'RIGHT']]
+
+/**
+ * ベースレイヤーでそのキーコードを出しているキー。
+ * キーボードごとにキーの位置は違うので、「H の位置」などは L0 の割当から見つける
+ */
+function keyOfBaseTap(km: Keymap, code: string): KeyId | undefined {
+  const base = km.layers[0]
+  return keyboardOf(km).keys.find((k) => base?.keys[k.id]?.tap === code)?.id
+}
+
+/** 文字キー（と ;）。ホームロー修飾は、どの配列でも文字キーの長押しに修飾を仕込む形になる */
+const isAlphaCode = (code: string | undefined) => !!code && (/^[A-Z]$/.test(code) || code === 'SEMI')
 
 /** 何も割り当てていない（透過か未割当） */
 function isEmpty(b: Binding | undefined): boolean {
   return isTrans(b) || b!.tap === 'NONE'
 }
 
-function layerBindings(layer: Layer): Binding[] {
+function layerBindings(km: Keymap, layer: Layer): Binding[] {
+  const def = keyboardOf(km)
   return [
-    ...KEYS.map((k) => layer.keys[k.id]),
-    ...ENCODER_SLOTS.map((s) => layer.encoder?.[s]),
-    ...PAD_SLOTS.map((s) => layer.padL?.[s]),
-    ...PAD_SLOTS.map((s) => layer.padR?.[s]),
+    ...def.keys.map((k) => layer.keys[k.id]),
+    ...bindableSensors(def).flatMap((s) => SENSOR_SLOTS[s.kind].map((slot) => layer.sensors[s.id]?.[slot])),
   ].filter((b): b is Binding => !!b)
 }
 
 /** TRANS / NONE 以外の割当が 1 つでもあるレイヤーの枚数 */
 export function usedLayerCount(km: Keymap): number {
-  return km.layers.filter((layer) => layerBindings(layer).some((b) => !isEmpty(b))).length
+  return km.layers.filter((layer) => layerBindings(km, layer).some((b) => !isEmpty(b))).length
 }
 
 /**
@@ -73,21 +80,26 @@ export function usedLayerCount(km: Keymap): number {
  */
 export function classifyKeymap(km: Keymap): CategoryId {
   const base = km.layers[0]
+  const keys = keyboardOf(km).keys
 
   if (base) {
-    const homeMods = HOME_ROW_KEYS.filter((id) => !!modSymbolOf(base.keys[id]?.hold)).length
+    const homeMods = keys.filter((k) => {
+      const b = base.keys[k.id]
+      return isAlphaCode(b?.tap) && !!modSymbolOf(b?.hold)
+    }).length
     if (homeMods >= 4) return 'homerow'
   }
 
+  const vimKeys = VIM_ARROWS.map(([letter, arrow]) => [keyOfBaseTap(km, letter), arrow] as const)
   const hasVim = km.layers.some((layer) =>
-    VIM_ARROWS.filter(([id, code]) => layer.keys[id]?.tap === code).length >= 3)
+    vimKeys.filter(([id, arrow]) => id !== undefined && layer.keys[id]?.tap === arrow).length >= 3)
   if (hasVim) return 'vim'
 
   if (km.combos.filter((c) => c.enabled).length >= 3) return 'combo'
 
   let mouseKeys = 0
   for (const layer of km.layers) {
-    for (const k of KEYS) {
+    for (const k of keys) {
       const b = layer.keys[k.id]
       if (!b) continue
       if (getKeycode(b.tap).category === 'mouse') mouseKeys++
@@ -112,8 +124,12 @@ function sameBinding(a: Binding | undefined, b: Binding | undefined): boolean {
  * 2 つの配列がどれくらい似ているか（0〜1）。
  * 全レイヤーのキー・エンコーダー・パッドの単押し／長押しを位置ごとに比べ、有効なコンボも比べる。
  * L1 以降で両方とも何も割り当てていない位置は、似ている根拠にならないので数えない。
+ * 別のキーボードの配列はキーの位置が対応しないので、比べずに 0 とする（近い順ではいちばん後ろ）。
  */
 export function keymapSimilarity(a: Keymap, b: Keymap): number {
+  if (a.keyboard !== b.keyboard) return 0
+  const def = keyboardOf(a)
+  const sensors = bindableSensors(def)
   let same = 0
   let total = 0
   const compare = (x: Binding | undefined, y: Binding | undefined, isBase: boolean) => {
@@ -127,11 +143,9 @@ export function keymapSimilarity(a: Keymap, b: Keymap): number {
     const la = a.layers[i]
     const lb = b.layers[i]
     const isBase = i === 0
-    for (const k of KEYS) compare(la?.keys[k.id], lb?.keys[k.id], isBase)
-    for (const s of ENCODER_SLOTS) compare(la?.encoder?.[s], lb?.encoder?.[s], isBase)
-    for (const s of PAD_SLOTS) {
-      compare(la?.padL?.[s], lb?.padL?.[s], isBase)
-      compare(la?.padR?.[s], lb?.padR?.[s], isBase)
+    for (const k of def.keys) compare(la?.keys[k.id], lb?.keys[k.id], isBase)
+    for (const s of sensors) {
+      for (const slot of SENSOR_SLOTS[s.kind]) compare(la?.sensors[s.id]?.[slot], lb?.sensors[s.id]?.[slot], isBase)
     }
   }
 

@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
-import { halfExtent, KEYS, SENSORS, type Half, type KeyId } from '../../data/layout'
 import { isModTap, isTrans, LAYER_COLOR_HEX, type Binding, type Keymap, type Layer } from '../../data/types'
 import { resolveKey } from '../../engine/resolve'
+import { boardBounds } from '../../keyboards/geometry'
+import { keyboardOf } from '../../keyboards/registry'
+import type { KeyboardDefinition, KeyId } from '../../keyboards/types'
 import { SM_QUERY, useMediaQuery } from '../../lib/useMediaQuery'
 import { KeyboardView } from '../Board/KeyboardView'
 
@@ -13,15 +15,22 @@ import { KeyboardView } from '../Board/KeyboardView'
 
 const holdOf = (b: Binding) => (isModTap(b) ? b.hold : undefined)
 
+/** 同じキーボードの配列どうしか。違うキーボードではキーの位置が対応しないので、キーごとには比べない */
+export function comparable(a: Keymap, b: Keymap): boolean {
+  return a.keyboard === b.keyboard
+}
+
 /**
  * 2 つのキーマップで、指定レイヤーを有効にしたときの割当（単押し・長押し）が違うキーの ID 集合。
  * L1 以降は、どちらもそのレイヤーでは素通し（透過）のキーは数えない。
  * 数えると L0 の違いが全レイヤーに写り込み、そのレイヤーならではの違いが埋もれてしまう。
+ * 別のキーボードの配列どうしは比べない（空の集合）。
  */
 export function diffKeysForLayer(a: Keymap, b: Keymap, layerIndex: number): Set<KeyId> {
   const stack = layerIndex === 0 ? [0] : [0, layerIndex]
   const diffs = new Set<KeyId>()
-  for (const k of KEYS) {
+  if (!comparable(a, b)) return diffs
+  for (const k of keyboardOf(a).keys) {
     if (
       layerIndex !== 0
       && isTrans(a.layers[layerIndex]?.keys[k.id])
@@ -44,73 +53,67 @@ export function useLayerDiffs(mine: Keymap, theirs: Keymap): Set<KeyId>[] {
 
 /* ---------------------------------------------------------------- ミニキーマップ */
 
-/** キー同士のすき間と、左右の半分の間隔（ユニット） */
+/** キー同士のすき間（ユニット） */
 const MINI_GAP = 0.16
-const MINI_SPLIT = 0.9
-
-const HALVES = (['L', 'R'] as const satisfies readonly Half[]).map((half, i) => ({
-  half,
-  dx: i === 0 ? 0 : halfExtent('L').w + MINI_SPLIT,
-  keys: KEYS.filter((k) => k.half === half),
-  sensors: SENSORS.filter((s) => s.half === half),
-}))
-const MINI_W = halfExtent('L').w + MINI_SPLIT + halfExtent('R').w
-const MINI_H = Math.max(halfExtent('L').h, halfExtent('R').h)
 
 const FAINT = 'color-mix(in srgb, var(--color-ink) 28%, transparent)'
 
 /**
  * 印字を省いた小さな盤面。違うキーだけピンクで塗り、他はうすい枠だけにする。
  * センサー（パッド・ホイール・ボール）は形の目印として点線で添える。
- * 投稿ごとに 7 枚ずつ並ぶので、要素の軽い SVG で描く。
+ * 投稿ごとに 7 枚ずつ並ぶので、要素の軽い SVG で描く。キーの回転もそのまま写す。
  */
-export function DiffMiniMap({ diffKeys }: { diffKeys: ReadonlySet<KeyId> }) {
+export function DiffMiniMap({ def, diffKeys }: { def: KeyboardDefinition; diffKeys: ReadonlySet<KeyId> }) {
+  const b = boardBounds(def)
+  const sensors = def.sensors ?? []
   return (
-    <svg viewBox={`0 0 ${MINI_W} ${MINI_H}`} className="block h-auto w-full" aria-hidden>
-      {HALVES.map(({ half, dx, keys, sensors }) => (
-        <g key={half} transform={`translate(${dx} 0)`}>
-          {sensors.map((s) => (
-            <rect
-              key={s.id}
-              x={s.x + MINI_GAP / 2}
-              y={s.y + MINI_GAP / 2}
-              width={s.w - MINI_GAP}
-              height={s.h - MINI_GAP}
-              rx={s.kind === 'ball' ? (s.w - MINI_GAP) / 2 : 0.14}
-              fill="none"
-              stroke={FAINT}
-              strokeWidth={1}
-              strokeDasharray="2 2"
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-          {keys.map((k) => {
-            const diff = diffKeys.has(k.id)
-            return (
-              <rect
-                key={k.id}
-                x={k.x + MINI_GAP / 2}
-                y={k.y + MINI_GAP / 2}
-                width={k.w - MINI_GAP}
-                height={k.h - MINI_GAP}
-                rx={0.14}
-                fill={diff ? 'var(--color-pink)' : 'none'}
-                stroke={diff ? 'var(--color-ink)' : FAINT}
-                strokeWidth={1}
-                vectorEffect="non-scaling-stroke"
-              />
-            )
-          })}
-        </g>
+    <svg viewBox={`${b.minX} ${b.minY} ${b.w} ${b.h}`} className="block h-auto w-full" aria-hidden>
+      {sensors.map((s) => (
+        <rect
+          key={s.id}
+          x={s.x + MINI_GAP / 2}
+          y={s.y + MINI_GAP / 2}
+          width={s.w - MINI_GAP}
+          height={s.h - MINI_GAP}
+          rx={s.kind === 'ball' ? (s.w - MINI_GAP) / 2 : 0.14}
+          fill="none"
+          stroke={FAINT}
+          strokeWidth={1}
+          strokeDasharray="2 2"
+          vectorEffect="non-scaling-stroke"
+        />
       ))}
+      {def.keys.map((k) => {
+        const diff = diffKeys.has(k.id)
+        return (
+          <rect
+            key={k.id}
+            x={k.x + MINI_GAP / 2}
+            y={k.y + MINI_GAP / 2}
+            width={k.w - MINI_GAP}
+            height={k.h - MINI_GAP}
+            transform={k.r ? `rotate(${k.r} ${k.rx ?? 0} ${k.ry ?? 0})` : undefined}
+            rx={0.14}
+            fill={diff ? 'var(--color-pink)' : 'none'}
+            stroke={diff ? 'var(--color-ink)' : FAINT}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+        )
+      })}
     </svg>
   )
 }
 
 /* ---------------------------------------------------------------- 小物 */
 
-/** 違うキーの数。0 なら「同じ」と控えめに出す */
-function DiffCount({ n, long = false }: { n: number; long?: boolean }) {
+/** 違うキーの数。0 なら「同じ」と控えめに出す。別のキーボードの配列なら比べていないことを出す */
+function DiffCount({ n, long = false, same = true }: { n: number; long?: boolean; same?: boolean }) {
+  if (!same) {
+    return long
+      ? <span className="shrink-0 text-[0.62rem] font-black opacity-45">別のキーボードなので比べていません</span>
+      : null
+  }
   if (n === 0) {
     return (
       <span className="shrink-0 text-[0.62rem] font-black opacity-45">
@@ -147,14 +150,17 @@ function clampLayer(focus: number, layerCount: number) {
 
 /** 大きい盤面の下に並べる、残りのレイヤーのミニキーマップ。押すとそのレイヤーを大きく出す */
 function OtherLayers({
-  theirs, diffs, focus, onFocus, className,
+  theirs, same, diffs, focus, onFocus, className,
 }: {
   theirs: Keymap
+  /** 自分と同じキーボードの配列か（違えば違いの数は出さない） */
+  same: boolean
   diffs: Set<KeyId>[]
   focus: number
   onFocus: (n: number) => void
   className: string
 }) {
+  const def = keyboardOf(theirs)
   return (
     <div className={`grid gap-1.5 ${className}`}>
       {theirs.layers.map((layer, i) => {
@@ -166,7 +172,7 @@ function OtherLayers({
             type="button"
             onClick={() => onFocus(i)}
             title={`L${i} ${layer.name} を大きく表示`}
-            aria-label={`L${i} ${layer.name} を大きく表示（あなたと違うキー ${n}）`}
+            aria-label={same ? `L${i} ${layer.name} を大きく表示（あなたと違うキー ${n}）` : `L${i} ${layer.name} を大きく表示`}
             className="@container block min-w-0 rounded-[9px] border-2 border-[var(--color-ink)] p-1 text-left transition-[box-shadow,transform] hover:-translate-x-px hover:-translate-y-px hover:shadow-[2px_2px_0_var(--color-ink)]"
             style={{ background: 'var(--color-paper)' }}
           >
@@ -181,10 +187,10 @@ function OtherLayers({
                 {layer.name}
               </span>
               <span className="ml-auto shrink-0">
-                <DiffCount n={n} />
+                <DiffCount n={n} same={same} />
               </span>
             </span>
-            <DiffMiniMap diffKeys={diffs[i] ?? new Set()} />
+            <DiffMiniMap def={def} diffKeys={diffs[i] ?? new Set()} />
           </button>
         )
       })}
@@ -207,6 +213,7 @@ export function PostDiff({
   onFocus: (n: number) => void
 }) {
   const diffs = useLayerDiffs(mine, theirs)
+  const same = comparable(mine, theirs)
   const focus = clampLayer(rawFocus, theirs.layers.length)
   const focusDiff = diffs[focus] ?? new Set<KeyId>()
 
@@ -215,11 +222,12 @@ export function PostDiff({
       <div className="flex min-w-0 items-center gap-1.5">
         <LayerChip layer={theirs.layers[focus]} index={focus} />
         <span className="flex-1" />
-        <DiffCount n={focusDiff.size} long />
+        <DiffCount n={focusDiff.size} long same={same} />
       </div>
       <KeyboardView interactive={false} compact previewKeymap={theirs} previewLayer={focus} diffKeys={focusDiff} />
       <OtherLayers
         theirs={theirs}
+        same={same}
         diffs={diffs}
         focus={focus}
         onFocus={onFocus}
@@ -247,6 +255,7 @@ export function KeymapDiffView({
   onShowMine: (on: boolean) => void
 }) {
   const diffs = useLayerDiffs(mine, theirs)
+  const same = comparable(mine, theirs)
   // スマホ幅では横スクロールさせずに、幅いっぱいの小さい盤面にする
   const roomy = useMediaQuery(SM_QUERY)
   const focus = clampLayer(rawFocus, theirs.layers.length)
@@ -276,20 +285,22 @@ export function KeymapDiffView({
             </button>
           ))}
         </div>
-        <span className="flex items-center gap-1 text-[0.64rem] font-bold opacity-70">
-          <span
-            className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]"
-            style={{ background: 'var(--color-pink)', border: '1.5px solid var(--color-ink)' }}
-          />
-          ＝あなたの配列と違うキー
-        </span>
+        {same && (
+          <span className="flex items-center gap-1 text-[0.64rem] font-bold opacity-70">
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]"
+              style={{ background: 'var(--color-pink)', border: '1.5px solid var(--color-ink)' }}
+            />
+            ＝あなたの配列と違うキー
+          </span>
+        )}
       </div>
 
       <div className="nb nb-flat p-2">
         <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
           <LayerChip layer={shown.layers[focus]} index={focus} />
           <span className="flex-1" />
-          <DiffCount n={focusDiff.size} long />
+          <DiffCount n={focusDiff.size} long same={same} />
         </div>
         {roomy
           ? (
@@ -304,6 +315,7 @@ export function KeymapDiffView({
 
       <OtherLayers
         theirs={theirs}
+        same={same}
         diffs={diffs}
         focus={focus}
         onFocus={onFocus}

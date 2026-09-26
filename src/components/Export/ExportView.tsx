@@ -1,7 +1,16 @@
 import { useMemo, useRef, useState } from 'react'
-import { FLAVOR_HELP, FLAVOR_LABEL, isValidKeymapShape, type Flavor } from '../../data/types'
+import { normalizeKeymap } from '../../data/normalize'
+import { FLAVOR_HELP, FLAVOR_LABEL, type Flavor } from '../../data/types'
+import { toQmkKeymap } from '../../engine/qmk'
 import { toZmkKeymap } from '../../engine/zmk'
+import { keyboardOf } from '../../keyboards/registry'
+import { FIRMWARE_LABEL, type Firmware } from '../../keyboards/types'
 import { useKeymapStore } from '../../store/keymapStore'
+
+const FIRMWARE_NOTE: Record<Firmware, string> = {
+  zmk: 'いまの設定を ZMK の .keymap（devicetree）風に書き出したものです。',
+  qmk: 'いまの設定を QMK の keymap.c 風に書き出したものです。VIA / Vial 対応のキーボードもこの形のキーコードを使います。',
+}
 
 export function ExportView() {
   const keymap = useKeymapStore((s) => s.keymap)
@@ -11,8 +20,16 @@ export function ExportView() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState<string | null>(null)
 
+  const keyboard = keyboardOf(keymap)
+  // 書き出しの形式はキーボードのファームウェアに合わせて選んでおき、切り替えもできるようにする
+  const [picked, setPicked] = useState<Firmware | null>(null)
+  const firmware = picked ?? keyboard.firmware
+
   const json = useMemo(() => JSON.stringify(keymap, null, 2), [keymap])
-  const zmk = useMemo(() => toZmkKeymap(keymap), [keymap])
+  const firmwareText = useMemo(
+    () => (firmware === 'qmk' ? toQmkKeymap(keymap) : toZmkKeymap(keymap)),
+    [keymap, firmware],
+  )
 
   const flash = (text: string) => {
     setMessage(text)
@@ -40,8 +57,8 @@ export function ExportView() {
 
   const loadFile = async (file: File) => {
     try {
-      const parsed: unknown = JSON.parse(await file.text())
-      if (!isValidKeymapShape(parsed)) throw new Error('形式が違います')
+      const parsed = normalizeKeymap(JSON.parse(await file.text()))
+      if (!parsed) throw new Error('形式が違うか、このアプリで開けないキーボードのキーマップです')
       importKeymap(parsed)
       flash('キーマップを読み込みました')
     } catch (e) {
@@ -120,7 +137,7 @@ export function ExportView() {
             type="button"
             className="nb-btn !py-2 text-[0.82rem]"
             style={{ background: 'var(--color-pink)' }}
-            onClick={() => { if (confirm('すべてのレイヤーとコンボを初期状態に戻します。よろしいですか？')) resetKeymap() }}
+            onClick={() => { if (confirm(`${keyboard.name} のすべてのレイヤーとコンボを初期状態に戻します。よろしいですか？`)) resetKeymap() }}
           >
             初期状態に戻す
           </button>
@@ -130,20 +147,36 @@ export function ExportView() {
       <section className="nb nb-lg overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b-[3px] border-[var(--color-ink)] p-4">
           <div className="min-w-0">
-            <h2 className="text-[1.35rem]">ZMK キーマップ プレビュー</h2>
+            <h2 className="text-[1.35rem]">{FIRMWARE_LABEL[firmware]} キーマップ プレビュー</h2>
             <p className="mt-1 text-[0.76rem] font-bold opacity-70">
-              Orca echo は ZMK ファームウェアです。いまの設定を devicetree 風に書き出したものです。
+              {keyboard.name} ・ {FIRMWARE_NOTE[firmware]}
             </p>
           </div>
-          <button type="button" className="nb-btn !py-2 text-[0.82rem]" onClick={() => void copy(zmk, 'キーマップ')}>
-            コピー
-          </button>
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            <div className="flex gap-1" role="group" aria-label="書き出し形式">
+              {(Object.keys(FIRMWARE_LABEL) as Firmware[]).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className="nb-btn !py-1.5 text-[0.76rem]"
+                  data-active={firmware === f}
+                  aria-pressed={firmware === f}
+                  onClick={() => setPicked(f)}
+                >
+                  {FIRMWARE_LABEL[f]}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="nb-btn !py-2 text-[0.82rem]" onClick={() => void copy(firmwareText, 'キーマップ')}>
+              コピー
+            </button>
+          </div>
         </div>
         <pre
           className="max-h-[26rem] overflow-auto p-4 font-mono text-[0.68rem] leading-relaxed"
           style={{ background: 'var(--color-ink)', color: 'var(--color-paper)' }}
         >
-          {zmk}
+          {firmwareText}
         </pre>
       </section>
     </div>
