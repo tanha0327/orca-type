@@ -1,16 +1,16 @@
-import { getKeycode } from '../src/data/keycodes'
+import { getKeycode } from '../src/data/keycodes.js'
 import {
   DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_TEXT, FLAVOR_LABEL, LAYER_COLOR_HEX,
   TRACKBALL_COLOR_DARK, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL,
   isModTap, type BodyColor, type Keymap, type TrackballColor,
-} from '../src/data/types'
-import { classifyKeymap, getCategory } from '../src/engine/analyze'
-import { glyphOf, resolveKey, resolveSensor } from '../src/engine/resolve'
-import { boardBounds } from '../src/keyboards/geometry'
-import { hasBall, keyboardOf } from '../src/keyboards/registry'
-import { SENSOR_SLOTS, type KeyDef, type SensorDef } from '../src/keyboards/types'
-import { getOsTag, osOf } from '../src/lib/os'
-import type { SharedKeymapRow } from './sharedKeymap'
+} from '../src/data/types.js'
+import { classifyKeymap, getCategory } from '../src/engine/analyze.js'
+import { glyphOf, resolveKey, resolveSensor } from '../src/engine/resolve.js'
+import { boardBounds } from '../src/keyboards/geometry.js'
+import { hasBall, keyboardOf } from '../src/keyboards/registry.js'
+import { SENSOR_SLOTS, type KeyDef, type SensorDef } from '../src/keyboards/types.js'
+import { getOsTag, osOf } from '../src/lib/os.js'
+import type { SharedKeymapRow } from './sharedKeymap.js'
 
 /*
  * X などに貼られた共有リンクのカード画像（1200×630）。

@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    Kyria rev3（splitkb.com）— 強いカラムスタッガーと扇形の親指クラスタの 50 キー分割

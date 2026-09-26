@@ -1,9 +1,9 @@
-import { getKeycode, type Keycode } from '../data/keycodes'
+import { getKeycode, type Keycode } from '../data/keycodes.js'
 import {
   isTrans,
   type Binding, type Combo, type Flavor, type Keymap,
-} from '../data/types'
-import type { KeyId, SensorId, SensorSlot } from '../keyboards/types'
+} from '../data/types.js'
+import type { KeyId, SensorId, SensorSlot } from '../keyboards/types.js'
 
 /** レイヤースタック（下から上）。常に L0 が土台。 */
 export function computeLayerStack(toggled: readonly number[], momentary: readonly number[]): number[] {

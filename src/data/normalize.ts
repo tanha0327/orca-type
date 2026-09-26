@@ -1,18 +1,18 @@
-import { MAX_LAYERS, type Keycode } from './keycodes'
+import { MAX_LAYERS, type Keycode } from './keycodes.js'
 import {
   isKeymapOs, isValidKeymapShape, LAYER_COLORS, TRACKBALL_COLORS, ESC_COLORS,
   type Binding, type Combo, type Flavor, type Keymap, type KeymapSettings, type Layer,
   type LayerColor, type TrackballConfig,
-} from './types'
+} from './types.js'
 import {
   DEFAULT_KEYBOARD, DEFAULT_SETTINGS, DEFAULT_TRACKBALL, defaultLayerColor, defaultLayerName,
   isBuiltinKeyboard,
-} from '../keyboards/registry'
+} from '../keyboards/registry.js'
 import {
   SENSOR_SLOTS,
   type Half, type KeyboardDefinition, type KeyDef, type LayerSeed, type SensorBindings,
   type SensorDef, type SensorKind, type SensorSlot,
-} from '../keyboards/types'
+} from '../keyboards/types.js'
 
 /* ================================================================
    外から来たキーマップ・キーボード定義を取り込む前の正規化

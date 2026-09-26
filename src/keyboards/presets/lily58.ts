@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    Lily58（kata0510）— 数字段つき 58 キーの分割。日本発の定番

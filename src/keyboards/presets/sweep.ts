@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    Ferris Sweep — 34 キーの最小構成の分割。ホームロー修飾（押し続けると Shift などになる）で使う前提の配列

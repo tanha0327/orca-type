@@ -1,5 +1,5 @@
-import { bind, type Binding } from '../data/types'
-import type { KeyboardDefinition, KeyDef, KeyId } from './types'
+import { bind, type Binding } from '../data/types.js'
+import type { KeyboardDefinition, KeyDef, KeyId } from './types.js'
 
 /* ================================================================
    60% ANSI（一体型・ロウスタッガー）

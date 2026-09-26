@@ -1,7 +1,7 @@
-import { normalizeKeymap } from '../src/data/normalize'
-import type { Keymap } from '../src/data/types'
-import { isCategoryId, type CategoryId } from '../src/engine/analyze'
-import { isKeymapId } from '../src/lib/permalink'
+import { normalizeKeymap } from '../src/data/normalize.js'
+import type { Keymap } from '../src/data/types.js'
+import { isCategoryId, type CategoryId } from '../src/engine/analyze.js'
+import { isKeymapId } from '../src/lib/permalink.js'
 
 /** OGP（カード画像・メタタグ）に使う投稿 1 件ぶんの情報 */
 export interface SharedKeymapRow {

@@ -1,10 +1,10 @@
-import { KEYCODES, type Keycode } from '../../data/keycodes'
-import { NONE, TRANS, type Binding, type LayerColor } from '../../data/types'
-import { keyCenter } from '../geometry'
+import { KEYCODES, type Keycode } from '../../data/keycodes.js'
+import { NONE, TRANS, type Binding, type LayerColor } from '../../data/types.js'
+import { keyCenter } from '../geometry.js'
 import {
   SENSOR_SLOTS,
   type KeyboardDefinition, type KeyDef, type KeyId, type LayerSeed, type SensorBindings, type SensorDef,
-} from '../types'
+} from '../types.js'
 
 /* ================================================================
    組み込みキーボードを短く書くための小道具

@@ -1,4 +1,4 @@
-import { isKeymapOs, type Keymap, type KeymapOs } from '../data/types'
+import { isKeymapOs, type Keymap, type KeymapOs } from '../data/types.js'
 
 export interface OsTagDef {
   id: KeymapOs

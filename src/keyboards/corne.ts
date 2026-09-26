@@ -1,5 +1,5 @@
-import { bind, NONE, TRANS, type Binding } from '../data/types'
-import type { KeyboardDefinition, KeyDef, KeyId } from './types'
+import { bind, NONE, TRANS, type Binding } from '../data/types.js'
+import type { KeyboardDefinition, KeyDef, KeyId } from './types.js'
 
 /* ================================================================
    Corne（crkbd）6 列 + 親指 3 キー × 左右 = 42 キー

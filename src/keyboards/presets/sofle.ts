@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    Sofle（Josef Adamčík）— 数字段つき 58 キー + 押し込みつきロータリーエンコーダー 2 つの分割

@@ -1,4 +1,4 @@
-import type { Binding, LayerColor } from '../data/types'
+import type { Binding, LayerColor } from '../data/types.js'
 
 /* ================================================================
    キーボード定義
