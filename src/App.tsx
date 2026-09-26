@@ -20,6 +20,7 @@ import {
 import { isTypingTarget, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
 import { authEnabled, profileFromUser, signOut } from './lib/auth'
 import { feedEnabled } from './lib/feed'
+import { takeXLinkResult, verificationFromUser, xIdentityOf } from './lib/xVerification'
 import { useAuthStore } from './store/authStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 import { useProfileStore } from './store/profileStore'
@@ -48,8 +49,11 @@ export function App() {
   const [subLegends, setSubLegends] = useState(false)
   const initAuth = useAuthStore((s) => s.init)
   const user = useAuthStore((s) => s.user)
+  const authInitializing = useAuthStore((s) => s.initializing)
   const loadProfile = useProfileStore((s) => s.load)
   const resetProfile = useProfileStore((s) => s.reset)
+  const syncVerification = useProfileStore((s) => s.syncVerification)
+  const openProfileWithNotice = useProfileStore((s) => s.openEditorWithNotice)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
@@ -64,6 +68,29 @@ export function App() {
     if (user) void loadProfile(user)
     else resetProfile()
   }, [user, loadProfile, resetProfile])
+
+  // X の連携状態（ログイン時・連携した直後・解除した直後）を、他の人から見える本人確認バッジに反映する
+  const userId = user?.id ?? null
+  const xIdentityId = user ? xIdentityOf(user)?.identity_id ?? null : null
+  useEffect(() => {
+    if (userId) void syncVerification()
+  }, [userId, xIdentityId, syncVerification])
+
+  // X の認証ページから戻ってきたら、連携できたかどうかをプロフィール画面で知らせる
+  useEffect(() => {
+    if (authInitializing) return
+    const result = takeXLinkResult()
+    if (!result) return
+    if (result.error) {
+      openProfileWithNotice({ kind: 'error', text: `X と連携できませんでした: ${result.error}` })
+      return
+    }
+    const { user: current } = useAuthStore.getState()
+    const verification = current ? verificationFromUser(current) : null
+    openProfileWithNotice(verification
+      ? { kind: 'ok', text: `X アカウント @${verification.username} と連携しました。投稿やコメントに本人確認バッジが付きます。` }
+      : { kind: 'error', text: 'X と連携できませんでした。もう一度お試しください。' })
+  }, [authInitializing, openProfileWithNotice])
 
   // コンボの参加キーを選んでいる間は、手元のキーボードのキーでも盤面のキーを追加／解除できる
   useEffect(() => {
@@ -345,6 +372,7 @@ function AuthButton() {
   const fallback = profileFromUser(user)
   const name = profile?.name ?? fallback.name
   const avatarUrl = profile?.avatarUrl ?? fallback.avatarUrl
+  const verification = verificationFromUser(user)
 
   return (
     <div className="nb flex items-center gap-2 !py-1 !px-2">
@@ -354,9 +382,22 @@ function AuthButton() {
         title="プロフィールを編集"
         onClick={openProfileEditor}
       >
-        {avatarUrl
-          ? <img src={avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full" style={{ border: '2px solid var(--color-ink)' }} />
-          : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-black" style={{ background: 'var(--color-lime)', border: '2px solid var(--color-ink)' }}>{name.slice(0, 1)}</span>}
+        <span className="relative shrink-0">
+          {avatarUrl
+            ? <img src={avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full" style={{ border: '2px solid var(--color-ink)' }} />
+            : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-black" style={{ background: 'var(--color-lime)', border: '2px solid var(--color-ink)' }}>{name.slice(0, 1)}</span>}
+          {/* ヘッダーの幅を増やさないよう、本人確認済みの印はアイコンの右下に重ねる */}
+          {verification && (
+            <span
+              className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[0.5rem] font-black leading-none"
+              style={{ background: 'var(--color-cyan)', border: '1.5px solid var(--color-ink)' }}
+              title={`X アカウント @${verification.username} と連携して本人確認済み`}
+              aria-label="X で本人確認済み"
+            >
+              ✓
+            </span>
+          )}
+        </span>
         <span className="max-w-[8rem] truncate text-[0.78rem] font-bold">{name}</span>
       </button>
       <button

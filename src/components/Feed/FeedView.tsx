@@ -5,6 +5,7 @@ import {
   deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
   shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
+import { fetchXVerifications, verificationFromUser, type XVerification } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
 import { useFeedStore } from '../../store/feedStore'
 import { useKeymapStore } from '../../store/keymapStore'
@@ -12,6 +13,7 @@ import { useProfileStore } from '../../store/profileStore'
 import { KeyboardView } from '../Board/KeyboardView'
 import { IconComment, IconHeart, IconImageSave, IconLoad, IconTrash, IconX } from '../Icons'
 import { Ring } from '../Ring'
+import { XVerifiedBadge } from '../XVerifiedBadge'
 import { Avatar, DeviceColors, importSharedKeymap, relativeTime } from './FeedParts'
 import { SortBar, sortOption } from './FeedSort'
 import { PostDiff } from './KeymapDiff'
@@ -44,6 +46,8 @@ export function FeedView() {
   const user = useAuthStore((s) => s.user)
   const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = useProfileStore((s) => s.profile)
+  const openProfileEditor = useProfileStore((s) => s.openEditor)
+  const verificationRevision = useProfileStore((s) => s.verificationRevision)
 
   const sort = useFeedStore((s) => s.sort)
   const focusLayer = useFeedStore((s) => s.focusLayer)
@@ -53,6 +57,7 @@ export function FeedView() {
 
   const [items, setItems] = useState<SharedKeymap[] | null>(null)
   const [extras, setExtras] = useState<FeedExtras>(EMPTY_EXTRAS)
+  const [verifications, setVerifications] = useState<Record<string, XVerification>>({})
   const [loadError, setLoadError] = useState<string | null>(null)
   const [rankFallback, setRankFallback] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -86,6 +91,18 @@ export function FeedView() {
   }
 
   useEffect(() => { void load() }, [user?.id, sort])
+
+  // 投稿者の X 本人確認バッジ。自分が連携・解除したとき（verificationRevision）も取り直す
+  useEffect(() => {
+    if (!items) return
+    let cancelled = false
+    const userIds = items.flatMap((i) => (i.user_id ? [i.user_id] : []))
+    fetchXVerifications(userIds)
+      .then((v) => { if (!cancelled) setVerifications(v) })
+      // 本人確認のテーブルがまだ無い環境でも、一覧はそのまま出す（バッジが出ないだけ）
+      .catch(() => { if (!cancelled) setVerifications({}) })
+    return () => { cancelled = true }
+  }, [items, verificationRevision])
 
   // 並び順を変えたら、一覧を読み込み直して先頭から見せる
   const shownSort = useRef(sort)
@@ -245,6 +262,7 @@ export function FeedView() {
           focusLayer={focusLayer}
           onFocusLayer={setFocusLayer}
           canDelete={!!user && user.id === item.user_id}
+          verification={item.user_id ? verifications[item.user_id] ?? null : null}
           likeCount={extras.likeCounts[item.id] ?? 0}
           liked={extras.likedByMe.has(item.id)}
           commentCount={extras.commentCounts[item.id] ?? 0}
@@ -279,6 +297,8 @@ export function FeedView() {
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
         profile={profile}
+        verification={user ? verificationFromUser(user) : null}
+        onOpenProfile={() => { setShareOpen(false); openProfileEditor() }}
         onRequireLogin={() => { setShareOpen(false); openLoginModal() }}
       />
 
@@ -296,6 +316,7 @@ export function FeedView() {
 
       <PostViewerModal
         item={viewer}
+        verification={viewer?.user_id ? verifications[viewer.user_id] ?? null : null}
         canDelete={!!user && !!viewer && user.id === viewer.user_id}
         onClose={closeViewer}
         onImport={() => { if (viewer) importSharedKeymap(viewer) }}
@@ -371,7 +392,7 @@ function ActionButton({
 }
 
 function PostCard({
-  item, myKeymap, focusLayer, onFocusLayer, canDelete, likeCount, liked, commentCount,
+  item, myKeymap, focusLayer, onFocusLayer, canDelete, verification, likeCount, liked, commentCount,
   onOpen, onImport, onLike, onComments, onDelete,
 }: {
   item: SharedKeymap
@@ -381,6 +402,8 @@ function PostCard({
   focusLayer: number
   onFocusLayer: (n: number) => void
   canDelete: boolean
+  /** 投稿者が X で本人確認済みなら、その情報（バッジに出す） */
+  verification: XVerification | null
   likeCount: number
   liked: boolean
   commentCount: number
@@ -432,12 +455,16 @@ function PostCard({
         <Avatar url={item.avatar_url} name={item.author} size={40} />
 
         <div className="min-w-0 flex-1">
-          <button type="button" className="block w-full text-left" onClick={onOpen}>
-            <div className="flex min-w-0 items-baseline gap-1.5">
-              <span className="truncate text-[0.85rem] font-black">{item.author}</span>
-              <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
-            </div>
+          {/* 本人確認バッジは X へのリンクなので、投稿を開くボタンの外に置く（ボタンの中にリンクは入れられない） */}
+          <div className="flex min-w-0 items-center gap-1.5">
+            <button type="button" className="min-w-0 truncate text-left text-[0.85rem] font-black" onClick={onOpen}>
+              {item.author}
+            </button>
+            {verification && <XVerifiedBadge verification={verification} className="shrink" />}
+            <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
+          </div>
 
+          <button type="button" className="block w-full text-left" onClick={onOpen}>
             <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
             {item.description && (
               <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
@@ -473,7 +500,10 @@ function PostCard({
             <Avatar url={item.avatar_url} name={item.author} size={40} />
             <div className="min-w-0 flex-1">
               {/* html2canvas は truncate（overflow: hidden）の中の文字を下にずらして切ってしまうので、画像用は省略しない */}
-              <p className="text-[0.85rem] font-black">{item.author}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[0.85rem] font-black">{item.author}</p>
+                {verification && <XVerifiedBadge verification={verification} link={false} />}
+              </div>
               <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
               {item.description && (
                 <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.82rem] font-bold opacity-80">
@@ -547,7 +577,7 @@ function PostCard({
 
 function ShareModal({
   open, onClose, shareName, onShareName,
-  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile, onRequireLogin,
+  shareDesc, onShareDesc, sharing, onSubmit, shareMsg, profile, verification, onOpenProfile, onRequireLogin,
 }: {
   open: boolean
   onClose: () => void
@@ -559,6 +589,8 @@ function ShareModal({
   onSubmit: () => void
   shareMsg: string | null
   profile: { name: string; avatarUrl: string | null } | null
+  verification: XVerification | null
+  onOpenProfile: () => void
   onRequireLogin: () => void
 }) {
   useEffect(() => {
@@ -613,8 +645,16 @@ function ShareModal({
                 <div className="nb nb-flat mt-1 flex items-center gap-2 p-2">
                   <Avatar url={profile.avatarUrl} name={profile.name} size={26} />
                   <span className="min-w-0 flex-1 truncate text-[0.85rem] font-black">{profile.name}</span>
-                  <span className="nb-chip shrink-0" style={{ background: 'var(--color-lime)' }}>ログイン中</span>
+                  {verification
+                    ? <XVerifiedBadge verification={verification} className="shrink" />
+                    : <span className="nb-chip shrink-0" style={{ background: 'var(--color-lime)' }}>ログイン中</span>}
                 </div>
+                {!verification && (
+                  <p className="mt-1 text-[0.7rem] font-bold opacity-60">
+                    <button type="button" className="underline" onClick={onOpenProfile}>プロフィール</button>
+                    から X と連携すると、投稿に本人確認バッジが付きます。
+                  </p>
+                )}
               </div>
             )
             : (
@@ -664,8 +704,10 @@ function CommentsModal({
   const user = useAuthStore((s) => s.user)
   const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = useProfileStore((s) => s.profile)
+  const verificationRevision = useProfileStore((s) => s.verificationRevision)
 
   const [comments, setComments] = useState<KeymapComment[] | null>(null)
+  const [verifications, setVerifications] = useState<Record<string, XVerification>>({})
   const [error, setError] = useState<string | null>(null)
   const [body, setBody] = useState('')
   const [posting, setPosting] = useState(false)
@@ -687,6 +729,15 @@ function CommentsModal({
       .catch((e) => { if (!cancelled) setError(`コメントを読み込めませんでした: ${errorMessage(e)}`) })
     return () => { cancelled = true }
   }, [item])
+
+  useEffect(() => {
+    if (!comments) return
+    let cancelled = false
+    fetchXVerifications(comments.map((c) => c.user_id))
+      .then((v) => { if (!cancelled) setVerifications(v) })
+      .catch(() => { if (!cancelled) setVerifications({}) })
+    return () => { cancelled = true }
+  }, [comments, verificationRevision])
 
   if (!item) return null
 
@@ -764,8 +815,11 @@ function CommentsModal({
             <div key={c.id} className="nb nb-flat flex gap-2 p-2.5">
               <Avatar url={c.avatar_url} name={c.author_name} size={26} />
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5">
+                <p className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-[0.8rem] font-black">{c.author_name}</span>
+                  {verifications[c.user_id] && (
+                    <XVerifiedBadge verification={verifications[c.user_id]} className="shrink" />
+                  )}
                   <span className="shrink-0 text-[0.68rem] font-bold opacity-50">
                     {new Date(c.created_at).toLocaleDateString('ja-JP')}
                   </span>

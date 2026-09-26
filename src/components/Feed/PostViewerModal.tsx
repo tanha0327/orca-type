@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
 import type { SharedKeymap } from '../../lib/feed'
+import type { XVerification } from '../../lib/xVerification'
 import { useFeedStore } from '../../store/feedStore'
 import { useKeymapStore } from '../../store/keymapStore'
 import { IconLoad, IconTrash } from '../Icons'
+import { XVerifiedBadge } from '../XVerifiedBadge'
 import { Avatar, DeviceColors, relativeTime } from './FeedParts'
 import { KeymapDiffView } from './KeymapDiff'
 
@@ -11,9 +13,11 @@ import { KeymapDiffView } from './KeymapDiff'
  * サイド列が見えないスマホでは、投稿をタップするとこれが開く。
  */
 export function PostViewerModal({
-  item, canDelete, onClose, onImport, onDelete,
+  item, verification, canDelete, onClose, onImport, onDelete,
 }: {
   item: SharedKeymap | null
+  /** 投稿者が X で本人確認済みなら、その情報（バッジに出す） */
+  verification: XVerification | null
   canDelete: boolean
   onClose: () => void
   onImport: () => void
@@ -61,7 +65,10 @@ export function PostViewerModal({
         >
           <Avatar url={item.avatar_url} name={item.author} size={34} />
           <div className="min-w-0 flex-1">
-            <p className="nb-eyebrow !opacity-80">{item.author} ・ {relativeTime(item.created_at)}</p>
+            <div className="mb-0.5 flex min-w-0 items-center gap-1.5">
+              <p className="nb-eyebrow min-w-0 truncate !opacity-80">{item.author} ・ {relativeTime(item.created_at)}</p>
+              {verification && <XVerifiedBadge verification={verification} className="shrink" />}
+            </div>
             <h3 className="truncate text-[1.05rem]">{item.name}</h3>
           </div>
           <button type="button" className="nb-btn shrink-0 !py-1.5 text-[0.78rem]" onClick={onClose}>
