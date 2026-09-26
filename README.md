@@ -41,24 +41,20 @@ PiP（Document Picture-in-Picture API）は Chrome / Edge で動きます。
 キャプチャ中はブラウザのショートカットを除くほとんどのキーがページに取り込まれます。
 文字を入力したいときは OFF に戻してください。
 
-## X 連携（本人確認）
+## X のポストで本人確認
 
-ログイン中のアカウントに X（旧 Twitter）のアカウントを紐づけると、
+プロフィール編集の「本人確認（X のポスト）」で、確認コード入りのポストを X にしてその URL を貼ると、
 「みんなの配列」の投稿・コメントに **✓ 𝕏 @ユーザー名** のバッジが付きます。
-バッジは連携した X のプロフィール（数値のユーザー ID 指定）へのリンクなので、
-見た人が本人の投稿かどうかを確かめられます。連携・解除はプロフィール編集から行えます。
+バッジを押すと確認に使ったポストが開くので、見た人が本人の投稿かどうかを確かめられます。
 
-有効にするには Supabase 側で次の設定が必要です。
+有料の X API は使いません。DB の関数 `verify_x_post()` が X の公開 oEmbed（埋め込み用の窓口。鍵・料金不要）で
+ポストを取りに行き、本文に確認コードが入っているかと投稿者の @ユーザー名 を確かめて `x_verifications` に記録します。
+投稿者は X が返す情報から取るので、他人のポストで本人確認することはできません。
 
-1. Authentication > Sign In / Providers で **X / Twitter (OAuth 2.0)** を有効にし、
-   X Developer Portal の Client ID / Client Secret を登録する
-   （X 側の Callback URI は `https://<project-ref>.supabase.co/auth/v1/callback`）
-2. 同じ画面の **Allow manual linking** を ON にする
-3. `supabase/sql/005_x_verification.sql` を SQL Editor で実行する
-
-連携情報は Supabase Auth の `auth.identities` に入り、公開用の `x_verifications` テーブルへは
-DB 関数 `sync_x_verification()` だけが書き込みます（クライアントから任意のユーザー名を書き込んで
-なりすますことはできません）。
+有効にするには `supabase/sql/005_x_verification.sql` を SQL Editor で実行するだけです
+（Supabase・X のどちらにも追加の設定や開発者登録は要りません）。
+oEmbed は X の都合で予告なく変わる・止まる可能性があるので、そのときは確認ができなくなります
+（確認済みのバッジはそのまま残ります）。
 
 ## 構成
 
@@ -66,7 +62,7 @@ DB 関数 `sync_x_verification()` だけが書き込みます（クライアン�
 src/
   data/       layout.ts（49 キーの物理配列）/ keycodes.ts / defaultKeymap.ts / types.ts
   engine/     resolve.ts（純粋な解決関数）/ KeyEngine.ts（状態機械）/ zmk.ts / useEngine.ts
-  lib/        supabase.ts / auth.ts / profile.ts / feed.ts / xVerification.ts（X 連携による本人確認）
+  lib/        supabase.ts / auth.ts / profile.ts / feed.ts / xVerification.ts（X のポストで本人確認）
   store/      keymapStore.ts（Zustand + persist）/ authStore.ts / profileStore.ts
   components/ Board / LayerBar / Inspector / Picker / Combos / Gestures / Export / Hud / PipHost / Feed / Profile / Auth
   styles/     theme.css（デザイントークンと共通クラス）

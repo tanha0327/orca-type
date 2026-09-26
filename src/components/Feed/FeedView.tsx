@@ -5,7 +5,7 @@ import {
   deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, feedEnabled, postComment,
   shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
-import { fetchXVerifications, verificationFromUser, type XVerification } from '../../lib/xVerification'
+import { fetchXVerifications, type XVerification } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
 import { useFeedStore } from '../../store/feedStore'
 import { useKeymapStore } from '../../store/keymapStore'
@@ -47,6 +47,7 @@ export function FeedView() {
   const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = useProfileStore((s) => s.profile)
   const openProfileEditor = useProfileStore((s) => s.openEditor)
+  const myVerification = useProfileStore((s) => s.verification)
   const verificationRevision = useProfileStore((s) => s.verificationRevision)
 
   const sort = useFeedStore((s) => s.sort)
@@ -297,7 +298,7 @@ export function FeedView() {
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
         profile={profile}
-        verification={user ? verificationFromUser(user) : null}
+        verification={myVerification}
         onOpenProfile={() => { setShareOpen(false); openProfileEditor() }}
         onRequireLogin={() => { setShareOpen(false); openLoginModal() }}
       />
@@ -652,7 +653,7 @@ function ShareModal({
                 {!verification && (
                   <p className="mt-1 text-[0.7rem] font-bold opacity-60">
                     <button type="button" className="underline" onClick={onOpenProfile}>プロフィール</button>
-                    から X と連携すると、投稿に本人確認バッジが付きます。
+                    から X のポストで本人確認すると、投稿に本人確認バッジが付きます。
                   </p>
                 )}
               </div>
