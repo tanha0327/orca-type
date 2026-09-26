@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    Iris（Keebio）— 数字段つき 4 行 6 列 + 親指キーの 56 キー分割

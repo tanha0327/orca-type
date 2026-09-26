@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    Preonic（OLKB）— Planck に数字段を足した 5 行 12 列の格子配列

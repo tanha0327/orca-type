@@ -1,0 +1,15 @@
+{
+  // Vercel で動く middleware.ts と api/ の型チェック。
+  // Vercel はこれらを束ねずに Node / Edge の ES モジュールとしてそのまま動かすので、
+  // 相対 import に拡張子（.js）が無いと、ビルドは通っても実行時に読み込めず 500 になる。
+  // nodenext で見ると拡張子の抜けがエラーになるので、ビルドの時点で止められる。
+  // ここから読み込まれる src/ のファイルも同じ決まりで見られる
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": false,
+    "types": []
+  },
+  "include": ["middleware.ts", "api", "server"]
+}

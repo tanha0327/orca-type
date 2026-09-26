@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    Moonlander Mark I（ZSA）— ErgoDox の流れをくむ 72 キー分割。親指に赤い大きなキー

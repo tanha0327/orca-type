@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    Planck（OLKB）— 4 行 12 列の格子配列（オーソリニア）の 40% キーボード

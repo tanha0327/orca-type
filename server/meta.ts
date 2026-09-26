@@ -1,5 +1,5 @@
-import { keyboardOf } from '../src/keyboards/registry'
-import type { SharedKeymapRow } from './sharedKeymap'
+import { keyboardOf } from '../src/keyboards/registry.js'
+import type { SharedKeymapRow } from './sharedKeymap.js'
 
 /**
  * カード画像のデザインを変えたら 1 つ上げる。

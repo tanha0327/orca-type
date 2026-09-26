@@ -1,8 +1,8 @@
-import { getKeycode } from '../data/keycodes'
-import { isTrans, type Binding, type Keymap, type Layer } from '../data/types'
-import { bindableSensors, keyboardOf } from '../keyboards/registry'
-import { SENSOR_SLOTS, type KeyId } from '../keyboards/types'
-import { modSymbolOf } from './resolve'
+import { getKeycode } from '../data/keycodes.js'
+import { isTrans, type Binding, type Keymap, type Layer } from '../data/types.js'
+import { bindableSensors, keyboardOf } from '../keyboards/registry.js'
+import { SENSOR_SLOTS, type KeyId } from '../keyboards/types.js'
+import { modSymbolOf } from './resolve.js'
 
 /* ================================================================
    みんなの配列の「自動フォルダ分け」と「自分に近い配列」のための解析。

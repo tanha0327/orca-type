@@ -1,8 +1,8 @@
 import { ImageResponse } from '@vercel/og'
 import type { ReactElement } from 'react'
-import { loadCardFonts } from '../server/fonts'
-import { CARD_HEIGHT, CARD_WIDTH, LOGO_TEXT, buildCard, collectText } from '../server/ogCard'
-import { fetchSharedKeymap } from '../server/sharedKeymap'
+import { loadCardFonts } from '../server/fonts.js'
+import { CARD_HEIGHT, CARD_WIDTH, LOGO_TEXT, buildCard, collectText } from '../server/ogCard.js'
+import { fetchSharedKeymap } from '../server/sharedKeymap.js'
 
 /**
  * GET /api/og?k=<投稿ID> — 共有された配列のカード画像（OGP の og:image）。

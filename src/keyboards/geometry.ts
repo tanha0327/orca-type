@@ -1,4 +1,4 @@
-import type { KeyboardDefinition, KeyDef } from './types'
+import type { KeyboardDefinition, KeyDef } from './types.js'
 
 export interface Bounds {
   minX: number

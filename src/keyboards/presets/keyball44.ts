@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    Keyball44（Yowkees）— 44 キーの分割に 34mm トラックボールを載せた、日本発のキーボード

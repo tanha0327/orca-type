@@ -1,4 +1,4 @@
-import { preset } from './preset'
+import { preset } from './preset.js'
 
 /* ================================================================
    ErgoDox EZ（ZSA）— 分割エルゴノミクスキーボードの草分け。親指クラスタは実物どおり傾けてある

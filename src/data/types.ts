@@ -1,7 +1,7 @@
-import type { Keycode } from './keycodes'
+import type { Keycode } from './keycodes.js'
 import type {
   KeyboardDefinition, KeyId, SensorBindings, SensorId,
-} from '../keyboards/types'
+} from '../keyboards/types.js'
 
 /** ホールドタップの解決方針（ZMK の flavor に対応） */
 export type Flavor = 'hold-preferred' | 'balanced' | 'tap-preferred'

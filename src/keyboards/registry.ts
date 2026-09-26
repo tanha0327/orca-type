@@ -1,26 +1,26 @@
-import { CODE_TO_KEYCODE, MAX_LAYERS, type Keycode } from '../data/keycodes'
+import { CODE_TO_KEYCODE, MAX_LAYERS, type Keycode } from '../data/keycodes.js'
 import {
   DEFAULT_ESC_COLOR, LAYER_COLORS, NONE,
   type Binding, type Keymap, type Layer, type LayerColor, type TrackballConfig, type KeymapSettings,
-} from '../data/types'
-import { ANSI_60 } from './ansi60'
-import { CORNE } from './corne'
-import { ORCA_ECHO } from './orcaEcho'
-import { ERGODOX_EZ } from './presets/ergodox'
-import { IRIS } from './presets/iris'
-import { KEYBALL44 } from './presets/keyball44'
-import { KYRIA } from './presets/kyria'
-import { LILY58 } from './presets/lily58'
-import { MOONLANDER } from './presets/moonlander'
-import { PLANCK } from './presets/planck'
-import { PREONIC } from './presets/preonic'
-import { SOFLE } from './presets/sofle'
-import { FERRIS_SWEEP } from './presets/sweep'
+} from '../data/types.js'
+import { ANSI_60 } from './ansi60.js'
+import { CORNE } from './corne.js'
+import { ORCA_ECHO } from './orcaEcho.js'
+import { ERGODOX_EZ } from './presets/ergodox.js'
+import { IRIS } from './presets/iris.js'
+import { KEYBALL44 } from './presets/keyball44.js'
+import { KYRIA } from './presets/kyria.js'
+import { LILY58 } from './presets/lily58.js'
+import { MOONLANDER } from './presets/moonlander.js'
+import { PLANCK } from './presets/planck.js'
+import { PREONIC } from './presets/preonic.js'
+import { SOFLE } from './presets/sofle.js'
+import { FERRIS_SWEEP } from './presets/sweep.js'
 import {
   SENSOR_SLOTS,
   type KeyboardDefinition, type KeyDef, type KeyId, type LayerSeed, type SensorBindings,
   type SensorDef, type SensorId,
-} from './types'
+} from './types.js'
 
 /* ================================================================
    組み込みのキーボード

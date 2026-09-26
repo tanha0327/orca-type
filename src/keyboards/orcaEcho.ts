@@ -1,10 +1,10 @@
 import {
   bind, NONE, TRANS,
   type Binding,
-} from '../data/types'
+} from '../data/types.js'
 import type {
   Half, KeyboardDefinition, KeyDef, KeyId, LayerSeed, SensorBindings, SensorDef,
-} from './types'
+} from './types.js'
 
 /* ================================================================
    Keychron Orca echo
