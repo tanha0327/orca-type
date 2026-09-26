@@ -1,20 +1,28 @@
 import { useState } from 'react'
+import type { KeymapOs } from '../../data/types'
 import { FEED_CATEGORIES, type CategoryId } from '../../engine/analyze'
 import { errorMessage } from '../../lib/errors'
 import { FOLDER_NAME_MAX } from '../../lib/folders'
+import { OS_TAGS } from '../../lib/os'
 import type { FeedFolder } from '../../store/feedStore'
 import { useFolderStore } from '../../store/folderStore'
 
 /**
  * タイムラインの上に置くフォルダの切り替え。
- * カテゴリ（配列の特徴から自動で振り分ける全員共通のフォルダ）と、自分で作るマイフォルダ。
+ * OS のタグ（Mac / Windows）での絞り込みと、カテゴリ（配列の特徴から自動で振り分ける全員共通のフォルダ）と、
+ * 自分で作るマイフォルダ。OS の絞り込みはどのフォルダを見ていても重ねてかかる。
  * 並び順はサイド列（スマホではタイムラインの上）の並び替えで選ぶ
  */
 export function FolderBar({
-  folder, onFolder, allCount, categoryCounts, loggedIn, onRequireLogin, onError,
+  folder, onFolder, osFilter, onOsFilter, osCounts, allCount, categoryCounts, loggedIn, onRequireLogin, onError,
 }: {
   folder: FeedFolder
   onFolder: (f: FeedFolder) => void
+  osFilter: KeymapOs | 'all'
+  onOsFilter: (os: KeymapOs | 'all') => void
+  /** OS のタグごとの投稿数（OS で絞り込む前の数） */
+  osCounts: { all: number } & Partial<Record<KeymapOs, number>>
+  /** ここから下の件数は、OS で絞り込んだあとの数 */
   allCount: number
   categoryCounts: Partial<Record<CategoryId, number>>
   loggedIn: boolean
@@ -77,6 +85,26 @@ export function FolderBar({
 
   return (
     <div className="space-y-2.5 border-b-[3px] border-[var(--color-ink)] p-3">
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="OS で絞り込む">
+        <span className="nb-eyebrow mr-0.5">OS</span>
+        <FolderChip
+          label="すべて"
+          count={osCounts.all}
+          active={osFilter === 'all'}
+          onClick={() => onOsFilter('all')}
+        />
+        {OS_TAGS.map((t) => (
+          <FolderChip
+            key={t.id}
+            label={`${t.emoji} ${t.label}`}
+            title={t.help}
+            count={osCounts[t.id] ?? 0}
+            active={osFilter === t.id}
+            onClick={() => onOsFilter(t.id)}
+          />
+        ))}
+      </div>
+
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="カテゴリで絞り込む">
         <span className="nb-eyebrow mr-0.5">フォルダ</span>
         <FolderChip

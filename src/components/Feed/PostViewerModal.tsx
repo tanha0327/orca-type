@@ -5,7 +5,7 @@ import { useFeedStore } from '../../store/feedStore'
 import { useKeymapStore } from '../../store/keymapStore'
 import { IconLoad, IconTrash } from '../Icons'
 import { XVerifiedBadge } from '../XVerifiedBadge'
-import { Avatar, DeviceColors, relativeTime } from './FeedParts'
+import { Avatar, DeviceColors, OsChip, relativeTime } from './FeedParts'
 import { KeymapDiffView } from './KeymapDiff'
 
 /**
@@ -82,7 +82,8 @@ export function PostViewerModal({
               {item.description}
             </p>
           )}
-          <div className="mb-3">
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            <OsChip keymap={item.keymap} />
             <DeviceColors keymap={item.keymap} />
           </div>
 

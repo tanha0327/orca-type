@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { LAYER_COLOR_HEX, type Keymap } from '../../data/types'
+import { LAYER_COLOR_HEX, type Keymap, type KeymapOs } from '../../data/types'
 import {
   classifyKeymap, FEED_CATEGORIES, getCategory, keymapSimilarity, type CategoryId,
 } from '../../engine/analyze'
@@ -8,6 +8,7 @@ import {
   deleteComment, deleteKeymap, fetchComments, fetchFeed, fetchFeedExtras, fetchKeymapsByIds, feedEnabled,
   postComment, shareKeymap, toggleLike, type FeedExtras, type KeymapComment, type SharedKeymap,
 } from '../../lib/feed'
+import { detectOs, getOsTag, OS_TAGS, osOf, withOs } from '../../lib/os'
 import { PUBLIC_SITE_URL } from '../../lib/site'
 import { fetchXVerifications, type XVerification } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
@@ -21,7 +22,7 @@ import {
 } from '../Icons'
 import { Ring } from '../Ring'
 import { XVerifiedBadge } from '../XVerifiedBadge'
-import { Avatar, DeviceColors, importSharedKeymap, relativeTime } from './FeedParts'
+import { Avatar, DeviceColors, importSharedKeymap, OsChip, relativeTime } from './FeedParts'
 import { SortBar, sortOption } from './FeedSort'
 import { FolderBar } from './FolderBar'
 import { PostDiff } from './KeymapDiff'
@@ -84,6 +85,8 @@ export function FeedView() {
   const folderSort = useFeedStore((s) => s.folderSort)
   const folder = useFeedStore((s) => s.folder)
   const setFolder = useFeedStore((s) => s.setFolder)
+  const osFilter = useFeedStore((s) => s.osFilter)
+  const setOsFilter = useFeedStore((s) => s.setOsFilter)
 
   const folders = useFolderStore((s) => s.folders)
   const foldersLoaded = useFolderStore((s) => s.loaded)
@@ -103,6 +106,8 @@ export function FeedView() {
   const [shareDesc, setShareDesc] = useState('')
   /** null のあいだは自動判定のカテゴリで投稿する */
   const [shareCategory, setShareCategory] = useState<CategoryId | null>(null)
+  /** 投稿に付ける OS のタグ。null なら付けない */
+  const [shareOs, setShareOs] = useState<KeymapOs | null>(null)
   const [sharing, setSharing] = useState(false)
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [commentItem, setCommentItem] = useState<SharedKeymap | null>(null)
@@ -214,14 +219,31 @@ export function FeedView() {
     return map
   }, [byId, keymap])
 
+  const matchesOs = useCallback(
+    (it: SharedKeymap) => osFilter === 'all' || osOf(it.keymap) === osFilter,
+    [osFilter],
+  )
+
+  const osCounts = useMemo(() => {
+    const counts: { all: number } & Partial<Record<KeymapOs, number>> = { all: items?.length ?? 0 }
+    for (const it of items ?? []) {
+      const os = osOf(it.keymap)
+      if (os) counts[os] = (counts[os] ?? 0) + 1
+    }
+    return counts
+  }, [items])
+
+  /** タイムラインのうち、OS の絞り込みに合う投稿 */
+  const osItems = useMemo(() => items?.filter(matchesOs) ?? null, [items, matchesOs])
+
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<CategoryId, number>> = {}
-    for (const it of items ?? []) {
+    for (const it of osItems ?? []) {
       const c = categoryOf.get(it.id) ?? 'standard'
       counts[c] = (counts[c] ?? 0) + 1
     }
     return counts
-  }, [items, categoryOf])
+  }, [osItems, categoryOf])
 
   const likeCountOf = (id: string) => extras.likeCounts[id] ?? 0
   const isBuzz = (id: string) => likeCountOf(id) >= BUZZ_LIKE_THRESHOLD
@@ -233,12 +255,12 @@ export function FeedView() {
    * タイムライン（すべて・カテゴリ）はサーバーが並べた順をそのまま使い、近い順だけここで並べる
    */
   const visible = useMemo(() => {
-    if (!items) return null
+    if (!items || !osItems) return null
     if (folder.kind === 'mine') {
       const list = [...(itemsByFolder[folder.folderId] ?? [])]
         .sort((a, b) => a.position - b.position)
         .map((it) => byId.get(it.keymapId))
-        .filter((it): it is SharedKeymap => !!it)
+        .filter((it): it is SharedKeymap => !!it && matchesOs(it))
       switch (folderSort) {
         case 'manual': return list
         case 'new': return [...list].sort(byNewest)
@@ -247,12 +269,12 @@ export function FeedView() {
         case 'similar': return [...list].sort((a, b) => (similarityOf.get(b.id) ?? 0) - (similarityOf.get(a.id) ?? 0))
       }
     }
-    const list = folder.kind === 'category' ? items.filter((it) => categoryOf.get(it.id) === folder.id) : items
+    const list = folder.kind === 'category' ? osItems.filter((it) => categoryOf.get(it.id) === folder.id) : osItems
     if (sort === 'similar') {
       return [...list].sort((a, b) => (similarityOf.get(b.id) ?? 0) - (similarityOf.get(a.id) ?? 0) || byNewest(a, b))
     }
     return list
-  }, [items, folder, sort, folderSort, itemsByFolder, byId, categoryOf, similarityOf, extras.likeCounts])
+  }, [items, osItems, matchesOs, folder, sort, folderSort, itemsByFolder, byId, categoryOf, similarityOf, extras.likeCounts])
 
   // 新しい順のときだけ、バズった投稿を「話題の配列」として先にまとめる
   const buzzSection = activeSort === 'new' ? (visible ?? []).filter((it) => isBuzz(it.id)) : []
@@ -280,6 +302,8 @@ export function FeedView() {
   const openShare = () => {
     if (!user) { openLoginModal(); return }
     setShareCategory(null)
+    // 今使っているパソコンの OS を初期値にする（スマホなどで分からなければ、読み込んだ配列のタグ）
+    setShareOs(detectOs() ?? osOf(keymap))
     setShareOpen(true)
   }
 
@@ -291,7 +315,7 @@ export function FeedView() {
         name: shareName.trim(),
         author: profile.name,
         description: shareDesc.trim(),
-        keymap,
+        keymap: withOs(keymap, shareOs),
         userId: user.id,
         avatarUrl: profile.avatarUrl,
         category: shareCategory ?? autoCategory,
@@ -398,7 +422,8 @@ export function FeedView() {
       isNew={Date.now() - Date.parse(item.created_at) < NEW_BADGE_MS}
       isBuzz={isBuzz(item.id)}
       saved={savedIds.has(item.id)}
-      reorder={inFolder && folderSort === 'manual'
+      // OS で絞り込んでいると隠れた投稿と入れ替わって見た目が動かないことがあるので、手動の並べ替えは絞り込みなしのときだけ
+      reorder={inFolder && folderSort === 'manual' && osFilter === 'all'
         ? {
           canUp: index > 0,
           canDown: index < list.length - 1,
@@ -465,7 +490,10 @@ export function FeedView() {
         <FolderBar
           folder={folder}
           onFolder={setFolder}
-          allCount={items.length}
+          osFilter={osFilter}
+          onOsFilter={setOsFilter}
+          osCounts={osCounts}
+          allCount={osItems?.length ?? 0}
           categoryCounts={categoryCounts}
           loggedIn={!!user}
           onRequireLogin={openLoginModal}
@@ -495,9 +523,11 @@ export function FeedView() {
       )}
       {items !== null && items.length > 0 && visible?.length === 0 && (
         <p className="py-8 text-center text-[0.85rem] font-bold opacity-60">
-          {folder.kind === 'mine'
-            ? 'このフォルダはまだ空です。投稿のフォルダのボタンから追加できます。'
-            : 'このフォルダには、いま読み込んでいる投稿の中に当てはまるものがありません。'}
+          {osFilter !== 'all'
+            ? `${getOsTag(osFilter).label} のタグが付いた投稿は、このフォルダにはまだありません。`
+            : folder.kind === 'mine'
+              ? 'このフォルダはまだ空です。投稿のフォルダのボタンから追加できます。'
+              : 'このフォルダには、いま読み込んでいる投稿の中に当てはまるものがありません。'}
         </p>
       )}
 
@@ -511,6 +541,8 @@ export function FeedView() {
         autoCategory={autoCategory}
         category={shareCategory}
         onCategory={setShareCategory}
+        os={shareOs}
+        onOs={setShareOs}
         sharing={sharing}
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
@@ -783,6 +815,7 @@ function PostCard({
           </button>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <OsChip keymap={item.keymap} />
             <CategoryChip id={category} />
             <SimilarityChip value={similarity} />
           </div>
@@ -821,7 +854,8 @@ function PostCard({
                   {item.description}
                 </p>
               )}
-              <div className="mt-1.5">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <OsChip keymap={item.keymap} />
                 <DeviceColors keymap={item.keymap} />
               </div>
             </div>
@@ -895,7 +929,7 @@ function PostCard({
 }
 
 function ShareModal({
-  open, onClose, shareName, onShareName, shareDesc, onShareDesc, autoCategory, category, onCategory,
+  open, onClose, shareName, onShareName, shareDesc, onShareDesc, autoCategory, category, onCategory, os, onOs,
   sharing, onSubmit, shareMsg, profile, verification, onOpenProfile, onRequireLogin,
 }: {
   open: boolean
@@ -909,6 +943,9 @@ function ShareModal({
   /** 投稿者が選び直したカテゴリ。null なら自動判定のまま */
   category: CategoryId | null
   onCategory: (c: CategoryId | null) => void
+  /** 投稿に付ける OS のタグ。null なら付けない */
+  os: KeymapOs | null
+  onOs: (os: KeymapOs | null) => void
   sharing: boolean
   onSubmit: () => void
   shareMsg: string | null
@@ -1024,6 +1061,36 @@ function ShareModal({
                   >
                     {c.emoji} {c.label}
                     {c.id === autoCategory && <span className="opacity-60">（自動）</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div>
+            <span className="nb-eyebrow">OS</span>
+            <p className="mt-0.5 text-[0.7rem] font-bold opacity-60">
+              どの OS で使っている配列か。みんなの配列で OS ごとに絞り込めるようになります。
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="投稿の OS">
+              {[...OS_TAGS.map((t) => ({ id: t.id as KeymapOs | null, label: `${t.emoji} ${t.label}`, help: t.help })),
+                { id: null, label: '指定しない', help: 'OS のタグを付けずに投稿する' }].map((o) => {
+                const selected = os === o.id
+                return (
+                  <button
+                    key={o.id ?? 'none'}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    title={o.help}
+                    className="nb-chip"
+                    style={{
+                      background: selected ? 'var(--color-lime)' : 'var(--color-paper)',
+                      opacity: selected ? 1 : 0.6,
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => onOs(o.id)}
+                  >
+                    {o.label}
                   </button>
                 )
               })}
