@@ -23,6 +23,7 @@ import {
   IconChevronDown, IconChevronUp, IconComment, IconFolder, IconHeart, IconImageSave, IconLoad, IconTrash, IconX,
 } from '../Icons'
 import { Ring } from '../Ring'
+import { SwitchPicker } from '../Switches/SwitchPicker'
 import { XVerifiedBadge } from '../XVerifiedBadge'
 import { Avatar, DeviceColors, importSharedKeymap, OsChip, relativeTime } from './FeedParts'
 import { SortBar, sortOption } from './FeedSort'
@@ -1009,7 +1010,7 @@ function ShareModal({
         role="dialog"
         aria-modal="true"
         aria-label="今の配列を投稿する"
-        className="nb nb-lg w-full max-w-md overflow-hidden"
+        className="nb nb-lg flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden"
       >
         <header
           className="flex items-center gap-2 border-b-[3px] border-[var(--color-ink)] p-3"
@@ -1021,7 +1022,8 @@ function ShareModal({
           </button>
         </header>
 
-        <div className="space-y-3 p-3">
+        {/* 項目が増えてスマホの画面に収まらないことがあるので、中身だけスクロールさせて投稿ボタンは下に固定する */}
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
           <label className="block">
             <span className="nb-eyebrow">配列名</span>
             <input
@@ -1130,6 +1132,10 @@ function ShareModal({
               })}
             </div>
           </div>
+          <SwitchPicker />
+        </div>
+
+        <div className="space-y-2 border-t-[3px] border-[var(--color-ink)] p-3">
           {shareMsg && (
             <p className="nb-chip" style={{ background: 'var(--color-lime)' }}>{shareMsg}</p>
           )}

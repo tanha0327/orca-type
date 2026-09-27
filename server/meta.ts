@@ -6,7 +6,7 @@ import type { SharedKeymapRow } from './sharedKeymap.js'
  * /api/og の画像は 1 年キャッシュされ、X なども og:image の URL ごとに覚えているので、
  * URL を変えないと古いデザインのまま出続ける。
  */
-export const OG_CARD_VERSION = 1
+export const OG_CARD_VERSION = 2
 
 function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

@@ -1,8 +1,9 @@
 import { MAX_LAYERS, type Keycode } from './keycodes.js'
+import { samePick } from './switches.js'
 import {
-  isKeymapOs, isValidKeymapShape, LAYER_COLORS, TRACKBALL_COLORS, ESC_COLORS,
+  isKeymapOs, isValidKeymapShape, LAYER_COLORS, MAX_SWITCH_PICKS, SWITCH_NAME_MAX, TRACKBALL_COLORS, ESC_COLORS,
   type Binding, type Combo, type Flavor, type Keymap, type KeymapSettings, type Layer,
-  type LayerColor, type TrackballConfig,
+  type LayerColor, type SwitchPick, type TrackballConfig,
 } from './types.js'
 import {
   DEFAULT_KEYBOARD, DEFAULT_SETTINGS, DEFAULT_TRACKBALL, defaultLayerColor, defaultLayerName,
@@ -267,9 +268,31 @@ function normalizeTrackball(v: unknown): TrackballConfig {
   }
 }
 
+/** カタログのスイッチ ID（data/switches.ts）の形 */
+const SWITCH_ID_RE = /^[a-z0-9-]{1,48}$/
+
+/**
+ * 配列に添えられたキースイッチ。名前の無いもの・重複・上限を超えた分は落とす。
+ * カタログに無い ID でも形が正しければ残す（新しい版のカタログで付けられた投稿を古い画面で見ても名前は出る）
+ */
+function sanitizeSwitchPicks(v: unknown): SwitchPick[] {
+  if (!Array.isArray(v)) return []
+  const out: SwitchPick[] = []
+  for (const raw of v) {
+    if (out.length >= MAX_SWITCH_PICKS) break
+    if (!isObj(raw)) continue
+    const name = str(raw.name, SWITCH_NAME_MAX)?.replace(/\s+/g, ' ').trim()
+    if (!name) continue
+    const pick: SwitchPick = typeof raw.id === 'string' && SWITCH_ID_RE.test(raw.id) ? { id: raw.id, name } : { name }
+    if (!out.some((p) => samePick(p, pick))) out.push(pick)
+  }
+  return out
+}
+
 function normalizeSettings(v: unknown): KeymapSettings {
   const s = isObj(v) ? v : {}
   const d = DEFAULT_SETTINGS
+  const switches = sanitizeSwitchPicks(s.switches)
   return {
     tappingTermMs: isNum(s.tappingTermMs, 1, 5000) ? s.tappingTermMs : d.tappingTermMs,
     flavor: FLAVORS.includes(s.flavor as Flavor) ? s.flavor as Flavor : d.flavor,
@@ -279,6 +302,8 @@ function normalizeSettings(v: unknown): KeymapSettings {
       : d.escColor,
     // みんなの配列の OS タグ。指定しないときは持たない
     ...(isKeymapOs(s.os) ? { os: s.os } : {}),
+    // 使っているキースイッチ。無ければ持たない
+    ...(switches.length > 0 ? { switches } : {}),
   }
 }
 

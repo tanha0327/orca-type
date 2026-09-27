@@ -170,6 +170,8 @@ export interface KeymapSettings {
   escColor?: EscColor
   /** みんなの配列に出す OS のタグ（投稿時に選ぶ）。古い保存データや「指定しない」では無い */
   os?: KeymapOs
+  /** 使っているキースイッチ（投稿時に選ぶ・キースイッチの画面で「使っている」にしたもの）。無ければ持たない */
+  switches?: SwitchPick[]
 }
 
 /**
@@ -183,6 +185,22 @@ export const KEYMAP_OSES: KeymapOs[] = ['mac', 'windows']
 export function isKeymapOs(x: unknown): x is KeymapOs {
   return KEYMAP_OSES.includes(x as KeymapOs)
 }
+
+/**
+ * 配列に添えるキースイッチ 1 つ。カタログ（data/switches.ts）にあるものは id も持つ。
+ * 名前も一緒に持っておくので、カタログに無いスイッチ（手で入力したもの）や、
+ * あとでカタログから消えたスイッチでも名前は出せる
+ */
+export interface SwitchPick {
+  id?: string
+  name: string
+}
+
+/** 1 つの配列に添えられるキースイッチの数（アルファキーと親指キーで違う、などを想定） */
+export const MAX_SWITCH_PICKS = 3
+
+/** 手で入力するスイッチ名の長さの上限 */
+export const SWITCH_NAME_MAX = 40
 
 export interface Keymap {
   /** 2: キーボード定義を参照する形（センサーの割当が sensors にまとまった） */
