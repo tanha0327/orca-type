@@ -1,30 +1,10 @@
 import { useEffect } from 'react'
-import { create } from 'zustand'
 import { useAuthStore } from '../../store/authStore'
+import { useAuthorCardStore } from '../../store/authorCardStore'
 import { useProfileStore } from '../../store/profileStore'
 import { useProfileTags, useProfileTagsStore } from '../../store/profileTagsStore'
 import { Ring } from '../Ring'
 import { OwnedKeyboardList } from './ProfileTagParts'
-
-/** カードに出す投稿者。名前とアイコンは、投稿・コメントに記録されているものをそのまま使う */
-export interface AuthorSummary {
-  userId: string
-  name: string
-  avatarUrl: string | null
-}
-
-interface AuthorCardState {
-  author: AuthorSummary | null
-  open: (author: AuthorSummary) => void
-  close: () => void
-}
-
-/** みんなの配列の投稿・コメントのどこからでも、同じカードを開けるようにする */
-export const useAuthorCardStore = create<AuthorCardState>((set) => ({
-  author: null,
-  open: (author) => set({ author }),
-  close: () => set({ author: null }),
-}))
 
 /**
  * 投稿者のプロフィールカード。みんなの配列でアイコンを押すと開き、

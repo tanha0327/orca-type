@@ -14,6 +14,7 @@ import { keymapIdFromUrl, keymapPermalink, setUrlKeymapId } from '../../lib/perm
 import { PUBLIC_SITE_URL } from '../../lib/site'
 import { fetchXVerifications, type XVerification } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
+import { useAuthorCardStore } from '../../store/authorCardStore'
 import { useBeginnerRecStore } from '../../store/beginnerRecStore'
 import { useFeedStore } from '../../store/feedStore'
 import { useFolderStore } from '../../store/folderStore'
@@ -24,7 +25,6 @@ import { KeyboardView } from '../Board/KeyboardView'
 import {
   IconChevronDown, IconChevronUp, IconComment, IconFolder, IconHeart, IconImageSave, IconLoad, IconTrash, IconX,
 } from '../Icons'
-import { useAuthorCardStore } from '../Profile/AuthorCardModal'
 import { BeginnerBadge } from '../Profile/ProfileTagParts'
 import { Ring } from '../Ring'
 import { SwitchPicker } from '../Switches/SwitchPicker'

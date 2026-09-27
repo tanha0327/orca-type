@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { MAX_LAYERS, type Keycode } from '../data/keycodes'
 import { normalizeKeymap } from '../data/normalize'
-import { withSwitches } from '../data/switches'
+import { withSwitches } from '../data/switchPicks'
 import { keymapIdFromUrl } from '../lib/permalink'
 import { SWITCH_SOUND_PROFILES, type SwitchSoundProfile } from '../lib/switchSound'
 import {

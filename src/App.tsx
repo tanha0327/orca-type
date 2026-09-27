@@ -1,20 +1,13 @@
-import { useEffect, useState } from 'react'
+import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { AppLogo } from './components/AppLogo'
-import { LoginModal } from './components/Auth/LoginModal'
-import { KeyboardPicker } from './components/Board/KeyboardPicker'
 import { KeyboardView } from './components/Board/KeyboardView'
 import { ComboList } from './components/Combos/ComboList'
-import { ExportView } from './components/Export/ExportView'
 import { FeedSide } from './components/Feed/FeedSide'
-import { FeedView } from './components/Feed/FeedView'
 import { Hud } from './components/Hud/Hud'
 import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
-import { AuthorCardModal } from './components/Profile/AuthorCardModal'
-import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
-import { SwitchDetailModal } from './components/Switches/SwitchDetailModal'
-import { SwitchFinderView } from './components/Switches/SwitchFinderView'
+import { Ring } from './components/Ring'
 import {
   BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_LABEL, ESC_COLORS,
   TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS,
@@ -27,9 +20,39 @@ import { hasBall, keyboardOf } from './keyboards/registry'
 import { authEnabled, profileFromUser, signOut } from './lib/auth'
 import { feedEnabled } from './lib/feed'
 import { useAuthStore } from './store/authStore'
+import { useAuthorCardStore } from './store/authorCardStore'
 import { useFolderStore } from './store/folderStore'
 import { useKeymapStore, type ViewId } from './store/keymapStore'
 import { useProfileStore } from './store/profileStore'
+import { useSwitchStore } from './store/switchStore'
+
+/*
+ * 起動したときに要らない画面とシートは、開いたときに読み込む（最初に読み込む JavaScript を小さくして、編集画面を早く出すため）。
+ * 画面はタブにカーソルを乗せたときに読み込み始めるので、押したときにはたいてい読み込み終わっている
+ */
+const loadFeedView = () => import('./components/Feed/FeedView')
+const loadSwitchFinderView = () => import('./components/Switches/SwitchFinderView')
+const loadExportView = () => import('./components/Export/ExportView')
+
+const FeedView = lazy(() => loadFeedView().then((m) => ({ default: m.FeedView })))
+const SwitchFinderView = lazy(() => loadSwitchFinderView().then((m) => ({ default: m.SwitchFinderView })))
+const ExportView = lazy(() => loadExportView().then((m) => ({ default: m.ExportView })))
+const LoginModal = lazy(() => import('./components/Auth/LoginModal').then((m) => ({ default: m.LoginModal })))
+const ProfileSetupModal = lazy(() => import('./components/Profile/ProfileSetupModal').then((m) => ({ default: m.ProfileSetupModal })))
+const KeyboardPicker = lazy(() => import('./components/Board/KeyboardPicker').then((m) => ({ default: m.KeyboardPicker })))
+const AuthorCardModal = lazy(() => import('./components/Profile/AuthorCardModal').then((m) => ({ default: m.AuthorCardModal })))
+const SwitchDetailModal = lazy(() => import('./components/Switches/SwitchDetailModal').then((m) => ({ default: m.SwitchDetailModal })))
+
+const VIEW_LOADERS: Partial<Record<ViewId, () => Promise<unknown>>> = {
+  feed: loadFeedView,
+  switches: loadSwitchFinderView,
+  export: loadExportView,
+}
+
+/** その画面を先に読み込み始める。失敗しても、開いたときにもう一度読み込むので何もしない */
+function preloadView(id: ViewId) {
+  VIEW_LOADERS[id]?.().catch(() => {})
+}
 
 const BODY_COLORS: BodyColor[] = ['white', 'black']
 
@@ -63,6 +86,10 @@ export function App() {
   const loadVerification = useProfileStore((s) => s.loadVerification)
   const loadFolders = useFolderStore((s) => s.load)
   const resetFolders = useFolderStore((s) => s.reset)
+  const loginOpen = useAuthStore((s) => s.loginModalOpen)
+  const profileEditorOpen = useProfileStore((s) => s.editorOpen)
+  const authorCardOpen = useAuthorCardStore((s) => s.author !== null)
+  const switchDetailOpen = useSwitchStore((s) => s.detail !== null)
 
   const pip = usePipWindow({ width: 380, height: 620 })
 
@@ -253,9 +280,13 @@ export function App() {
               <ComboList />
             </>
           )}
-          {view === 'feed' && <FeedView />}
-          {view === 'switches' && <SwitchFinderView />}
-          {view === 'export' && <ExportView />}
+          <LoadErrorBoundary key={view} fallback={<ViewLoadError />}>
+            <Suspense fallback={<ViewLoading />}>
+              {view === 'feed' && <FeedView />}
+              {view === 'switches' && <SwitchFinderView />}
+              {view === 'export' && <ExportView />}
+            </Suspense>
+          </LoadErrorBoundary>
         </div>
 
         {/* みんなの配列では、HUD の場所に「あなたの配列」（比べる基準）、レイヤー一覧の場所に「並び替え」を出す。
@@ -282,11 +313,11 @@ export function App() {
         <Hud variant="pip" />
       </PipPortal>
 
-      <LoginModal />
-      <ProfileSetupModal />
-      <KeyboardPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
-      <AuthorCardModal />
-      <SwitchDetailModal />
+      <LazySheet open={loginOpen}><LoginModal /></LazySheet>
+      <LazySheet open={profileEditorOpen}><ProfileSetupModal /></LazySheet>
+      <LazySheet open={pickerOpen}><KeyboardPicker open={pickerOpen} onClose={() => setPickerOpen(false)} /></LazySheet>
+      <LazySheet open={authorCardOpen}><AuthorCardModal /></LazySheet>
+      <LazySheet open={switchDetailOpen}><SwitchDetailModal /></LazySheet>
 
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
@@ -330,6 +361,8 @@ function Header({
               type="button"
               className="nb-btn !py-1.5 text-[0.8rem] max-sm:!px-2.5"
               data-active={view === v.id}
+              onPointerEnter={() => preloadView(v.id)}
+              onFocus={() => preloadView(v.id)}
               onClick={() => onView(v.id)}
             >
               {v.label}
@@ -431,6 +464,62 @@ function AuthButton() {
         ログアウト
       </button>
     </div>
+  )
+}
+
+/** 開いた画面（みんなの配列・キースイッチ・書き出し）を読み込んでいるあいだの表示 */
+function ViewLoading() {
+  return (
+    <section className="nb nb-lg">
+      <p className="flex items-center justify-center gap-2 py-8 text-[0.85rem] font-bold opacity-60">
+        <Ring size={15} />
+        読み込み中…
+      </p>
+    </section>
+  )
+}
+
+/** 開いた画面を読み込めなかったとき（通信が切れているなど）の表示。ほかの画面にはそのまま移れる */
+function ViewLoadError() {
+  return (
+    <section className="nb nb-lg p-6 text-center">
+      <p className="text-[0.85rem] font-bold opacity-70">この画面を読み込めませんでした。通信を確かめて、ページを読み直してください。</p>
+      <button type="button" className="nb-btn mt-3 !py-1.5 text-[0.8rem]" onClick={() => window.location.reload()}>
+        ページを読み直す
+      </button>
+    </section>
+  )
+}
+
+/**
+ * 開いたときに読み込む画面・シートが読み込めなかったとき、アプリ全体が消えないようにする
+ * （エラーを受け止めて、代わりに fallback を出す）
+ */
+class LoadErrorBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
+}
+
+/**
+ * 開いたときに読み込むシート。開くまでは何も読み込まず、一度開いたら出したままにする
+ * （閉じているあいだはシートの側が何も描かない。今までと同じく出したままにしておくので、シートの中の状態の扱いは変わらない）。
+ * 読み込めなかったときは、シートが開かないだけにする
+ */
+function LazySheet({ open, children }: { open: boolean; children: ReactNode }) {
+  const [opened, setOpened] = useState(open)
+  if (open && !opened) setOpened(true)
+  if (!opened) return null
+  return (
+    <LoadErrorBoundary fallback={null}>
+      <Suspense fallback={null}>{children}</Suspense>
+    </LoadErrorBoundary>
   )
 }
 
