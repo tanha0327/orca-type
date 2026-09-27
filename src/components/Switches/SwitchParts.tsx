@@ -126,9 +126,11 @@ export function ForceMeter({ gf }: { gf?: number }) {
 
 /** 打鍵音を聞けるページへのリンク（新しいタブ）。個別のページが無いスイッチは YouTube の検索結果 */
 export function SwitchSoundLink({ sw, className, children }: { sw: KeySwitch; className?: string; children?: ReactNode }) {
-  const title = sw.soundUrl
-    ? `${sw.name} の打鍵音のページを開きます（新しいタブ）`
-    : `YouTube で「${switchSoundQuery(sw)}」を探します（新しいタブ）`
+  const title = !sw.soundUrl
+    ? `YouTube で「${switchSoundQuery(sw)}」を探します（新しいタブ）`
+    : sw.soundTitle
+      ? `「${sw.soundTitle}」を開きます（新しいタブ）。いくつものスイッチを聞き比べる動画なので、${sw.name} の場面を探してください`
+      : `${sw.name} の打鍵音のページを開きます（新しいタブ）`
   return (
     <a href={switchSoundUrl(sw)} target="_blank" rel="noopener noreferrer" className={className} title={title}>
       {children ?? <>🔊 打鍵音を聞く <span aria-hidden>↗</span></>}

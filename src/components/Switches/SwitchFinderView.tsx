@@ -194,7 +194,7 @@ export function SwitchFinderView() {
             </h3>
             <p className="mt-1 text-[0.72rem] font-bold leading-relaxed opacity-70">
               {listLead}
-              押下圧はメーカー公称の代表値で、打鍵音は YouTube の検索が開きます。
+              押下圧はメーカー公称の代表値。打鍵音は YouTube（聞き比べの動画か、名前での検索）が開きます。
             </p>
           </div>
 
@@ -395,7 +395,10 @@ function SwitchPanel({
             <SwitchTypeChips sw={sw} />
             {mount.profile === 'low' && <LowProfileChip />}
           </span>
-          <span className="text-[0.66rem] font-bold opacity-60">{sw.maker} ・ {mount.short}</span>
+          {/* 狭い幅でも「Choc V2」などの途中では折り返さない */}
+          <span className="text-[0.66rem] font-bold opacity-60">
+            <span className="whitespace-nowrap">{sw.maker}</span> ・ <span className="whitespace-nowrap">{mount.short}</span>
+          </span>
           <span className="mt-auto block pt-0.5">
             <ForceMeter gf={sw.forceGf} />
           </span>
@@ -413,6 +416,9 @@ function SwitchPanel({
 function CompatTable() {
   const openDetail = useSwitchStore((s) => s.openDetail)
   const conditions = SOCKETS.flatMap((s) => s.fits.filter((f) => f.note).map((f) => ({ socket: s, fit: f })))
+  // 足の形を確かめられていないものは「挿さらない」とも言えないので、列に出さずに表の下で断る
+  const mounts = MOUNTS.filter((m) => !m.unconfirmed)
+  const elsewhere = MOUNTS.filter((m) => m.socketNote)
   return (
     <section className="nb nb-lg overflow-hidden">
       <div className="p-4 pb-3">
@@ -429,7 +435,7 @@ function CompatTable() {
               <th className="p-1.5 text-left align-bottom">
                 <span className="nb-eyebrow">ソケット ＼ スイッチ</span>
               </th>
-              {MOUNTS.map((m) => (
+              {mounts.map((m) => (
                 <th key={m.id} className="p-1.5 text-center align-bottom leading-tight" title={m.label}>
                   {m.short}
                   <span className="block text-[0.6rem] font-bold opacity-55">
@@ -447,7 +453,7 @@ function CompatTable() {
                     {s.label}
                   </button>
                 </th>
-                {MOUNTS.map((m) => {
+                {mounts.map((m) => {
                   const fit = socketFit(s.id, m.id)
                   return (
                     <td
@@ -472,6 +478,11 @@ function CompatTable() {
                 △ {socket.short} × {getMount(fit.mount).short}: {fit.note}
               </li>
             ))}
+          </ul>
+        )}
+        {elsewhere.length > 0 && (
+          <ul className="mt-1 space-y-0.5 text-[0.68rem] font-bold opacity-75">
+            {elsewhere.map((m) => <li key={m.id}>＊ {m.short}: {m.socketNote}</li>)}
           </ul>
         )}
       </div>

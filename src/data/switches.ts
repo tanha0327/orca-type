@@ -35,7 +35,7 @@ export const SWITCH_TYPE_STEM: Record<SwitchType, string> = {
 
 /* ---------------------------------------------------------------- 足の形（マウント） */
 
-export type SwitchMount = 'mx' | 'choc-v1' | 'choc-v2' | 'gateron-lp' | 'keychron-lp'
+export type SwitchMount = 'mx' | 'choc-v1' | 'choc-v2' | 'gateron-lp' | 'keychron-lp' | 'lofree-lp' | 'unconfirmed-lp'
 
 /** キーキャップを付ける軸の形 */
 export type StemShape = 'mx' | 'choc'
@@ -52,8 +52,14 @@ export interface MountDef {
   short: string
   /** 背の高さ。standard は一般的な高さ、low はロープロファイル（薄型） */
   profile: 'standard' | 'low'
-  /** キーキャップの軸。null はまだ公表されていない */
+  /** キーキャップの軸。null は分からない（そのときは keycap の説明を出す） */
   stem: StemShape | null
+  /** 軸の形が分からないときの、キーキャップの説明。省略すると「まだ公表されていません」 */
+  keycap?: string
+  /** カタログのソケットの一覧に無い挿さり先や、挿さるソケットが分からないことの説明 */
+  socketNote?: string
+  /** 足の形を確かめられていない。どのソケットにも挿さる扱いにせず、対応表にも出さない（「挿さらない」とも言わない） */
+  unconfirmed?: boolean
   desc: string
 }
 
@@ -102,12 +108,40 @@ export const MOUNTS: readonly MountDef[] = [
     stem: null,
     desc: 'Keychron が Orca echo 向けに作ったロープロファイルスイッチ。Keychron の Nova Socket に挿す。',
   },
+  {
+    id: 'lofree-lp',
+    label: 'Lofree 専用の形',
+    short: 'Lofree 専用',
+    profile: 'low',
+    stem: null,
+    keycap: 'Lofree のキーボードに付いているキーキャップをそのまま使う',
+    socketNote: 'Lofree の Flow84・Flow100・Flow Lite84・Flow Lite100 だけに挿さる（ほかのキーボードの Choc V2 用ソケットには挿さらない）',
+    desc: 'Lofree が自社のキーボード向けに作ったロープロファイルスイッチ（Specter・Hades）。ピンの位置は Choc V2 と同じだが、'
+      + '真ん中の軸が太く、位置を決める足も無いので、ほかのキーボードの Choc V2 用ソケットには挿さらない。',
+  },
+  {
+    id: 'unconfirmed-lp',
+    label: '足の形は確認中',
+    short: '足の形 確認中',
+    profile: 'low',
+    stem: null,
+    keycap: '確かめられていません',
+    socketNote: 'どのソケットに挿さるかは確かめられていません。買う前に販売ページで、対応するソケット（Choc V1 / V2 など）を確かめてください',
+    unconfirmed: true,
+    desc: '背の低いロープロファイルのスイッチのうち、調べた資料では足の形（どのソケットに挿さるか）を確かめられなかったもの。'
+      + '確かめられるまでは、どのキーボードの「ハマるスイッチ」にも出さない。',
+  },
 ]
 
 const MOUNT_BY_ID = new Map(MOUNTS.map((m) => [m.id, m]))
 
 export function getMount(id: SwitchMount): MountDef {
   return MOUNT_BY_ID.get(id)!
+}
+
+/** キーキャップの説明（「MX 用（十字の軸）」など） */
+export function keycapLabel(mount: MountDef): string {
+  return mount.stem ? STEM_LABEL[mount.stem] : mount.keycap ?? 'まだ公表されていません'
 }
 
 /* ---------------------------------------------------------------- 受け口（ソケット） */
@@ -278,10 +312,21 @@ export interface KeySwitch {
   housingColor?: string
   /** 打鍵音を聞けるページ（動画など）。省略すると YouTube で「名前 sound test」を検索する */
   soundUrl?: string
+  /** soundUrl のページの題名（何種類かを聞き比べた動画なら、その動画の題名） */
+  soundTitle?: string
   /** 打鍵音を YouTube で探すときの言葉。名前だけでは見つかりにくいものに使う */
   soundQuery?: string
   note?: string
 }
+
+/**
+ * ロープロファイルスイッチ 27 種類のスペックと打鍵音を聞き比べた動画（YouTube）。
+ * この動画で紹介されたスイッチは、打鍵音のリンクをこの動画にしている（どの場面かの指定はなし）
+ */
+const LOW_PROFILE_REVIEW = {
+  soundUrl: 'https://www.youtube.com/watch?v=ShSSULVh0x0',
+  soundTitle: '【ロープロファイルスイッチ徹底解説】27種類のスペック・打鍵音を紹介',
+} as const
 
 export const KEYSWITCHES: readonly KeySwitch[] = [
   /* ---- Cherry MX 互換（一般的な高さ） ---- */
@@ -414,6 +459,124 @@ export const KEYSWITCHES: readonly KeySwitch[] = [
     forceGf: 50, totalTravel: 3.2, stemColor: '#f4f4f0',
   },
 
+  /* ---- Choc V2 の形のロープロファイル（ここからは LOW_PROFILE_REVIEW の動画で紹介されたもの） ---- */
+  // Lofree × Kailh の Shadow シリーズ（ハウジングも軸も POM）
+  {
+    id: 'lofree-ghost', name: 'Lofree Ghost', maker: 'Lofree × Kailh', mount: 'choc-v2', type: 'linear',
+    forceGf: 50, preTravel: 1.2, totalTravel: 2.8, stemColor: '#2f5d50', ...LOW_PROFILE_REVIEW,
+    note: 'Lofree と Kailh が作った、ハウジングも軸も POM のリニア（Shadow シリーズ）。Lofree Flow84 にも使われている',
+  },
+  {
+    id: 'lofree-phantom', name: 'Lofree Phantom', maker: 'Lofree × Kailh', mount: 'choc-v2', type: 'tactile',
+    forceGf: 45, preTravel: 1.6, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'Ghost と同じ POM の Shadow シリーズのタクタイル',
+  },
+  {
+    id: 'lofree-wizard', name: 'Lofree Wizard', maker: 'Lofree × Kailh', mount: 'choc-v2', type: 'clicky',
+    forceGf: 50, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'Ghost と同じ POM の Shadow シリーズのクリッキー',
+  },
+  // Lofree の Cloud シリーズ（Flow 2 のスイッチ。Choc V2 の標準の形なので、ほかの Choc V2 対応のキーボードにも挿さる）
+  {
+    id: 'lofree-surfer', name: 'Lofree Surfer', maker: 'Lofree', mount: 'choc-v2', type: 'linear',
+    forceGf: 40, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'Lofree Flow 2 のスイッチ（Cloud シリーズ）のリニア。Choc V2 の標準の形で、ほかの Choc V2 対応のキーボードにも挿さる',
+  },
+  {
+    id: 'lofree-void', name: 'Lofree Void', maker: 'Lofree', mount: 'choc-v2', type: 'linear', silent: true,
+    forceGf: 40, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'Lofree Flow 2 のスイッチ（Cloud シリーズ）の静音リニア',
+  },
+  {
+    id: 'lofree-pulse', name: 'Lofree Pulse', maker: 'Lofree', mount: 'choc-v2', type: 'tactile',
+    forceGf: 40, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'Lofree Flow 2 のスイッチ（Cloud シリーズ）のタクタイル',
+  },
+  // Kailh の Elements シリーズ（ハウジングも軸も POM）
+  {
+    id: 'kailh-white-rain', name: 'Kailh White Rain', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    forceGf: 50, stemColor: '#f4f4f0', ...LOW_PROFILE_REVIEW,
+    note: 'ハウジングも軸も POM の Elements シリーズのリニア',
+  },
+  {
+    id: 'kailh-black-cloud', name: 'Kailh Black Cloud', maker: 'Kailh', mount: 'choc-v2', type: 'tactile',
+    forceGf: 45, stemColor: '#26262a', ...LOW_PROFILE_REVIEW,
+    note: 'ハウジングも軸も POM の Elements シリーズのタクタイル',
+  },
+  {
+    id: 'kailh-hide-mountain', name: 'Kailh Hide Mountain', maker: 'Kailh', mount: 'choc-v2', type: 'clicky',
+    forceGf: 50, ...LOW_PROFILE_REVIEW,
+    note: 'ハウジングも軸も POM の Elements シリーズのクリッキー',
+  },
+  // Kailh の四季（Season）シリーズ Mini
+  {
+    id: 'kailh-spring-mini', name: 'Kailh Spring Mini', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    forceGf: 40, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: '四季（Season）シリーズ Mini のリニア',
+  },
+  {
+    id: 'kailh-summer-mini', name: 'Kailh Summer Mini', maker: 'Kailh', mount: 'choc-v2', type: 'clicky',
+    forceGf: 50, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: '四季シリーズ Mini のクリッキー（Autumn Mini より重い）',
+  },
+  {
+    id: 'kailh-autumn-mini', name: 'Kailh Autumn Mini', maker: 'Kailh', mount: 'choc-v2', type: 'clicky',
+    forceGf: 40, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: '四季シリーズ Mini の、軽めのクリッキー',
+  },
+  {
+    id: 'kailh-winter-mini', name: 'Kailh Winter Mini', maker: 'Kailh', mount: 'choc-v2', type: 'tactile',
+    forceGf: 38, ...LOW_PROFILE_REVIEW,
+    note: '四季シリーズ Mini の、軽めのタクタイル',
+  },
+  // Kailh の Deep Sea Silent Mini（2 つのシリコンのダンパーで音を抑えた静音）
+  {
+    id: 'kailh-deep-sea-mini-islet', name: 'Kailh Deep Sea Mini Islet', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    silent: true, forceGf: 43, preTravel: 1.3, totalTravel: 2.8, stemColor: '#f4f4f0', ...LOW_PROFILE_REVIEW,
+    note: 'Deep Sea Silent Mini の静音リニア。動画では「Islet（45g）」として紹介されている',
+  },
+  {
+    id: 'kailh-deep-sea-mini-pink-island', name: 'Kailh Deep Sea Mini Pink Island', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    silent: true, forceGf: 35, preTravel: 1.3, totalTravel: 2.8, stemColor: '#f7a8c4', ...LOW_PROFILE_REVIEW,
+    note: '軸がピンクの、軽い版の Islet（静音リニア）。動画では「Islet（35g）」として紹介されている',
+  },
+  {
+    id: 'kailh-deep-sea-mini-whale', name: 'Kailh Deep Sea Mini Whale', maker: 'Kailh', mount: 'choc-v2', type: 'tactile',
+    silent: true, forceGf: 45, preTravel: 1.3, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'Deep Sea Silent Mini の静音タクタイル',
+  },
+  // Kailh のそのほかの Choc V2（レバーレスコントローラー向けに作られたものも、キーボードに挿さる）
+  {
+    id: 'kailh-wind-engine', name: 'Kailh Wind Engine', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    forceGf: 50, totalTravel: 3.2, ...LOW_PROFILE_REVIEW,
+    note: 'ハウジングも軸も POM。レバーレスコントローラー向けに作られたリニア',
+  },
+  {
+    id: 'kailh-crystal', name: 'Kailh Crystal', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    forceGf: 50, totalTravel: 3.2, housingColor: '#dcebf2', ...LOW_PROFILE_REVIEW,
+    note: '透明なポリカーボネートのハウジング。レバーレスコントローラー向けに作られたリニア',
+  },
+  {
+    id: 'kailh-shadow-hunting', name: 'Kailh Shadow Hunting', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    forceGf: 50, ...LOW_PROFILE_REVIEW,
+    note: 'レバーレスコントローラー向けのリニア。押し切りの深さは資料によって違うので載せていない',
+  },
+  {
+    id: 'kailh-saker-mini', name: 'Kailh Saker Mini', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    forceGf: 37, preTravel: 0.8, totalTravel: 1.8, ...LOW_PROFILE_REVIEW,
+    note: '押し切るまで 1.8mm と特に浅い、ゲーム向けのリニア',
+  },
+  {
+    id: 'kailh-ice-cream-mini', name: 'Kailh Ice Cream Mini', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    forceGf: 40, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'ハウジングも軸も POM のリニア',
+  },
+  {
+    id: 'kailh-taro-ice-cream-mini', name: 'Kailh Taro Ice Cream Mini', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
+    forceGf: 37, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'ハウジングも軸も POM。Ice Cream Mini より少し軽いリニア',
+  },
+
   /* ---- Gateron KS-33（ロープロファイル 2.0） ---- */
   {
     id: 'gateron-ks33-red', name: 'Gateron KS-33 Red', maker: 'Gateron', mount: 'gateron-lp', type: 'linear',
@@ -442,6 +605,32 @@ export const KEYSWITCHES: readonly KeySwitch[] = [
     id: 'keychron-apex-samurai', name: 'Keychron Samurai', maker: 'Keychron', mount: 'keychron-lp', type: 'tactile',
     soundQuery: 'Keychron Orca echo Samurai switch sound test',
     note: 'Orca echo の標準スイッチ（Apex POM ロープロファイル）の、はっきりした手応えがあるほう。押下圧などは公表待ち',
+  },
+
+  /* ---- Lofree 専用（Flow84・Flow100・Flow Lite84・Flow Lite100 だけに挿さる） ---- */
+  {
+    id: 'lofree-specter', name: 'Lofree Specter', maker: 'Lofree × Kailh', mount: 'lofree-lp', type: 'linear',
+    forceGf: 40, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'Lofree のキーボード専用のリニア。ほかのキーボードの Choc V2 用ソケットには挿さらない',
+  },
+  {
+    id: 'lofree-hades', name: 'Lofree Hades', maker: 'Lofree', mount: 'lofree-lp', type: 'linear', silent: true,
+    forceGf: 45, preTravel: 1.3, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'Lofree のキーボード専用の静音リニア。ハウジングも軸も POM',
+  },
+
+  /* ---- 足の形（挿さるソケット）を確かめられていないもの ---- */
+  {
+    id: 'kailh-panda-v1', name: 'Kailh Panda V1', maker: 'Kailh', mount: 'unconfirmed-lp', type: 'linear',
+    forceGf: 30, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    note: 'レバーレスコントローラー向けとして売られている軽いリニア。挿さるソケットは確かめられていない'
+      + '（名前の「V1」が Choc V1 の形のことなのかも分からない）',
+  },
+  {
+    id: 'kailh-panda-v2', name: 'Kailh Panda V2', maker: 'Kailh', mount: 'unconfirmed-lp', type: 'linear',
+    forceGf: 40, preTravel: 0.8, totalTravel: 2.0, ...LOW_PROFILE_REVIEW,
+    note: 'Panda V1 より浅い（押し切るまで 2.0mm）リニア。挿さるソケットは確かめられていない'
+      + '（名前の「V2」が Choc V2 の形のことなのかも分からない）',
   },
 ]
 

@@ -140,15 +140,20 @@ localStorage・JSON ファイル・共有フィードから来たキーマップ
 
 ### スペックのタグとキースイッチ（`src/keyboards/specs.ts`・`src/data/switches.ts`）
 
-「キースイッチ」の画面は、スイッチの **足の形**（`SwitchMount`: MX 互換・Choc V1・Choc V2・Gateron KS-33・Keychron LP）と
+「キースイッチ」の画面は、スイッチの **足の形**（`SwitchMount`: MX 互換・Choc V1・Choc V2・Gateron KS-33・Keychron LP・Lofree 専用）と
 キーボード側の **ソケット**（`SocketDef`: MX 用ホットスワップ・Choc V1 用・Choc V1 / V2 両対応・Nova Socket など）の
 組み合わせで「ハマるか」を決めています。条件つきで挿さるもの（Nova Socket に MX を挿すには別売りのプレートが要る、など）は
 `fits` の `note` に書きます。
+カタログのソケットに無いところにしか挿さらない形（Lofree 専用）は、その先を `MountDef` の `socketNote` に書きます。
+調べても足の形を確かめられなかったスイッチは、足の形を `unconfirmed-lp`（足の形は確認中）にします。
+どのソケットにも挿さる扱いにせず（キーボードの「ハマるスイッチ」には出ない）、対応表でも「挿さらない」とは言いません。
 
 - **スイッチを足す** … `KEYSWITCHES` に 1 行足す。数値はメーカー公称の代表値で、分からない値は書かない（画面では「—」）。
   `id` は投稿の JSON から参照されるので、一度出したら変えない
 - **打鍵音のリンク** … 何も書かなければ YouTube で「名前 sound test」を検索する（動画の削除で切れないよう、特定の動画ではなく検索）。
-  決まった動画やページを出したいスイッチは `soundUrl`、検索の言葉を変えたいものは `soundQuery` に書く
+  決まった動画やページを出したいスイッチは `soundUrl`、検索の言葉を変えたいものは `soundQuery` に書く。
+  何種類かを聞き比べる動画にリンクするときは、題名を `soundTitle` に書く（画面で「動画の中からこのスイッチの場面を探して」と添える）。
+  ロープロファイル 27 種類を聞き比べた動画で紹介されたスイッチは、`LOW_PROFILE_REVIEW` でその動画にリンクしている
 - **イラスト** … 正面から見たシルエット（`src/data/switchSilhouette.ts`）を、軸の色（`stemColor`）・ハウジングの色（`housingColor`）で塗る。
   足の形がロープロファイルなら背の低い形、Choc V1 は 2 本足の軸で描く
 - **組み込みのキーボードのスペック** … `specs.ts` の `SPECS` に、タグ（`t('hotswap', '補足')`）と

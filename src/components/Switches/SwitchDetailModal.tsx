@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  getMount, getSocket, getSwitch, KEYSWITCHES, MOUNTS, pickOf, samePick, socketFit, socketsForMount, STEM_LABEL,
+  getMount, getSocket, getSwitch, keycapLabel, KEYSWITCHES, MOUNTS, pickOf, samePick, socketFit, socketsForMount,
   stemColorOf, switchesOf, SWITCH_TYPE_HELP, SWITCH_TYPE_LABEL,
   type SocketId, type SwitchMount,
 } from '../../data/switches'
@@ -207,7 +207,6 @@ function SwitchBody({ id }: { id: string }) {
   const editingSockets = keyboardSockets(keyboardSpecOf(editing))
   // 編集中のキーボードのソケットが分かっていて、どれにも挿さらないなら知らせる
   const fitsEditing = editingSockets.length === 0 || editingSockets.some((s) => socketFit(s, sw.mount))
-  const sockets = socketsForMount(sw.mount)
   const boards = builtinBoardsWhere((socket) => !!socketFit(socket, sw.mount))
 
   const toggleMine = () => {
@@ -281,12 +280,18 @@ function SwitchBody({ id }: { id: string }) {
       </div>
       <p className="-mt-2 text-[0.68rem] font-bold leading-relaxed opacity-60">
         「使っている」は編集中の {editing.name} の配列に記録され、みんなの配列に投稿するときに一緒に載ります。
-        「打鍵音を聞く」は YouTube の検索が開きます。♪ は種類ごとの音のイメージ（シンセサイザーで作った音）で、
-        このスイッチの実際の音ではありません。
+        {!sw.soundUrl
+          ? '「打鍵音を聞く」は YouTube の検索が開きます。'
+          : sw.soundTitle
+            ? `「打鍵音を聞く」は、いくつものスイッチを聞き比べる動画「${sw.soundTitle}」（YouTube）が開きます。動画の中からこのスイッチの場面を探してください。`
+            : '「打鍵音を聞く」は、このスイッチの打鍵音のページが開きます。'}
+        ♪ は種類ごとの音のイメージ（シンセサイザーで作った音）で、このスイッチの実際の音ではありません。
       </p>
       {!fitsEditing && (
-        <p className="nb nb-flat p-2 text-[0.74rem] font-bold" style={{ background: 'var(--color-pink)' }}>
-          編集中の {editing.name} のソケットには挿さらない形です。
+        <p className="nb nb-flat p-2 text-[0.74rem] font-bold" style={{ background: mount.unconfirmed ? 'var(--color-sand)' : 'var(--color-pink)' }}>
+          {mount.unconfirmed
+            ? `編集中の ${editing.name} のソケットに挿さるかは、確かめられていません。`
+            : `編集中の ${editing.name} のソケットには挿さらない形です。`}
         </p>
       )}
       {message && (
@@ -311,22 +316,11 @@ function SwitchBody({ id }: { id: string }) {
           {mount.label}（{mount.profile === 'low' ? 'ロープロファイル' : '標準の高さ'}）
         </p>
         <p className="text-[0.74rem] font-bold leading-relaxed opacity-70">{mount.desc}</p>
-        <p className="text-[0.74rem] font-bold">
-          キーキャップ: {mount.stem ? STEM_LABEL[mount.stem] : 'まだ公表されていません'}
-        </p>
+        <p className="text-[0.74rem] font-bold">キーキャップ: {keycapLabel(mount)}</p>
       </Section>
 
       <Section title="ハマるソケット">
-        <div className="flex flex-wrap gap-1.5">
-          {sockets.map((s) => <SocketChip key={s.id} id={s.id} note={socketFit(s.id, sw.mount)?.note} />)}
-        </div>
-        {sockets.some((s) => socketFit(s.id, sw.mount)?.note) && (
-          <ul className="space-y-0.5 text-[0.7rem] font-bold opacity-70">
-            {sockets.filter((s) => socketFit(s.id, sw.mount)?.note).map((s) => (
-              <li key={s.id}>＊ {s.short}: {socketFit(s.id, sw.mount)?.note}</li>
-            ))}
-          </ul>
-        )}
+        <MountSockets mount={sw.mount} />
       </Section>
 
       {boards.length > 0 && (
@@ -449,8 +443,7 @@ function TagBody({ id, keyboardId }: { id: SpecTagId; keyboardId?: string }) {
         <>
           <Section title="キーキャップと高さ">
             <p className="text-[0.76rem] font-bold">
-              {mountDef.profile === 'low' ? 'ロープロファイル（薄型）' : '標準の高さ'} ・ キーキャップ:{' '}
-              {mountDef.stem ? STEM_LABEL[mountDef.stem] : 'まだ公表されていません'}
+              {mountDef.profile === 'low' ? 'ロープロファイル（薄型）' : '標準の高さ'} ・ キーキャップ: {keycapLabel(mountDef)}
             </p>
           </Section>
           <Section title="挿さるソケット">
@@ -487,11 +480,18 @@ function TagBody({ id, keyboardId }: { id: SpecTagId; keyboardId?: string }) {
 
 function MountSockets({ mount }: { mount: SwitchMount }) {
   const sockets = socketsForMount(mount)
+  const { socketNote } = getMount(mount)
   return (
     <>
-      <div className="flex flex-wrap gap-1.5">
-        {sockets.map((s) => <SocketChip key={s.id} id={s.id} note={socketFit(s.id, mount)?.note} />)}
-      </div>
+      {sockets.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {sockets.map((s) => <SocketChip key={s.id} id={s.id} note={socketFit(s.id, mount)?.note} />)}
+        </div>
+      )}
+      {socketNote && <p className="text-[0.76rem] font-bold leading-relaxed">{socketNote}</p>}
+      {sockets.length === 0 && !socketNote && (
+        <p className="text-[0.76rem] font-bold opacity-60">カタログのソケットには挿さりません。</p>
+      )}
       {sockets.some((s) => socketFit(s.id, mount)?.note) && (
         <ul className="space-y-0.5 text-[0.7rem] font-bold opacity-70">
           {sockets.filter((s) => socketFit(s.id, mount)?.note).map((s) => (
@@ -508,7 +508,7 @@ function MountSockets({ mount }: { mount: SwitchMount }) {
 function SocketBody({ id }: { id: SocketId }) {
   const socket = getSocket(id)
   const fitMounts = MOUNTS.filter((m) => socketFit(id, m.id))
-  const otherMounts = MOUNTS.filter((m) => !socketFit(id, m.id))
+  const otherMounts = MOUNTS.filter((m) => !socketFit(id, m.id) && !m.unconfirmed)
   const switches = KEYSWITCHES.filter((sw) => socketFit(id, sw.mount))
   const boards = builtinBoardsWhere((s) => s === id)
 
