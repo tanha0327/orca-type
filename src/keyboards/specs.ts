@@ -1,4 +1,4 @@
-import type { SocketId, SwitchMount } from '../data/switches.js'
+import { getSwitch, type KeySwitch, type SocketId, type SwitchMount } from '../data/switches.js'
 import type { KeyboardDefinition } from './types.js'
 
 /* ================================================================
@@ -187,6 +187,11 @@ export interface SocketRef {
 export interface KeyboardEdition {
   name: string
   sockets: readonly SocketRef[]
+  /**
+   * 買ったときに付いてくる（標準の）スイッチ。カタログ（data/switches.ts）の ID で、買うときに選べるならその全部。
+   * 投稿画面では、これを先に選択肢として出す。キットなど、スイッチが付いてこない版は持たない
+   */
+  stockSwitches?: readonly string[]
   note?: string
 }
 
@@ -214,6 +219,7 @@ const SPECS: Record<string, KeyboardSpec> = {
       {
         name: 'Orca echo',
         sockets: [s('nova-socket')],
+        stockSwitches: ['keychron-apex-ninja', 'keychron-apex-samurai'],
         note: '標準は Keychron Apex POM ロープロファイルスイッチ（Ninja: リニア / Samurai: タクタイル から選ぶ）。バックライトは無し',
       },
     ],
@@ -406,4 +412,13 @@ export function editionSockets(edition: KeyboardEdition): SocketId[] {
 /** そのキーボードのどれかのエディションに付いているソケット */
 export function keyboardSockets(spec: KeyboardSpec): SocketId[] {
   return [...new Set(spec.editions.flatMap(editionSockets))]
+}
+
+/**
+ * そのキーボードのどれかのエディションに標準で付いてくるスイッチ（書いた順）。
+ * 配列はエディションを覚えていないので、エディションごとに違っても全部を出す。カタログに無い ID は飛ばす
+ */
+export function keyboardStockSwitches(spec: KeyboardSpec): KeySwitch[] {
+  const ids = [...new Set(spec.editions.flatMap((e) => e.stockSwitches ?? []))]
+  return ids.flatMap((id) => getSwitch(id) ?? [])
 }
