@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import {
-  DEFAULT_HOUSING_COLOR, LOW_CHOC_STEM_PATH, LOW_CROSS_STEM_PATH, LOW_HOUSING_PATH, MX_HOUSING_PATH, MX_STEM_PATH,
+  DEFAULT_HOUSING_COLOR, LOW_BOTTOM_HOUSING_PATH, LOW_CHOC_STEM_PATH, LOW_CROSS_STEM_PATH, LOW_TOP_HOUSING_PATH,
+  MX_BOTTOM_HOUSING_PATH, MX_HOUSING_PATH, MX_STEM_PATH, MX_TOP_HOUSING_PATH,
 } from '../../data/switchSilhouette'
 import {
-  clipByWidth, FORCE_FEEL_LABEL, forceFeel, getMount, getSocket, getSwitch, pickLabel, PICK_CHIP_WIDTH, stemColorOf,
-  switchSoundQuery, switchSoundUrl, SWITCH_TYPE_HELP, SWITCH_TYPE_LABEL,
+  clipByWidth, FORCE_FEEL_LABEL, forceFeel, getMount, getSocket, getSwitch, housingColorsOf, pickLabel, PICK_CHIP_WIDTH,
+  stemColorOf, switchSoundQuery, switchSoundUrl, SWITCH_TYPE_HELP, SWITCH_TYPE_LABEL,
   type KeySwitch, type SocketId, type SwitchType,
 } from '../../data/switches'
 import type { SwitchPick } from '../../data/types'
@@ -31,7 +32,7 @@ export function StemSwatch({ color, size = 12 }: { color: string; size?: number 
 
 /**
  * キースイッチを正面から見たイラスト（プロフィールのサンプルアイコンと同じ描き方）。
- * 軸はそのスイッチの色で塗り、ハウジングを太い線・軸を細い線で描く。
+ * 軸とハウジング（上・下）はそのスイッチの色で塗り、ハウジングを太い線・軸を細い線で描く。
  * ロープロファイルは背の低い形（同じ縮尺で描くので、並べると背の低さがそのまま見える）で、Choc V1 は 2 本足の軸
  */
 export function SwitchVisual({ sw, className, sameFrame = false }: {
@@ -43,16 +44,15 @@ export function SwitchVisual({ sw, className, sameFrame = false }: {
   const mount = getMount(sw.mount)
   const low = mount.profile === 'low'
   const stem = !low ? MX_STEM_PATH : mount.stem === 'choc' ? LOW_CHOC_STEM_PATH : LOW_CROSS_STEM_PATH
+  const { top = DEFAULT_HOUSING_COLOR, bottom = top } = housingColorsOf(sw)
+  const housing = (d: string, fill: string) => (
+    <path d={d} fill={fill} stroke="#111111" strokeWidth={1.5} strokeLinejoin="round" />
+  )
   return (
     // ロープロファイルは、縮尺は同じまま見る範囲だけずらして上下の中央に置く（背の低さはそのまま見える）
     <svg viewBox={low && !sameFrame ? '8 15.5 48 48' : '8 8 48 48'} className={className} aria-hidden="true">
-      <path
-        d={low ? LOW_HOUSING_PATH : MX_HOUSING_PATH}
-        fill={sw.housingColor ?? DEFAULT_HOUSING_COLOR}
-        stroke="#111111"
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-      />
+      {housing(low ? LOW_BOTTOM_HOUSING_PATH : MX_BOTTOM_HOUSING_PATH, bottom)}
+      {housing(low ? LOW_TOP_HOUSING_PATH : MX_TOP_HOUSING_PATH, top)}
       <path d={stem} fill={stemColorOf(sw)} stroke="#111111" strokeWidth={0.8} strokeLinejoin="round" />
     </svg>
   )

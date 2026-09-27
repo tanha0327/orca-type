@@ -154,8 +154,12 @@ localStorage・JSON ファイル・共有フィードから来たキーマップ
   決まった動画やページを出したいスイッチは `soundUrl`、検索の言葉を変えたいものは `soundQuery` に書く。
   何種類かを聞き比べる動画にリンクするときは、題名を `soundTitle` に書く（画面で「動画の中からこのスイッチの場面を探して」と添える）。
   ロープロファイル 27 種類を聞き比べた動画で紹介されたスイッチは、`LOW_PROFILE_REVIEW` でその動画にリンクしている
-- **イラスト** … 正面から見たシルエット（`src/data/switchSilhouette.ts`）を、軸の色（`stemColor`）・ハウジングの色（`housingColor`）で塗る。
+- **イラスト** … 正面から見たシルエット（`src/data/switchSilhouette.ts`）を、軸の色（`stemColor`）と上下のハウジングの色
+  （`housingColor`。下だけ違うものは `bottomHousingColor`）で塗る。透明・乳白色・スモークは半透明の色で書く。
   足の形がロープロファイルなら背の低い形、Choc V1 は 2 本足の軸で描く
+- **色** … メーカー・販売店の説明と [switches.mx](https://github.com/BWLR/switches.mx) のデータで調べた実物の色を書く。
+  同じ名前で版ごとに色が違うものは、いちばん基本の版の色にしてコメントに書く。資料で確かめられなかったものは推測で塗らず、
+  `colorUnknown: true` にする（灰色で描き、パネルに「色は未確認」、詳細にその旨が出る）
 - **組み込みのキーボードのスペック** … `specs.ts` の `SPECS` に、タグ（`t('hotswap', '補足')`）と
   版・キット（`editions`。版ごとに付いているソケット）と、調べた資料の URL（`sources`）を書く。
   買ったときにスイッチが付いてくる版は、そのスイッチ（買うときに選べるなら全部）を `stockSwitches` にカタログの ID で書く

@@ -239,6 +239,11 @@ function SwitchBody({ id }: { id: string }) {
           </div>
           <p className="text-[0.76rem] font-bold leading-relaxed opacity-75">{SWITCH_TYPE_HELP[sw.type]}</p>
           {sw.note && <p className="text-[0.82rem] font-bold leading-relaxed">{sw.note}</p>}
+          {sw.colorUnknown && (
+            <p className="text-[0.7rem] font-bold leading-relaxed opacity-60">
+              軸・ハウジングの色は資料で確かめられていないので、イラストは灰色で描いています。
+            </p>
+          )}
         </div>
       </div>
 

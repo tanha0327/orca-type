@@ -388,6 +388,15 @@ function SwitchPanel({
               △ 条件つき
             </span>
           )}
+          {sw.colorUnknown && (
+            <span
+              className="nb-chip absolute bottom-1 right-1.5 !py-0 !text-[0.58rem]"
+              style={{ background: 'var(--color-paper)' }}
+              title="軸・ハウジングの色は資料で確かめられていないので、灰色で描いています"
+            >
+              色は未確認
+            </span>
+          )}
         </span>
         <span className="flex w-full flex-1 flex-col gap-1.5 p-2.5">
           <span className="text-[0.86rem] font-black leading-tight group-hover:underline">{sw.name}</span>
