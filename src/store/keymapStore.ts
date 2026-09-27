@@ -2,12 +2,13 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { MAX_LAYERS, type Keycode } from '../data/keycodes'
 import { normalizeKeymap } from '../data/normalize'
+import { withSwitches } from '../data/switches'
 import { keymapIdFromUrl } from '../lib/permalink'
 import { SWITCH_SOUND_PROFILES, type SwitchSoundProfile } from '../lib/switchSound'
 import {
   DEFAULT_ESC_COLOR,
   type Binding, type Combo, type Keymap, type KeymapSettings,
-  type LayerColor, type TrackballConfig,
+  type LayerColor, type SwitchPick, type TrackballConfig,
 } from '../data/types'
 import { blankLayer, createKeymap, DEFAULT_KEYBOARD, keyboardOf } from '../keyboards/registry'
 import type { KeyboardDefinition, KeyId, SensorId, SensorSlot } from '../keyboards/types'
@@ -20,7 +21,7 @@ export type BindingTarget =
 
 export type Selection = BindingTarget | { kind: 'ball' }
 
-export type ViewId = 'edit' | 'feed' | 'export'
+export type ViewId = 'edit' | 'feed' | 'switches' | 'export'
 
 export interface HudOptions {
   showCombination: boolean
@@ -89,6 +90,8 @@ interface EditorState {
 
   setTrackball: (patch: Partial<TrackballConfig>) => void
   setSettings: (patch: Partial<KeymapSettings>) => void
+  /** 使っているキースイッチを付け替える（みんなの配列に投稿するときに一緒に載る） */
+  setSwitches: (picks: SwitchPick[]) => void
 
   /** 読み込んだキーマップに差し替える。別のキーボードのものなら、いまのキーマップは保存しておいて切り替える */
   importKeymap: (km: Keymap) => void
@@ -328,6 +331,8 @@ export const useKeymapStore = create<EditorState>()(
         }
         set({ keymap: { ...keymap, trackball, settings: { ...keymap.settings, ...linked, ...patch } } })
       },
+
+      setSwitches: (picks) => set({ keymap: withSwitches(get().keymap, picks) }),
 
       importKeymap: (km) => set(swapIn(get(), km)),
 

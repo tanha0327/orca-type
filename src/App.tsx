@@ -13,6 +13,8 @@ import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
 import { AuthorCardModal } from './components/Profile/AuthorCardModal'
 import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
+import { SwitchDetailModal } from './components/Switches/SwitchDetailModal'
+import { SwitchFinderView } from './components/Switches/SwitchFinderView'
 import {
   BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_LABEL, ESC_COLORS,
   TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS,
@@ -34,6 +36,7 @@ const BODY_COLORS: BodyColor[] = ['white', 'black']
 const VIEWS: { id: ViewId; label: string }[] = [
   { id: 'edit', label: '編集' },
   { id: 'feed', label: 'みんなの配列' },
+  { id: 'switches', label: 'キースイッチ' },
   { id: 'export', label: '書き出し' },
 ]
 
@@ -251,6 +254,7 @@ export function App() {
             </>
           )}
           {view === 'feed' && <FeedView />}
+          {view === 'switches' && <SwitchFinderView />}
           {view === 'export' && <ExportView />}
         </div>
 
@@ -282,6 +286,7 @@ export function App() {
       <ProfileSetupModal />
       <KeyboardPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
       <AuthorCardModal />
+      <SwitchDetailModal />
 
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
@@ -323,7 +328,7 @@ function Header({
             <button
               key={v.id}
               type="button"
-              className="nb-btn !py-1.5 text-[0.8rem]"
+              className="nb-btn !py-1.5 text-[0.8rem] max-sm:!px-2.5"
               data-active={view === v.id}
               onClick={() => onView(v.id)}
             >

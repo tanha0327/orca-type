@@ -20,7 +20,8 @@
 | **出力 HUD** | 現在レイヤー／組み合わせ→出力／単押し・長押しの判定とタッピングターム進行バー／コンボ発火／スワイプ／直近ログ／ミニキーマップ。PiP で常時最前面に出せる |
 | **入出力** | localStorage への自動保存（キーボードごと）、JSON の書き出し・読み込み、ZMK `.keymap` 風 / QMK `keymap.c` 風のプレビュー |
 | **打鍵音** | 打鍵に赤軸／茶軸／青軸のスイッチ音を Web Audio で合成して鳴らす。長押し確定・コンボ・ホイール・スワイプにも専用の音。HUD の ⚙ から選べる |
-| **みんなの配列** | 投稿・いいね・コメント。各投稿の盤面で、あなたの配列と違うキーと全体の一致度を表示。今熱い／人気／新しい順／古い順／近い順で並び替え。配列の特徴から自動でフォルダ分けし（投稿時に選び直せる）、🍎 Mac / 🪟 Windows の OS タグでも絞り込める（投稿時に選ぶ。配列の JSON に入るので DB の変更は不要）。自分用のフォルダに保存して手動で並べ替えもできる。24 時間以内の投稿に NEW、いいね 10 以上は 🔥 を付けて新しい順の上にまとめる |
+| **キースイッチ** | キーボードのスペックをタグで表示（Corne なら 40%・分割・カラムスタッガード・Cherry MX・Kailh Choc V1 / V2・ホットスワップ・OLED など。押すと説明が出る）。版・キットごとのソケットから、ハマるキースイッチを種類・名前で絞り込んで探せる。ソケット × スイッチの足の形の対応表つき。スイッチの詳細で「使っている」にしたスイッチは、みんなの配列に投稿するときに一緒に載る（配列の JSON の `settings.switches` に入るので DB の変更は不要） |
+| **みんなの配列** | 投稿・いいね・コメント。各投稿の盤面で、あなたの配列と違うキーと全体の一致度を表示。今熱い／人気／新しい順／古い順／近い順で並び替え。配列の特徴から自動でフォルダ分けし（投稿時に選び直せる）、🍎 Mac / 🪟 Windows の OS タグでも絞り込める（投稿時に選ぶ。配列の JSON に入るので DB の変更は不要）。自分用のフォルダに保存して手動で並べ替えもできる。24 時間以内の投稿に NEW、いいね 10 以上は 🔥 を付けて新しい順の上にまとめる。投稿には使っているキースイッチを 3 つまで添えられ、押すとスイッチの詳細（同じスイッチを使っている配列も）が開く |
 
 ## 動かす
 
@@ -137,6 +138,19 @@ RGB の効果切替や Keyball の CPI 調整のような機種独自のキー�
 localStorage・JSON ファイル・共有フィードから来たキーマップは、どれも `src/data/normalize.ts` を通して
 形を検証し、Orca echo 専用だった古い形（`encoder` / `padL` / `padR`）は今の形に移行します。
 
+### スペックのタグとキースイッチ（`src/keyboards/specs.ts`・`src/data/switches.ts`）
+
+「キースイッチ」の画面は、スイッチの **足の形**（`SwitchMount`: MX 互換・Choc V1・Choc V2・Gateron KS-33・Keychron LP）と
+キーボード側の **ソケット**（`SocketDef`: MX 用ホットスワップ・Choc V1 用・Choc V1 / V2 両対応・Nova Socket など）の
+組み合わせで「ハマるか」を決めています。条件つきで挿さるもの（Nova Socket に MX を挿すには別売りのプレートが要る、など）は
+`fits` の `note` に書きます。
+
+- **スイッチを足す** … `KEYSWITCHES` に 1 行足す。数値はメーカー公称の代表値で、分からない値は書かない（画面では「—」）。
+  `id` は投稿の JSON から参照されるので、一度出したら変えない
+- **組み込みのキーボードのスペック** … `specs.ts` の `SPECS` に、タグ（`t('hotswap', '補足')`）と
+  版・キット（`editions`。版ごとに付いているソケット）と、調べた資料の URL（`sources`）を書く。
+  書いていない（取り込んだ）キーボードは、定義から分かること（分割か・センサー）だけをタグにする
+
 ### これから
 
 - VIA / Vial 対応キーボードへの WebHID での書き込み（`matrix` と `usb` の VID / PID はそのための保持）
@@ -161,12 +175,13 @@ localStorage・JSON ファイル・共有フィードから来たキーマップ
 src/
   keyboards/  types.ts（キーボード定義の型）/ registry.ts（組み込みの一覧・キーマップの生成・読み替え）
               geometry.ts / orcaEcho.ts / corne.ts / ansi60.ts / presets/（ほかの組み込み機種）
-              import/（QMK・VIA・KLE・ZMK の取り込み）
+              specs.ts（スペックのタグと、版ごとのソケット）/ import/（QMK・VIA・KLE・ZMK の取り込み）
   data/       keycodes.ts / types.ts / normalize.ts（外から来たデータの検証と移行）
+              switches.ts（キースイッチのカタログ・足の形・ソケットと対応）
   engine/     resolve.ts（純粋な解決関数）/ KeyEngine.ts（状態機械）/ analyze.ts（フォルダ分け・一致度）/ zmk.ts / qmk.ts / useEngine.ts / useSwitchSound.ts
   lib/        supabase.ts / auth.ts / profile.ts / feed.ts / folders.ts / xVerification.ts（X のポストで本人確認）/ switchSound.ts（打鍵音）
-  store/      keymapStore.ts（Zustand + persist）/ authStore.ts / profileStore.ts / feedStore.ts / folderStore.ts
-  components/ Board / LayerBar / Inspector / Picker / Combos / Gestures / Export / Hud / PipHost / Feed / Profile / Auth
+  store/      keymapStore.ts（Zustand + persist）/ authStore.ts / profileStore.ts / feedStore.ts / folderStore.ts / switchStore.ts
+  components/ Board / LayerBar / Inspector / Picker / Combos / Gestures / Export / Hud / PipHost / Feed / Switches / Profile / Auth
   styles/     theme.css（デザイントークンと共通クラス）
 api/og.ts       共有された配列のカード画像（Vercel Edge Function、@vercel/og）
 middleware.ts   共有リンク（/?k=<投稿ID>）の OGP をその投稿のものに差し替える（Vercel Routing Middleware）

@@ -1,3 +1,4 @@
+import { switchesOf } from '../../data/switches'
 import {
   BODY_COLOR_LABEL, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL,
   type BodyColor, type Keymap, type TrackballColor,
@@ -6,6 +7,8 @@ import { hasBall, keyboardOf } from '../../keyboards/registry'
 import type { SharedKeymap } from '../../lib/feed'
 import { getOsTag, osOf } from '../../lib/os'
 import { useKeymapStore } from '../../store/keymapStore'
+import { useSwitchStore } from '../../store/switchStore'
+import { SwitchPickChips } from '../Switches/SwitchParts'
 
 /* タイムライン・右上の比較パネル・拡大モーダルで共通に使う部品 */
 
@@ -53,16 +56,27 @@ function ColorDot({ color, size = 14 }: { color: TrackballColor | BodyColor; siz
   )
 }
 
-/** 投稿主のキーボードと、設定した本体色・トラックボール色をまとめて表示する */
+/**
+ * 投稿主のキーボード・使っているキースイッチと、設定した本体色・トラックボール色をまとめて表示する。
+ * キーボードとスイッチは押すと詳しい説明（スペックのタグ・スイッチの詳細）が開く
+ */
 export function DeviceColors({ keymap }: { keymap: Keymap }) {
+  const openDetail = useSwitchStore((s) => s.openDetail)
   const def = keyboardOf(keymap)
   const bodyColor = keymap.settings.bodyColor ?? 'white'
   const ballColor = keymap.trackball.color ?? 'white'
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="nb-chip" style={{ background: 'var(--color-sand)' }}>
+      <button
+        type="button"
+        className="nb-chip"
+        style={{ background: 'var(--color-sand)', cursor: 'pointer' }}
+        title={`${def.name} のスペックを見る`}
+        onClick={() => openDetail({ kind: 'keyboard', def })}
+      >
         ⌨ {def.name}
-      </span>
+      </button>
+      <SwitchPickChips picks={switchesOf(keymap)} />
       <span className="nb-chip flex items-center gap-1.5" style={{ background: 'var(--color-paper)' }}>
         <ColorDot color={bodyColor} />
         本体: {BODY_COLOR_LABEL[bodyColor]}

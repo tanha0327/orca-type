@@ -140,6 +140,37 @@ export async function fetchKeymapsByIds(ids: string[]): Promise<SharedKeymap[]> 
   return toSharedKeymaps(data)
 }
 
+/** 投稿の一覧に出すだけの、配列の中身を持たない要約 */
+export interface SharedKeymapSummary {
+  id: string
+  name: string
+  author: string
+  avatar_url: string | null
+  created_at: string
+}
+
+/**
+ * そのキースイッチ（カタログの ID）を添えた投稿を新しい順に。
+ * スイッチは配列の JSON（settings.switches）に入っているので、JSON の包含（@>）で探す。DB の変更は要らない
+ */
+export async function fetchPostsUsingSwitch(switchId: string, limit = 5): Promise<SharedKeymapSummary[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('shared_keymaps')
+    .select('id, name, author, avatar_url, created_at')
+    .contains('keymap', { settings: { switches: [{ id: switchId }] } })
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    author: row.author,
+    avatar_url: row.avatar_url ?? null,
+    created_at: row.created_at,
+  }))
+}
+
 interface RankRow {
   id: string
   created_at: string

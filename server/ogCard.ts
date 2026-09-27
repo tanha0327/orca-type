@@ -1,4 +1,5 @@
 import { getKeycode } from '../src/data/keycodes.js'
+import { clipByWidth, pickLabel, switchesOf } from '../src/data/switches.js'
 import {
   DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_TEXT, FLAVOR_LABEL, LAYER_COLOR_HEX,
   TRACKBALL_COLOR_DARK, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL,
@@ -222,6 +223,7 @@ function features(item: CardInput): [string, CardChild[]][] {
   const def = keyboardOf(keymap)
   const category = getCategory(item.category ?? classifyKeymap(keymap))
   const os = osOf(keymap)
+  const switches = switchesOf(keymap)
   const combos = keymap.combos.filter((c) => c.enabled).length
   const modTaps = keymap.layers.reduce(
     (n, layer) => n + Object.values(layer.keys ?? {}).filter((b) => isModTap(b)).length, 0,
@@ -237,6 +239,8 @@ function features(item: CardInput): [string, CardChild[]][] {
     ]],
   ]
   if (os) rows.push(['OS', [getOsTag(os).label]])
+  // 右の欄は狭いので、手で入力された日本語の長い名前でも折り返さない幅で切る
+  if (switches.length > 0) rows.push(['キースイッチ', [clipByWidth(switches.map(pickLabel).join(' / '), 26)]])
   if (hasBall(def)) {
     rows.push(['トラックボール', [colorDot(ball), `${TRACKBALL_COLOR_LABEL[ball]}・${keymap.trackball.dpi} DPI`]])
   }

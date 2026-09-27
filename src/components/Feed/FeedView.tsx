@@ -27,6 +27,7 @@ import {
 import { useAuthorCardStore } from '../Profile/AuthorCardModal'
 import { BeginnerBadge } from '../Profile/ProfileTagParts'
 import { Ring } from '../Ring'
+import { SwitchPicker } from '../Switches/SwitchPicker'
 import { XVerifiedBadge } from '../XVerifiedBadge'
 import { BeginnerPicks } from './BeginnerPicks'
 import {
@@ -1178,7 +1179,8 @@ function ShareModal({
           </button>
         </header>
 
-        {/* フォルダ・OS・初心者へのおすすめの欄で背が高くなったので、背の低いスマホでも「共有する」まで届くよう本文をスクロールさせる */}
+        {/* フォルダ・OS・キースイッチ・初心者へのおすすめの欄で背が高くなったので、背の低いスマホでも
+            「共有する」まで届くよう本文だけをスクロールさせ、「共有する」は下に固定する */}
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
           <label className="block">
             <span className="nb-eyebrow">配列名</span>
@@ -1288,6 +1290,7 @@ function ShareModal({
               })}
             </div>
           </div>
+          <SwitchPicker />
           {showRec && (
             <button
               type="button"
@@ -1317,6 +1320,9 @@ function ShareModal({
               </span>
             </button>
           )}
+        </div>
+
+        <div className="space-y-2 border-t-[3px] border-[var(--color-ink)] p-3">
           {shareMsg && (
             <p className="nb-chip" style={{ background: 'var(--color-lime)' }}>{shareMsg}</p>
           )}
