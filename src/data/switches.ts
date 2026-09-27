@@ -306,10 +306,14 @@ export interface KeySwitch {
   preTravel?: number
   /** 押し切るまでの距離（トータルトラベル, mm） */
   totalTravel?: number
-  /** 軸の色（一覧の色見本）。省略すると種類ごとの色 */
+  /** 軸の色（一覧の色見本・イラスト）。省略すると種類ごとの色（colorUnknown のものは灰色） */
   stemColor?: string
-  /** ハウジング（外側のケース）の色。イラストに使う。省略すると明るい色で描く */
+  /** ハウジング（外側のケース）の色。上下で違うものは上の色。イラストに使う。省略すると明るい色で描く */
   housingColor?: string
+  /** 下のハウジングの色。上と違うときだけ書く（省略すると housingColor と同じ） */
+  bottomHousingColor?: string
+  /** 軸・ハウジングの色を資料で確かめられていない。イラストは灰色で描き、詳細でそう断る */
+  colorUnknown?: boolean
   /** 打鍵音を聞けるページ（動画など）。省略すると YouTube で「名前 sound test」を検索する */
   soundUrl?: string
   /** soundUrl のページの題名（何種類かを聞き比べた動画なら、その動画の題名） */
@@ -328,307 +332,365 @@ const LOW_PROFILE_REVIEW = {
   soundTitle: '【ロープロファイルスイッチ徹底解説】27種類のスペック・打鍵音を紹介',
 } as const
 
+/*
+ * 軸・ハウジングの色は、メーカー・販売店の説明と switches.mx のデータ（github.com/BWLR/switches.mx）で調べたもの。
+ * 同じ名前でも版で色が違うスイッチは、いちばん基本の版の色にしている（コメントに書く）。
+ * 透明・乳白色・スモークのハウジングは、後ろが透けて見えるよう半透明で描く
+ */
+/** 黒いナイロン（Cherry・Gateron・Kailh などの黒いハウジング。switches.mx の色） */
+const BLACK = '#3a4045'
+/** 白いナイロン */
+const WHITE = '#f8f8f4'
+/** 透明（クリア）の PC */
+const CLEAR = 'rgba(214, 230, 238, 0.55)'
+/** 乳白色（ミルキー） */
+const MILKY = 'rgba(246, 244, 237, 0.92)'
+/** スモーク（透けて見える黒） */
+const SMOKY = 'rgba(58, 64, 69, 0.72)'
+/** Kailh の Choc Pro シリーズの下のハウジング（灰色のナイロン） */
+const PRO_GRAY = '#a9adb3'
+/** Kailh の Deep Sea Silent Mini の下のハウジング（濃い青） */
+const DEEP_SEA_BLUE = '#1d3b73'
+
 export const KEYSWITCHES: readonly KeySwitch[] = [
   /* ---- Cherry MX 互換（一般的な高さ） ---- */
+  // Cherry の標準の版は、上下とも黒いハウジング（RGB 版は透明）
   {
     id: 'cherry-mx-red', name: 'Cherry MX Red', maker: 'Cherry', mount: 'mx', type: 'linear',
-    forceGf: 45, preTravel: 2.0, totalTravel: 4.0, stemColor: '#d7372b',
+    forceGf: 45, preTravel: 2.0, totalTravel: 4.0, stemColor: '#dc413a', housingColor: BLACK,
     note: '「赤軸」の元祖。軽めのリニアの基準になるスイッチ',
   },
   {
     id: 'cherry-mx-brown', name: 'Cherry MX Brown', maker: 'Cherry', mount: 'mx', type: 'tactile',
-    forceGf: 55, preTravel: 2.0, totalTravel: 4.0, stemColor: '#8a5a2e',
+    forceGf: 55, preTravel: 2.0, totalTravel: 4.0, stemColor: '#674842', housingColor: BLACK,
     note: '「茶軸」の元祖。山は控えめで、リニアに近い軽さ',
   },
   {
     id: 'cherry-mx-blue', name: 'Cherry MX Blue', maker: 'Cherry', mount: 'mx', type: 'clicky',
-    forceGf: 60, preTravel: 2.2, totalTravel: 4.0, stemColor: '#2f73d6',
+    forceGf: 60, preTravel: 2.2, totalTravel: 4.0, stemColor: '#44a9ff', housingColor: BLACK,
     note: '「青軸」の元祖。はっきりしたクリック音',
   },
   {
     id: 'cherry-mx-black', name: 'Cherry MX Black', maker: 'Cherry', mount: 'mx', type: 'linear',
-    forceGf: 60, preTravel: 2.0, totalTravel: 4.0, stemColor: '#26262a',
+    forceGf: 60, preTravel: 2.0, totalTravel: 4.0, stemColor: BLACK, housingColor: BLACK,
     note: '重めのリニア。誤って押しにくい',
   },
   {
+    // Cherry の表記では軸はピンク
     id: 'cherry-mx-silent-red', name: 'Cherry MX Silent Red', maker: 'Cherry', mount: 'mx', type: 'linear',
-    silent: true, forceGf: 45, preTravel: 1.9, totalTravel: 3.7, stemColor: '#e2566a',
+    silent: true, forceGf: 45, preTravel: 1.9, totalTravel: 3.7, stemColor: '#ec7575', housingColor: BLACK,
     note: '赤軸にダンパーを入れて、底打ちと戻りの音を抑えたもの',
   },
   {
+    // 長く RGB 版（透明のハウジング）だけで売られていたので、その色。黒いハウジングの版もある
     id: 'cherry-mx-speed-silver', name: 'Cherry MX Speed Silver', maker: 'Cherry', mount: 'mx', type: 'linear',
-    forceGf: 45, preTravel: 1.2, totalTravel: 3.4, stemColor: '#b9bec6',
+    forceGf: 45, preTravel: 1.2, totalTravel: 3.4, stemColor: '#bcbcbc', housingColor: CLEAR,
     note: '動作点が浅く、少し押しただけで反応する',
   },
   {
+    // 今の G Pro（3.0）の色。上が透明、下が白
     id: 'gateron-yellow', name: 'Gateron Yellow', maker: 'Gateron', mount: 'mx', type: 'linear',
-    forceGf: 50, preTravel: 2.0, totalTravel: 4.0, stemColor: '#f0c419',
+    forceGf: 50, preTravel: 2.0, totalTravel: 4.0, stemColor: '#ffe07b', housingColor: CLEAR, bottomHousingColor: WHITE,
     note: '手ごろでなめらかな定番のリニア',
   },
   {
     id: 'gateron-milky-yellow-pro', name: 'Gateron Milky Yellow Pro', maker: 'Gateron', mount: 'mx', type: 'linear',
-    forceGf: 50, preTravel: 2.0, totalTravel: 4.0, stemColor: '#f0c419', housingColor: '#f4f1ea',
+    forceGf: 50, preTravel: 2.0, totalTravel: 4.0, stemColor: '#ffe07b', housingColor: MILKY,
     note: '乳白色のハウジングの黄軸。工場で潤滑済み',
   },
   {
     id: 'gateron-oil-king', name: 'Gateron Oil King', maker: 'Gateron', mount: 'mx', type: 'linear',
-    forceGf: 55, preTravel: 2.0, totalTravel: 4.0, stemColor: '#2a2a2e',
+    forceGf: 55, preTravel: 2.0, totalTravel: 4.0, stemColor: BLACK, housingColor: BLACK,
     note: '低めの落ち着いた打鍵音が人気のリニア',
   },
   {
+    // G Pro（3.0）の色。軸の色は switches.mx の Gateron の茶軸
     id: 'gateron-brown', name: 'Gateron Brown', maker: 'Gateron', mount: 'mx', type: 'tactile',
-    forceGf: 55, preTravel: 2.0, totalTravel: 4.0, stemColor: '#8a5a2e',
+    forceGf: 55, preTravel: 2.0, totalTravel: 4.0, stemColor: '#694824', housingColor: CLEAR, bottomHousingColor: WHITE,
   },
   {
     id: 'gateron-blue', name: 'Gateron Blue', maker: 'Gateron', mount: 'mx', type: 'clicky',
-    forceGf: 60, preTravel: 2.3, totalTravel: 4.0, stemColor: '#2f73d6',
+    forceGf: 60, preTravel: 2.3, totalTravel: 4.0, stemColor: '#2f6fd6', housingColor: CLEAR, bottomHousingColor: WHITE,
   },
   {
+    // 最初の版（V1）の色。V2 は下が黒
     id: 'kailh-box-white', name: 'Kailh BOX White', maker: 'Kailh', mount: 'mx', type: 'clicky',
-    forceGf: 50, preTravel: 1.8, totalTravel: 3.6, stemColor: '#f4f4f0',
+    forceGf: 50, preTravel: 1.8, totalTravel: 3.6, stemColor: '#ffffff', housingColor: CLEAR, bottomHousingColor: '#fffff2',
     note: 'クリックバー式の軽いクリッキー。軸のまわりが箱（BOX）で、ほこりや水に強い',
   },
   {
     id: 'kailh-box-red', name: 'Kailh BOX Red', maker: 'Kailh', mount: 'mx', type: 'linear',
-    forceGf: 45, preTravel: 1.8, totalTravel: 3.6, stemColor: '#d7372b',
+    forceGf: 45, preTravel: 1.8, totalTravel: 3.6, stemColor: '#fa3000', housingColor: CLEAR, bottomHousingColor: '#fffff2',
   },
   {
     id: 'novelkeys-cream', name: 'NovelKeys Cream', maker: 'NovelKeys', mount: 'mx', type: 'linear',
-    forceGf: 55, stemColor: '#efe3c8', housingColor: '#efe3c8',
+    forceGf: 55, stemColor: '#faf1e1', housingColor: '#faf1e1',
     note: 'ハウジングも軸も POM。使い込むほどなめらかになると言われる',
   },
   {
     id: 'holy-panda', name: 'Holy Panda', maker: 'Drop', mount: 'mx', type: 'tactile',
-    forceGf: 67, stemColor: '#ece6d6',
+    forceGf: 67, stemColor: '#efbd9c', housingColor: '#e8e8e4',
     note: '大きくはっきりした山が人気のタクタイル',
   },
   {
+    // スモーク（透けた黒）のハウジングの版。透明のハウジングの版もあり、軸はどちらもティール
     id: 'durock-t1', name: 'Durock T1', maker: 'Durock', mount: 'mx', type: 'tactile',
-    forceGf: 67,
+    forceGf: 67, stemColor: '#298296', housingColor: SMOKY,
   },
   {
+    // 最初の白いハウジングの版。黒いハウジングの版は Boba Black U4T という別の名前
     id: 'boba-u4t', name: 'Gazzew Boba U4T', maker: 'Gazzew', mount: 'mx', type: 'tactile',
-    forceGf: 62,
+    forceGf: 62, stemColor: '#e9aa00', housingColor: '#f4f2ee',
     note: '強い山と「トコッ」とした低い音で知られるタクタイル（68gf 版もある）',
   },
 
   /* ---- Kailh Choc V1（ロープロファイル） ---- */
+  // 軸の色は Kailh の各色（switches.mx の Kailh の赤・茶・ピンク・白・ジェード）。
+  // 標準の Choc は上が透明・下が黒、Pro シリーズ（Red Pro・Pink）は下が灰色
   {
     id: 'choc-v1-red', name: 'Kailh Choc V1 Red', maker: 'Kailh', mount: 'choc-v1', type: 'linear',
-    forceGf: 50, preTravel: 1.5, totalTravel: 3.0, stemColor: '#d7372b',
+    forceGf: 50, preTravel: 1.5, totalTravel: 3.0, stemColor: '#fa3000', housingColor: CLEAR, bottomHousingColor: BLACK,
   },
   {
+    // 下の灰色は、同じ Pro シリーズの Pink から（Red Pro 自体の資料では色まで確かめられていない）
     id: 'choc-v1-red-pro', name: 'Kailh Choc V1 Red Pro', maker: 'Kailh', mount: 'choc-v1', type: 'linear',
-    forceGf: 35, preTravel: 1.5, totalTravel: 3.0, stemColor: '#b8231c',
+    forceGf: 35, preTravel: 1.5, totalTravel: 3.0, stemColor: '#fa3000', housingColor: CLEAR, bottomHousingColor: PRO_GRAY,
     note: 'Choc の定番を軽く・なめらかにしたもの。分割キーボードでよく選ばれる',
   },
   {
+    // Kailh の呼び名は Pro Pink
     id: 'choc-v1-pink', name: 'Kailh Choc V1 Pink', maker: 'Kailh', mount: 'choc-v1', type: 'linear',
-    forceGf: 20, preTravel: 1.5, totalTravel: 3.0, stemColor: '#f7a8c4',
+    forceGf: 20, preTravel: 1.5, totalTravel: 3.0, stemColor: '#ff6699', housingColor: CLEAR, bottomHousingColor: PRO_GRAY,
     note: 'とても軽い。触れただけで入力されることもある',
   },
   {
     id: 'choc-v1-brown', name: 'Kailh Choc V1 Brown', maker: 'Kailh', mount: 'choc-v1', type: 'tactile',
-    forceGf: 50, preTravel: 1.5, totalTravel: 3.0, stemColor: '#8a5a2e',
+    forceGf: 50, preTravel: 1.5, totalTravel: 3.0, stemColor: '#7c3000', housingColor: CLEAR, bottomHousingColor: BLACK,
   },
   {
+    // 上はアンバー（透ける琥珀色）
     id: 'choc-v1-sunset', name: 'Kailh Choc V1 Sunset', maker: 'Kailh', mount: 'choc-v1', type: 'tactile',
     forceGf: 40, preTravel: 1.5, totalTravel: 3.0, stemColor: '#f08a24',
+    housingColor: 'rgba(222, 142, 40, 0.62)', bottomHousingColor: BLACK,
   },
   {
     id: 'choc-v1-white', name: 'Kailh Choc V1 White', maker: 'Kailh', mount: 'choc-v1', type: 'clicky',
-    forceGf: 50, preTravel: 1.5, totalTravel: 3.0, stemColor: '#f4f4f0',
+    forceGf: 50, preTravel: 1.5, totalTravel: 3.0, stemColor: '#ffffff', housingColor: CLEAR, bottomHousingColor: BLACK,
   },
   {
+    // ハウジングは標準の Choc と同じ作り（Jade 自体の資料では色まで確かめられていない）
     id: 'choc-v1-jade', name: 'Kailh Choc V1 Jade', maker: 'Kailh', mount: 'choc-v1', type: 'clicky',
-    forceGf: 60, preTravel: 1.5, totalTravel: 3.0, stemColor: '#3fb28f',
+    forceGf: 60, preTravel: 1.5, totalTravel: 3.0, stemColor: '#bbe0aa', housingColor: CLEAR, bottomHousingColor: BLACK,
     note: '太いクリックバーで、重く大きなクリック音',
   },
 
   /* ---- Kailh Choc V2（ロープロファイル・MX の十字軸） ---- */
+  // 上が透明・下が黒
   {
     id: 'choc-v2-red', name: 'Kailh Choc V2 Red', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 50, preTravel: 1.3, totalTravel: 3.2, stemColor: '#d7372b',
+    forceGf: 50, preTravel: 1.3, totalTravel: 3.2, stemColor: '#fa3000', housingColor: CLEAR, bottomHousingColor: BLACK,
   },
   {
     id: 'choc-v2-brown', name: 'Kailh Choc V2 Brown', maker: 'Kailh', mount: 'choc-v2', type: 'tactile',
-    forceGf: 55, totalTravel: 3.2, stemColor: '#8a5a2e',
+    forceGf: 55, totalTravel: 3.2, stemColor: '#7c3000', housingColor: CLEAR, bottomHousingColor: BLACK,
   },
   {
-    id: 'choc-v2-white', name: 'Kailh Choc V2 White', maker: 'Kailh', mount: 'choc-v2', type: 'clicky',
-    forceGf: 50, totalTravel: 3.2, stemColor: '#f4f4f0',
+    // Choc V2 のクリッキーは Blue（White という Choc V2 は無い）。ID は投稿の JSON から参照されるので、前の名前のまま
+    id: 'choc-v2-white', name: 'Kailh Choc V2 Blue', maker: 'Kailh', mount: 'choc-v2', type: 'clicky',
+    forceGf: 50, totalTravel: 3.2, stemColor: '#2f73d6', housingColor: CLEAR, bottomHousingColor: BLACK,
   },
 
   /* ---- Choc V2 の形のロープロファイル（ここからは LOW_PROFILE_REVIEW の動画で紹介されたもの） ---- */
-  // Lofree × Kailh の Shadow シリーズ（ハウジングも軸も POM）
+  // Lofree × Kailh の Shadow シリーズ（ハウジングも軸も POM）。暗い色の単色で、Ghost は深緑・Phantom は深紫・Wizard は濃紺
   {
     id: 'lofree-ghost', name: 'Lofree Ghost', maker: 'Lofree × Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 50, preTravel: 1.2, totalTravel: 2.8, stemColor: '#2f5d50', ...LOW_PROFILE_REVIEW,
+    forceGf: 50, preTravel: 1.2, totalTravel: 2.8, stemColor: '#2f5d50', housingColor: '#2f5d50', ...LOW_PROFILE_REVIEW,
     note: 'Lofree と Kailh が作った、ハウジングも軸も POM のリニア（Shadow シリーズ）。Lofree Flow84 にも使われている',
   },
   {
     id: 'lofree-phantom', name: 'Lofree Phantom', maker: 'Lofree × Kailh', mount: 'choc-v2', type: 'tactile',
-    forceGf: 45, preTravel: 1.6, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 45, preTravel: 1.6, totalTravel: 2.8, stemColor: '#46325e', housingColor: '#46325e', ...LOW_PROFILE_REVIEW,
     note: 'Ghost と同じ POM の Shadow シリーズのタクタイル',
   },
   {
     id: 'lofree-wizard', name: 'Lofree Wizard', maker: 'Lofree × Kailh', mount: 'choc-v2', type: 'clicky',
-    forceGf: 50, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 50, preTravel: 1.2, totalTravel: 2.8, stemColor: '#26365e', housingColor: '#26365e', ...LOW_PROFILE_REVIEW,
     note: 'Ghost と同じ POM の Shadow シリーズのクリッキー',
   },
-  // Lofree の Cloud シリーズ（Flow 2 のスイッチ。Choc V2 の標準の形なので、ほかの Choc V2 対応のキーボードにも挿さる）
+  // Lofree の Cloud シリーズ（Flow 2 のスイッチ。Choc V2 の標準の形なので、ほかの Choc V2 対応のキーボードにも挿さる）。
+  // スイッチそのものの色は資料で確かめられていない（「本体の色に合わせてある」というレビューがあるだけ）
   {
     id: 'lofree-surfer', name: 'Lofree Surfer', maker: 'Lofree', mount: 'choc-v2', type: 'linear',
-    forceGf: 40, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 40, totalTravel: 2.8, colorUnknown: true, ...LOW_PROFILE_REVIEW,
     note: 'Lofree Flow 2 のスイッチ（Cloud シリーズ）のリニア。Choc V2 の標準の形で、ほかの Choc V2 対応のキーボードにも挿さる',
   },
   {
     id: 'lofree-void', name: 'Lofree Void', maker: 'Lofree', mount: 'choc-v2', type: 'linear', silent: true,
-    forceGf: 40, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 40, totalTravel: 2.8, colorUnknown: true, ...LOW_PROFILE_REVIEW,
     note: 'Lofree Flow 2 のスイッチ（Cloud シリーズ）の静音リニア',
   },
   {
     id: 'lofree-pulse', name: 'Lofree Pulse', maker: 'Lofree', mount: 'choc-v2', type: 'tactile',
-    forceGf: 40, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 40, totalTravel: 2.8, colorUnknown: true, ...LOW_PROFILE_REVIEW,
     note: 'Lofree Flow 2 のスイッチ（Cloud シリーズ）のタクタイル',
   },
-  // Kailh の Elements シリーズ（ハウジングも軸も POM）
+  // Kailh の Elements シリーズ（ハウジングも軸も POM）。ハウジングは White Rain が白・Black Cloud が黒・Hide Mountain が灰色で、
+  // 軸も同じ色の単色
   {
     id: 'kailh-white-rain', name: 'Kailh White Rain', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 50, stemColor: '#f4f4f0', ...LOW_PROFILE_REVIEW,
+    forceGf: 50, stemColor: '#f4f4f0', housingColor: '#f4f4f0', ...LOW_PROFILE_REVIEW,
     note: 'ハウジングも軸も POM の Elements シリーズのリニア',
   },
   {
     id: 'kailh-black-cloud', name: 'Kailh Black Cloud', maker: 'Kailh', mount: 'choc-v2', type: 'tactile',
-    forceGf: 45, stemColor: '#26262a', ...LOW_PROFILE_REVIEW,
+    forceGf: 45, stemColor: BLACK, housingColor: BLACK, ...LOW_PROFILE_REVIEW,
     note: 'ハウジングも軸も POM の Elements シリーズのタクタイル',
   },
   {
     id: 'kailh-hide-mountain', name: 'Kailh Hide Mountain', maker: 'Kailh', mount: 'choc-v2', type: 'clicky',
-    forceGf: 50, ...LOW_PROFILE_REVIEW,
+    forceGf: 50, stemColor: '#8e9196', housingColor: '#8e9196', ...LOW_PROFILE_REVIEW,
     note: 'ハウジングも軸も POM の Elements シリーズのクリッキー',
   },
-  // Kailh の四季（Season）シリーズ Mini
+  // Kailh の四季（Season）シリーズ Mini。上は透ける PC、下は POM（Spring・Winter）か PC（Summer・Autumn）。
+  // Summer は透明なターコイズに淡い緑の軸、Winter は淡い青。Spring と Autumn は Mini の色の資料が見つからず、
+  // 同じ四季シリーズの BOX 版の色（Spring は緑、Autumn は茶のハウジングにベージュの軸）にしている
   {
     id: 'kailh-spring-mini', name: 'Kailh Spring Mini', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 40, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 40, preTravel: 1.2, totalTravel: 2.8,
+    stemColor: '#5aa84f', housingColor: 'rgba(110, 186, 98, 0.6)', bottomHousingColor: '#7cbf6e', ...LOW_PROFILE_REVIEW,
     note: '四季（Season）シリーズ Mini のリニア',
   },
   {
     id: 'kailh-summer-mini', name: 'Kailh Summer Mini', maker: 'Kailh', mount: 'choc-v2', type: 'clicky',
-    forceGf: 50, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 50, preTravel: 1.2, totalTravel: 2.8,
+    stemColor: '#a8e2b4', housingColor: 'rgba(56, 190, 190, 0.5)', ...LOW_PROFILE_REVIEW,
     note: '四季シリーズ Mini のクリッキー（Autumn Mini より重い）',
   },
   {
     id: 'kailh-autumn-mini', name: 'Kailh Autumn Mini', maker: 'Kailh', mount: 'choc-v2', type: 'clicky',
-    forceGf: 40, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 40, preTravel: 1.2, totalTravel: 2.8,
+    stemColor: '#e3cfae', housingColor: 'rgba(138, 86, 46, 0.62)', ...LOW_PROFILE_REVIEW,
     note: '四季シリーズ Mini の、軽めのクリッキー',
   },
   {
     id: 'kailh-winter-mini', name: 'Kailh Winter Mini', maker: 'Kailh', mount: 'choc-v2', type: 'tactile',
-    forceGf: 38, ...LOW_PROFILE_REVIEW,
+    forceGf: 38, stemColor: '#a4c9ea', housingColor: 'rgba(164, 204, 236, 0.62)', bottomHousingColor: '#b7d6ef', ...LOW_PROFILE_REVIEW,
     note: '四季シリーズ Mini の、軽めのタクタイル',
   },
-  // Kailh の Deep Sea Silent Mini（2 つのシリコンのダンパーで音を抑えた静音）
+  // Kailh の Deep Sea Silent Mini（2 つのシリコンのダンパーで音を抑えた静音）。上が透明・下が濃い青で、
+  // 軸は Islet が白・Pink Island がピンク・Whale が茶
   {
     id: 'kailh-deep-sea-mini-islet', name: 'Kailh Deep Sea Mini Islet', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    silent: true, forceGf: 43, preTravel: 1.3, totalTravel: 2.8, stemColor: '#f4f4f0', ...LOW_PROFILE_REVIEW,
+    silent: true, forceGf: 43, preTravel: 1.3, totalTravel: 2.8,
+    stemColor: '#f4f4f0', housingColor: CLEAR, bottomHousingColor: DEEP_SEA_BLUE, ...LOW_PROFILE_REVIEW,
     note: 'Deep Sea Silent Mini の静音リニア。動画では「Islet（45g）」として紹介されている',
   },
   {
     id: 'kailh-deep-sea-mini-pink-island', name: 'Kailh Deep Sea Mini Pink Island', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    silent: true, forceGf: 35, preTravel: 1.3, totalTravel: 2.8, stemColor: '#f7a8c4', ...LOW_PROFILE_REVIEW,
+    silent: true, forceGf: 35, preTravel: 1.3, totalTravel: 2.8,
+    stemColor: '#f7a8c4', housingColor: CLEAR, bottomHousingColor: DEEP_SEA_BLUE, ...LOW_PROFILE_REVIEW,
     note: '軸がピンクの、軽い版の Islet（静音リニア）。動画では「Islet（35g）」として紹介されている',
   },
   {
     id: 'kailh-deep-sea-mini-whale', name: 'Kailh Deep Sea Mini Whale', maker: 'Kailh', mount: 'choc-v2', type: 'tactile',
-    silent: true, forceGf: 45, preTravel: 1.3, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    silent: true, forceGf: 45, preTravel: 1.3, totalTravel: 2.8,
+    stemColor: '#7c3000', housingColor: CLEAR, bottomHousingColor: DEEP_SEA_BLUE, ...LOW_PROFILE_REVIEW,
     note: 'Deep Sea Silent Mini の静音タクタイル',
   },
   // Kailh のそのほかの Choc V2（レバーレスコントローラー向けに作られたものも、キーボードに挿さる）
   {
+    // 全部 POM の青の単色
     id: 'kailh-wind-engine', name: 'Kailh Wind Engine', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 50, totalTravel: 3.2, ...LOW_PROFILE_REVIEW,
+    forceGf: 50, totalTravel: 3.2, stemColor: '#4a78c8', housingColor: '#4a78c8', ...LOW_PROFILE_REVIEW,
     note: 'ハウジングも軸も POM。レバーレスコントローラー向けに作られたリニア',
   },
   {
+    // ハウジングは上下とも透明。軸の色は資料で確かめられていない（透明として描いている）
     id: 'kailh-crystal', name: 'Kailh Crystal', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 50, totalTravel: 3.2, housingColor: '#dcebf2', ...LOW_PROFILE_REVIEW,
+    forceGf: 50, totalTravel: 3.2, stemColor: 'rgba(226, 238, 244, 0.85)', housingColor: CLEAR, ...LOW_PROFILE_REVIEW,
     note: '透明なポリカーボネートのハウジング。レバーレスコントローラー向けに作られたリニア',
   },
   {
     id: 'kailh-shadow-hunting', name: 'Kailh Shadow Hunting', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 50, ...LOW_PROFILE_REVIEW,
+    forceGf: 50, stemColor: BLACK, housingColor: BLACK, ...LOW_PROFILE_REVIEW,
     note: 'レバーレスコントローラー向けのリニア。押し切りの深さは資料によって違うので載せていない',
   },
   {
     id: 'kailh-saker-mini', name: 'Kailh Saker Mini', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 37, preTravel: 0.8, totalTravel: 1.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 37, preTravel: 0.8, totalTravel: 1.8, colorUnknown: true, ...LOW_PROFILE_REVIEW,
     note: '押し切るまで 1.8mm と特に浅い、ゲーム向けのリニア',
   },
   {
+    // どの部品も乳白色
     id: 'kailh-ice-cream-mini', name: 'Kailh Ice Cream Mini', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 40, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 40, preTravel: 1.2, totalTravel: 2.8, stemColor: '#f4f1ea', housingColor: '#f4f1ea', ...LOW_PROFILE_REVIEW,
     note: 'ハウジングも軸も POM のリニア',
   },
   {
+    // ハウジングは Ice Cream Mini と同じ白で、軸だけがタロイモの薄紫
     id: 'kailh-taro-ice-cream-mini', name: 'Kailh Taro Ice Cream Mini', maker: 'Kailh', mount: 'choc-v2', type: 'linear',
-    forceGf: 37, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 37, totalTravel: 2.8, stemColor: '#b9a1d8', housingColor: '#f4f1ea', ...LOW_PROFILE_REVIEW,
     note: 'ハウジングも軸も POM。Ice Cream Mini より少し軽いリニア',
   },
 
   /* ---- Gateron KS-33（ロープロファイル 2.0） ---- */
+  // 最初の版の色。上が透明・下が白（あとから下が黒の版も出た）
   {
     id: 'gateron-ks33-red', name: 'Gateron KS-33 Red', maker: 'Gateron', mount: 'gateron-lp', type: 'linear',
-    forceGf: 45, preTravel: 1.7, totalTravel: 3.0, stemColor: '#d7372b',
+    forceGf: 45, preTravel: 1.7, totalTravel: 3.0, stemColor: '#e0372d', housingColor: CLEAR, bottomHousingColor: WHITE,
   },
   {
     id: 'gateron-ks33-brown', name: 'Gateron KS-33 Brown', maker: 'Gateron', mount: 'gateron-lp', type: 'tactile',
-    forceGf: 55, preTravel: 1.7, totalTravel: 3.0, stemColor: '#8a5a2e',
+    forceGf: 55, preTravel: 1.7, totalTravel: 3.0, stemColor: '#694824', housingColor: CLEAR, bottomHousingColor: WHITE,
   },
   {
     id: 'gateron-ks33-banana', name: 'Gateron KS-33 Banana', maker: 'Gateron', mount: 'gateron-lp', type: 'tactile',
-    forceGf: 60, preTravel: 1.7, totalTravel: 3.0, stemColor: '#f5d547',
+    forceGf: 60, preTravel: 1.7, totalTravel: 3.0, stemColor: '#f5d547', housingColor: CLEAR, bottomHousingColor: WHITE,
   },
   {
     id: 'gateron-ks33-blue', name: 'Gateron KS-33 Blue', maker: 'Gateron', mount: 'gateron-lp', type: 'clicky',
-    forceGf: 60, preTravel: 1.7, totalTravel: 3.0, stemColor: '#2f73d6',
+    forceGf: 60, preTravel: 1.7, totalTravel: 3.0, stemColor: '#2f6fd6', housingColor: CLEAR, bottomHousingColor: WHITE,
   },
 
   /* ---- Keychron ロープロファイル（Orca echo） ---- */
+  // 色はギズモード・ジャパンの投票で決まったもの（2026 年 8 月・パターン C）。Ninja はグレーに淡い青の軸、Samurai は黒にワインレッドの軸
   {
     id: 'keychron-apex-ninja', name: 'Keychron Ninja', maker: 'Keychron', mount: 'keychron-lp', type: 'linear',
+    stemColor: '#a9cde8', housingColor: '#9a9ca2',
     soundQuery: 'Keychron Orca echo Ninja switch sound test',
     note: 'Orca echo の標準スイッチ（Apex POM ロープロファイル）の、なめらかに底まで沈むほう。押下圧などは公表待ち',
   },
   {
     id: 'keychron-apex-samurai', name: 'Keychron Samurai', maker: 'Keychron', mount: 'keychron-lp', type: 'tactile',
+    stemColor: '#7b1f32', housingColor: BLACK,
     soundQuery: 'Keychron Orca echo Samurai switch sound test',
     note: 'Orca echo の標準スイッチ（Apex POM ロープロファイル）の、はっきりした手応えがあるほう。押下圧などは公表待ち',
   },
 
   /* ---- Lofree 専用（Flow84・Flow100・Flow Lite84・Flow Lite100 だけに挿さる） ---- */
+  // 色は資料で確かめられていない
   {
     id: 'lofree-specter', name: 'Lofree Specter', maker: 'Lofree × Kailh', mount: 'lofree-lp', type: 'linear',
-    forceGf: 40, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 40, totalTravel: 2.8, colorUnknown: true, ...LOW_PROFILE_REVIEW,
     note: 'Lofree のキーボード専用のリニア。ほかのキーボードの Choc V2 用ソケットには挿さらない',
   },
   {
     id: 'lofree-hades', name: 'Lofree Hades', maker: 'Lofree', mount: 'lofree-lp', type: 'linear', silent: true,
-    forceGf: 45, preTravel: 1.3, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 45, preTravel: 1.3, totalTravel: 2.8, colorUnknown: true, ...LOW_PROFILE_REVIEW,
     note: 'Lofree のキーボード専用の静音リニア。ハウジングも軸も POM',
   },
 
   /* ---- 足の形（挿さるソケット）を確かめられていないもの ---- */
+  // 色も資料で確かめられていない
   {
     id: 'kailh-panda-v1', name: 'Kailh Panda V1', maker: 'Kailh', mount: 'unconfirmed-lp', type: 'linear',
-    forceGf: 30, preTravel: 1.2, totalTravel: 2.8, ...LOW_PROFILE_REVIEW,
+    forceGf: 30, preTravel: 1.2, totalTravel: 2.8, colorUnknown: true, ...LOW_PROFILE_REVIEW,
     note: 'レバーレスコントローラー向けとして売られている軽いリニア。挿さるソケットは確かめられていない'
       + '（名前の「V1」が Choc V1 の形のことなのかも分からない）',
   },
   {
     id: 'kailh-panda-v2', name: 'Kailh Panda V2', maker: 'Kailh', mount: 'unconfirmed-lp', type: 'linear',
-    forceGf: 40, preTravel: 0.8, totalTravel: 2.0, ...LOW_PROFILE_REVIEW,
+    forceGf: 40, preTravel: 0.8, totalTravel: 2.0, colorUnknown: true, ...LOW_PROFILE_REVIEW,
     note: 'Panda V1 より浅い（押し切るまで 2.0mm）リニア。挿さるソケットは確かめられていない'
       + '（名前の「V2」が Choc V2 の形のことなのかも分からない）',
   },
@@ -640,8 +702,19 @@ export function getSwitch(id: string | undefined): KeySwitch | undefined {
   return id ? SWITCH_BY_ID.get(id) : undefined
 }
 
+/** 色を資料で確かめられていないスイッチ（colorUnknown）を描く灰色。種類ごとの色で描くと、実物の色と取り違えるので */
+const UNKNOWN_STEM = '#9ca3af'
+const UNKNOWN_HOUSING = '#dcdde0'
+
 export function stemColorOf(sw: KeySwitch): string {
+  if (sw.colorUnknown) return UNKNOWN_STEM
   return sw.stemColor ?? SWITCH_TYPE_STEM[sw.type]
+}
+
+/** イラストのハウジングの色（上・下）。書いていない色は undefined（イラストの既定の色で描く） */
+export function housingColorsOf(sw: KeySwitch): { top?: string; bottom?: string } {
+  if (sw.colorUnknown) return { top: UNKNOWN_HOUSING, bottom: UNKNOWN_HOUSING }
+  return { top: sw.housingColor, bottom: sw.bottomHousingColor ?? sw.housingColor }
 }
 
 /**
