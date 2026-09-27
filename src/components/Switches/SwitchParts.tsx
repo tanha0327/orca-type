@@ -1,5 +1,10 @@
+import type { ReactNode } from 'react'
 import {
-  clipByWidth, getSocket, getSwitch, pickLabel, PICK_CHIP_WIDTH, stemColorOf, SWITCH_TYPE_HELP, SWITCH_TYPE_LABEL,
+  DEFAULT_HOUSING_COLOR, LOW_CHOC_STEM_PATH, LOW_CROSS_STEM_PATH, LOW_HOUSING_PATH, MX_HOUSING_PATH, MX_STEM_PATH,
+} from '../../data/switchSilhouette'
+import {
+  clipByWidth, FORCE_FEEL_LABEL, forceFeel, getMount, getSocket, getSwitch, pickLabel, PICK_CHIP_WIDTH, stemColorOf,
+  switchSoundQuery, switchSoundUrl, SWITCH_TYPE_HELP, SWITCH_TYPE_LABEL,
   type KeySwitch, type SocketId, type SwitchType,
 } from '../../data/switches'
 import type { SwitchPick } from '../../data/types'
@@ -21,6 +26,113 @@ export function StemSwatch({ color, size = 12 }: { color: string; size?: number 
       className="inline-block shrink-0 rounded-[3px]"
       style={{ width: size, height: size, background: color, border: '2px solid var(--color-ink)' }}
     />
+  )
+}
+
+/**
+ * キースイッチを正面から見たイラスト（プロフィールのサンプルアイコンと同じ描き方）。
+ * 軸はそのスイッチの色で塗り、ハウジングを太い線・軸を細い線で描く。
+ * ロープロファイルは背の低い形（同じ縮尺で描くので、並べると背の低さがそのまま見える）で、Choc V1 は 2 本足の軸
+ */
+export function SwitchVisual({ sw, className, sameFrame = false }: {
+  sw: KeySwitch
+  className?: string
+  /** 一般的な高さのスイッチと同じ枠・同じ足の位置で描く（背の高さを見比べるとき） */
+  sameFrame?: boolean
+}) {
+  const mount = getMount(sw.mount)
+  const low = mount.profile === 'low'
+  const stem = !low ? MX_STEM_PATH : mount.stem === 'choc' ? LOW_CHOC_STEM_PATH : LOW_CROSS_STEM_PATH
+  return (
+    // ロープロファイルは、縮尺は同じまま見る範囲だけずらして上下の中央に置く（背の低さはそのまま見える）
+    <svg viewBox={low && !sameFrame ? '8 15.5 48 48' : '8 8 48 48'} className={className} aria-hidden="true">
+      <path
+        d={low ? LOW_HOUSING_PATH : MX_HOUSING_PATH}
+        fill={sw.housingColor ?? DEFAULT_HOUSING_COLOR}
+        stroke="#111111"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+      />
+      <path d={stem} fill={stemColorOf(sw)} stroke="#111111" strokeWidth={0.8} strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** 一般的な高さ（MX）のスイッチの点線の輪郭。ロープロファイルのスイッチと背の高さを見比べる見本 */
+export function StandardSwitchOutline({ className }: { className?: string }) {
+  return (
+    <svg viewBox="8 8 48 48" className={className} aria-hidden="true">
+      <path d={MX_HOUSING_PATH} fill="none" stroke="#111111" strokeWidth={1.2} strokeDasharray="2.4 1.8" strokeLinejoin="round" opacity={0.5} />
+      <path d={MX_STEM_PATH} fill="none" stroke="#111111" strokeWidth={0.8} strokeDasharray="1.8 1.4" strokeLinejoin="round" opacity={0.5} />
+    </svg>
+  )
+}
+
+/** ロープロファイル（背の低い）スイッチのチップ */
+export function LowProfileChip() {
+  return (
+    <span
+      className="nb-chip"
+      style={{ background: 'var(--color-cyan)' }}
+      title="背の低い（薄い）スイッチ。キーボード全体を薄くでき、手首を反らさずに打てる"
+    >
+      ロープロファイル
+    </span>
+  )
+}
+
+/** 押下圧のメーターの両端（gf）。いちばん軽い Choc Pink（20gf）から、重めのタクタイル（67gf）までが収まる幅 */
+const FORCE_METER_MIN = 15
+const FORCE_METER_MAX = 70
+
+/** 押下圧。数値と「軽め・ふつう・重め」の目安と、軽い ← → 重いのメーター */
+export function ForceMeter({ gf }: { gf?: number }) {
+  if (gf === undefined) {
+    return (
+      <span className="flex items-baseline justify-between gap-1" title="メーカーがまだ押下圧を公表していません">
+        <span className="text-[0.66rem] font-bold opacity-60">押下圧</span>
+        <span className="text-[0.74rem] font-black opacity-60">公表待ち</span>
+      </span>
+    )
+  }
+  const ratio = Math.min(1, Math.max(0.06, (gf - FORCE_METER_MIN) / (FORCE_METER_MAX - FORCE_METER_MIN)))
+  const feel = FORCE_FEEL_LABEL[forceFeel(gf)]
+  return (
+    <span className="block" title={`押下圧 ${gf}gf（${feel}）: キーが反応する点での重さ`}>
+      <span className="flex items-baseline justify-between gap-1">
+        <span className="text-[0.66rem] font-bold">
+          <span className="opacity-60">押下圧</span> <span className="nb-chip !px-1.5 !py-0 !text-[0.58rem]" style={{ background: 'var(--color-paper)' }}>{feel}</span>
+        </span>
+        <span className="shrink-0 font-mono font-black leading-none">
+          <span className="text-[1.2rem]">{gf}</span>
+          <span className="text-[0.68rem]">gf</span>
+        </span>
+      </span>
+      <span
+        className="mt-1 block h-2.5 overflow-hidden rounded-full"
+        style={{ border: '2px solid var(--color-ink)', background: 'var(--color-paper)' }}
+        role="meter"
+        aria-label="押下圧"
+        aria-valuemin={FORCE_METER_MIN}
+        aria-valuemax={FORCE_METER_MAX}
+        aria-valuenow={gf}
+        aria-valuetext={`${gf}gf（${feel}）`}
+      >
+        <span className="block h-full" style={{ width: `${ratio * 100}%`, background: 'var(--color-ink)' }} />
+      </span>
+    </span>
+  )
+}
+
+/** 打鍵音を聞けるページへのリンク（新しいタブ）。個別のページが無いスイッチは YouTube の検索結果 */
+export function SwitchSoundLink({ sw, className, children }: { sw: KeySwitch; className?: string; children?: ReactNode }) {
+  const title = sw.soundUrl
+    ? `${sw.name} の打鍵音のページを開きます（新しいタブ）`
+    : `YouTube で「${switchSoundQuery(sw)}」を探します（新しいタブ）`
+  return (
+    <a href={switchSoundUrl(sw)} target="_blank" rel="noopener noreferrer" className={className} title={title}>
+      {children ?? <>🔊 打鍵音を聞く <span aria-hidden>↗</span></>}
+    </a>
   )
 }
 
@@ -151,13 +263,15 @@ export function previewSwitchSound(type: SwitchType, volume: number) {
  * キースイッチの画面と、投稿の「⌨ キーボード名」から開く詳細のシートで使う
  */
 export function KeyboardSpecCard({
-  def, spec = keyboardSpecOf(def), edition, onEdition,
+  def, spec = keyboardSpecOf(def), edition, onEdition, showEditions = true,
 }: {
   def: KeyboardDefinition
   spec?: KeyboardSpec
   /** 選んでいる版の番号 */
   edition: number
   onEdition: (n: number) => void
+  /** 版・キットの切り替えを出すか（キースイッチの画面では、スイッチの一覧の上に出すので出さない） */
+  showEditions?: boolean
 }) {
   const current = spec.editions[edition] ?? spec.editions[0]
   return (
@@ -167,7 +281,7 @@ export function KeyboardSpecCard({
       </div>
       <p className="text-[0.66rem] font-bold opacity-55">タグを押すと説明が出ます。＊ はこのキーボードでの補足があるもの。</p>
 
-      {spec.editions.length > 1 && (
+      {showEditions && spec.editions.length > 1 && (
         <div>
           <p className="nb-eyebrow">版・キット（使えるスイッチが変わる）</p>
           <div className="mt-1 flex flex-wrap gap-1.5" role="radiogroup" aria-label="版・キット">

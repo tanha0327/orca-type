@@ -274,6 +274,12 @@ export interface KeySwitch {
   totalTravel?: number
   /** 軸の色（一覧の色見本）。省略すると種類ごとの色 */
   stemColor?: string
+  /** ハウジング（外側のケース）の色。イラストに使う。省略すると明るい色で描く */
+  housingColor?: string
+  /** 打鍵音を聞けるページ（動画など）。省略すると YouTube で「名前 sound test」を検索する */
+  soundUrl?: string
+  /** 打鍵音を YouTube で探すときの言葉。名前だけでは見つかりにくいものに使う */
+  soundQuery?: string
   note?: string
 }
 
@@ -316,7 +322,7 @@ export const KEYSWITCHES: readonly KeySwitch[] = [
   },
   {
     id: 'gateron-milky-yellow-pro', name: 'Gateron Milky Yellow Pro', maker: 'Gateron', mount: 'mx', type: 'linear',
-    forceGf: 50, preTravel: 2.0, totalTravel: 4.0, stemColor: '#f0c419',
+    forceGf: 50, preTravel: 2.0, totalTravel: 4.0, stemColor: '#f0c419', housingColor: '#f4f1ea',
     note: '乳白色のハウジングの黄軸。工場で潤滑済み',
   },
   {
@@ -343,7 +349,7 @@ export const KEYSWITCHES: readonly KeySwitch[] = [
   },
   {
     id: 'novelkeys-cream', name: 'NovelKeys Cream', maker: 'NovelKeys', mount: 'mx', type: 'linear',
-    forceGf: 55, stemColor: '#efe3c8',
+    forceGf: 55, stemColor: '#efe3c8', housingColor: '#efe3c8',
     note: 'ハウジングも軸も POM。使い込むほどなめらかになると言われる',
   },
   {
@@ -429,10 +435,12 @@ export const KEYSWITCHES: readonly KeySwitch[] = [
   /* ---- Keychron ロープロファイル（Orca echo） ---- */
   {
     id: 'keychron-apex-ninja', name: 'Keychron Ninja', maker: 'Keychron', mount: 'keychron-lp', type: 'linear',
+    soundQuery: 'Keychron Orca echo Ninja switch sound test',
     note: 'Orca echo の標準スイッチ（Apex POM ロープロファイル）の、なめらかに底まで沈むほう。押下圧などは公表待ち',
   },
   {
     id: 'keychron-apex-samurai', name: 'Keychron Samurai', maker: 'Keychron', mount: 'keychron-lp', type: 'tactile',
+    soundQuery: 'Keychron Orca echo Samurai switch sound test',
     note: 'Orca echo の標準スイッチ（Apex POM ロープロファイル）の、はっきりした手応えがあるほう。押下圧などは公表待ち',
   },
 ]
@@ -445,6 +453,38 @@ export function getSwitch(id: string | undefined): KeySwitch | undefined {
 
 export function stemColorOf(sw: KeySwitch): string {
   return sw.stemColor ?? SWITCH_TYPE_STEM[sw.type]
+}
+
+/**
+ * 打鍵音を聞けるページ。個別のページ（soundUrl）が無いものは、YouTube の検索結果
+ * （「名前 sound test」。動画の差し替えや削除で切れないよう、特定の動画ではなく検索にしている）
+ */
+export function switchSoundUrl(sw: KeySwitch): string {
+  if (sw.soundUrl) return sw.soundUrl
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(switchSoundQuery(sw))}`
+}
+
+/** 打鍵音を YouTube で探すときの言葉 */
+export function switchSoundQuery(sw: KeySwitch): string {
+  return sw.soundQuery ?? `${sw.name} sound test`
+}
+
+/** 押下圧のだいたいの重さ（はじめての人向けの目安） */
+export type ForceFeel = 'very-light' | 'light' | 'medium' | 'heavy'
+
+export const FORCE_FEEL_LABEL: Record<ForceFeel, string> = {
+  'very-light': 'とても軽い',
+  light: '軽め',
+  medium: 'ふつう',
+  heavy: '重め',
+}
+
+/** 赤軸（45gf）を「軽め」、茶軸（55gf）を「ふつう」、黒軸・青軸（60gf）を「重め」とする目安 */
+export function forceFeel(gf: number): ForceFeel {
+  if (gf <= 30) return 'very-light'
+  if (gf <= 45) return 'light'
+  if (gf <= 55) return 'medium'
+  return 'heavy'
 }
 
 /** 「45gf・2.0 / 4.0mm」のような、数値の一行の要約（分からない値は省く） */

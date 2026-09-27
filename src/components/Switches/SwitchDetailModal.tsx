@@ -21,7 +21,8 @@ import { Avatar, relativeTime } from '../Feed/FeedParts'
 import { Ring } from '../Ring'
 import { resolveFinderKeyboard } from './SwitchFinderView'
 import {
-  KeyboardSpecCard, previewSwitchSound, SocketChip, StemSwatch, SwitchChip, SwitchTypeChips,
+  KeyboardSpecCard, LowProfileChip, previewSwitchSound, SocketChip, StandardSwitchOutline, StemSwatch, SwitchChip,
+  SwitchSoundLink, SwitchTypeChips, SwitchVisual,
 } from './SwitchParts'
 
 /** キースイッチの画面を開いて、指定のキーボード・版・ソケットで一覧を見せる */
@@ -224,13 +225,22 @@ function SwitchBody({ id }: { id: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[0.76rem] font-bold opacity-65">{sw.maker}</span>
-          <SwitchTypeChips sw={sw} />
+      <div className="flex gap-3">
+        <div
+          className="nb nb-flat flex w-[92px] shrink-0 justify-center self-start pb-1 pt-2"
+          style={{ background: `color-mix(in srgb, ${stemColorOf(sw)} 22%, var(--color-paper))` }}
+        >
+          <SwitchVisual sw={sw} className="h-[76px] w-[76px]" />
         </div>
-        <p className="text-[0.76rem] font-bold leading-relaxed opacity-75">{SWITCH_TYPE_HELP[sw.type]}</p>
-        {sw.note && <p className="text-[0.82rem] font-bold leading-relaxed">{sw.note}</p>}
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[0.76rem] font-bold opacity-65">{sw.maker}</span>
+            <SwitchTypeChips sw={sw} />
+            {mount.profile === 'low' && <LowProfileChip />}
+          </div>
+          <p className="text-[0.76rem] font-bold leading-relaxed opacity-75">{SWITCH_TYPE_HELP[sw.type]}</p>
+          {sw.note && <p className="text-[0.82rem] font-bold leading-relaxed">{sw.note}</p>}
+        </div>
       </div>
 
       <dl className="grid grid-cols-3 gap-2">
@@ -247,28 +257,32 @@ function SwitchBody({ id }: { id: string }) {
         />
       </dl>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="space-y-2">
         <button
           type="button"
-          className="nb-btn flex-1 !py-2 text-[0.8rem]"
+          className="nb-btn w-full !py-2 text-[0.8rem]"
           style={mine ? { background: 'var(--color-lime)' } : undefined}
           aria-pressed={mine}
           onClick={toggleMine}
         >
           {mine ? '✓ 使っている' : '＋ 使っているスイッチにする'}
         </button>
-        <button
-          type="button"
-          className="nb-btn !py-2 text-[0.8rem]"
-          title="種類ごとの打鍵音のイメージ（シンセサイザーで作った音）"
-          onClick={() => previewSwitchSound(sw.type, volume > 0 ? volume : 0.6)}
-        >
-          🔊 {SWITCH_TYPE_LABEL[sw.type]}の音
-        </button>
+        <div className="flex gap-2">
+          <SwitchSoundLink sw={sw} className="nb-btn flex-1 !py-2 text-[0.8rem]" />
+          <button
+            type="button"
+            className="nb-btn shrink-0 !py-2 text-[0.8rem]"
+            title="種類ごとの打鍵音のイメージ（シンセサイザーで作った音）"
+            onClick={() => previewSwitchSound(sw.type, volume > 0 ? volume : 0.6)}
+          >
+            ♪ {SWITCH_TYPE_LABEL[sw.type]}のイメージ
+          </button>
+        </div>
       </div>
       <p className="-mt-2 text-[0.68rem] font-bold leading-relaxed opacity-60">
         「使っている」は編集中の {editing.name} の配列に記録され、みんなの配列に投稿するときに一緒に載ります。
-        音は種類ごとのイメージで、このスイッチの実際の音ではありません。
+        「打鍵音を聞く」は YouTube の検索が開きます。♪ は種類ごとの音のイメージ（シンセサイザーで作った音）で、
+        このスイッチの実際の音ではありません。
       </p>
       {!fitsEditing && (
         <p className="nb nb-flat p-2 text-[0.74rem] font-bold" style={{ background: 'var(--color-pink)' }}>
@@ -280,6 +294,19 @@ function SwitchBody({ id }: { id: string }) {
       )}
 
       <Section title="足の形とキーキャップ">
+        {mount.profile === 'low' && (
+          // ロープロファイルは、一般的な高さのスイッチ（点線）と同じ縮尺・同じ足の位置で並べて、背の低さを見せる
+          <figure className="nb nb-flat flex items-end justify-center gap-6 px-3 pb-2 pt-3">
+            <div className="flex flex-col items-center">
+              <StandardSwitchOutline className="h-[84px] w-[84px]" />
+              <figcaption className="text-[0.64rem] font-bold opacity-60">一般的な高さ（MX）</figcaption>
+            </div>
+            <div className="flex flex-col items-center">
+              <SwitchVisual sw={sw} sameFrame className="h-[84px] w-[84px]" />
+              <figcaption className="text-[0.64rem] font-black">{mount.short}</figcaption>
+            </div>
+          </figure>
+        )}
         <p className="text-[0.78rem] font-bold leading-relaxed">
           {mount.label}（{mount.profile === 'low' ? 'ロープロファイル' : '標準の高さ'}）
         </p>
