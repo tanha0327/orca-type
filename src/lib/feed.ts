@@ -33,18 +33,11 @@ export function feedEnabled(): boolean {
 }
 
 /**
- * 新しい順に最大 50 件。壊れた形の keymap が紛れ込んでいても落ちないよう弾く。
+ * 壊れた形の keymap が紛れ込んでいても落ちないよう弾く。
  * user_id / avatar_url をまだ持たないテーブルでも一覧は出せるよう、列は * で取って埋める。
  */
-export async function fetchFeed(): Promise<SharedKeymap[]> {
-  if (!supabase) throw new Error('共有フィードは設定されていません')
-  const { data, error } = await supabase
-    .from('shared_keymaps')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(50)
-  if (error) throw error
-  return (data ?? [])
+function toSharedKeymaps(rows: any[] | null): SharedKeymap[] {
+  return (rows ?? [])
     .filter((row) => isValidKeymapShape(row.keymap))
     .map((row) => ({
       id: row.id,
@@ -56,6 +49,26 @@ export async function fetchFeed(): Promise<SharedKeymap[]> {
       user_id: row.user_id ?? null,
       avatar_url: row.avatar_url ?? null,
     }))
+}
+
+/** 新しい順に最大 50 件 */
+export async function fetchFeed(): Promise<SharedKeymap[]> {
+  if (!supabase) throw new Error('共有フィードは設定されていません')
+  const { data, error } = await supabase
+    .from('shared_keymaps')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return toSharedKeymaps(data)
+}
+
+/** ID を指定して投稿を取る（タイムラインに読み込んでいない、初心者におすすめの投稿を出すときに使う） */
+export async function fetchKeymapsByIds(ids: string[]): Promise<SharedKeymap[]> {
+  if (!supabase || ids.length === 0) return []
+  const { data, error } = await supabase.from('shared_keymaps').select('*').in('id', ids)
+  if (error) throw error
+  return toSharedKeymaps(data)
 }
 
 /** 一覧に出す投稿分の、いいね数・自分がいいね済みか・コメント数をまとめて取得する */
@@ -85,7 +98,10 @@ export async function fetchFeedExtras(keymapIds: string[], myUserId: string | nu
   return { likeCounts, likedByMe, commentCounts }
 }
 
-/** 投稿にはログインが必要（RLS 側でも auth.uid() = user_id を要求している） */
+/**
+ * 投稿にはログインが必要（RLS 側でも auth.uid() = user_id を要求している）。
+ * 戻り値は新しい投稿の ID（投稿と同時に「初心者におすすめ」を付けるときに使う）
+ */
 export async function shareKeymap(input: {
   name: string
   author: string
@@ -93,17 +109,22 @@ export async function shareKeymap(input: {
   keymap: Keymap
   userId: string
   avatarUrl: string | null
-}): Promise<void> {
+}): Promise<string> {
   if (!supabase) throw new Error('共有フィードは設定されていません')
-  const { error } = await supabase.from('shared_keymaps').insert({
-    name: input.name,
-    author: input.author,
-    description: input.description || null,
-    keymap: input.keymap,
-    user_id: input.userId,
-    avatar_url: input.avatarUrl,
-  })
+  const { data, error } = await supabase
+    .from('shared_keymaps')
+    .insert({
+      name: input.name,
+      author: input.author,
+      description: input.description || null,
+      keymap: input.keymap,
+      user_id: input.userId,
+      avatar_url: input.avatarUrl,
+    })
+    .select('id')
+    .single()
   if (error) throw error
+  return data.id
 }
 
 /** ログイン中のユーザーとして、いいねの ON/OFF を切り替える */

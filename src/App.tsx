@@ -9,6 +9,7 @@ import { Hud } from './components/Hud/Hud'
 import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
+import { AuthorCardModal } from './components/Profile/AuthorCardModal'
 import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
 import { CODE_TO_KEY } from './data/layout'
 import {
@@ -230,6 +231,7 @@ export function App() {
 
       <LoginModal />
       <ProfileSetupModal />
+      <AuthorCardModal />
 
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">
