@@ -63,6 +63,8 @@ const VIEWS: { id: ViewId; label: string }[] = [
   { id: 'export', label: '書き出し' },
 ]
 
+const BMC_URL = 'https://buymeacoffee.com/tnh_87'
+
 export function App() {
   const view = useKeymapStore((s) => s.view)
   const setView = useKeymapStore((s) => s.setView)
@@ -326,6 +328,14 @@ export function App() {
           実機には接続せず、手元のキーボードの入力を読み替えてシミュレートしています。
           Keychron / GIZMART をはじめ、各キーボードの作者・メーカーとは関係ありません。
         </p>
+        <a
+          href={BMC_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nb-btn mt-3 !py-1.5 text-[0.78rem]"
+        >
+          ☕ Buy Me a Coffee で応援する
+        </a>
       </footer>
     </div>
   )
