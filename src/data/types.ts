@@ -67,11 +67,18 @@ export const TRACKBALL_COLOR_LABEL: Record<TrackballColor, string> = {
   yellow: 'イエロー',
 }
 
+/**
+ * 盤面の黒。スクロールパッドのチャコールを基準に、黒のキーキャップ（本体・esc）と
+ * 黒いトラックボールもこの色に揃える（ink の真っ黒だとパッドより一段黒く浮く）
+ */
+export const BLACK_FACE = '#3a3a3c'
+
 /** ボール描画用のグラデーション色（ハイライト → 中間 → 影）。実機写真の実際の色味から採取。
-    スクロールパッドの地色にも同じトーンを流用する */
+    スクロールパッドの地色にも同じトーンを流用する。
+    黒だけはハイライトと影を控えめにして、ボール全体がパッドと同じ BLACK_FACE に見えるようにしている */
 export const TRACKBALL_COLOR_GRADIENT: Record<TrackballColor, [string, string, string]> = {
   white: ['#ffffff', '#f2f1ee', '#d8d7d2'],
-  black: ['#8f8f90', '#3a3a3c', '#0c0c0d'],
+  black: ['#5c5c5e', BLACK_FACE, '#242426'],
   red: ['#8a3934', '#5c1414', '#260404'],
   blue: ['#ccd6dd', '#7f93a2', '#3d4c58'],
   yellow: ['#f2e9d2', '#d6bb6c', '#8a7137'],
@@ -169,7 +176,7 @@ export const ESC_COLOR_LABEL: Record<EscColor, string> = {
 /** キーキャップの地色。交換用の 3 色は実機写真の色味から採取 */
 export const ESC_COLOR_FACE: Record<EscColor, string> = {
   white: 'var(--color-paper)',
-  black: 'var(--color-ink)',
+  black: BLACK_FACE,
   blue: '#4db2e6',
   green: '#2f9479',
   orange: '#f58149',

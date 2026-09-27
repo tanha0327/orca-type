@@ -1,7 +1,7 @@
 import type React from 'react'
 import { getKeycode } from '../../data/keycodes'
 import type { KeyDef } from '../../data/layout'
-import type { Binding } from '../../data/types'
+import { BLACK_FACE, type Binding } from '../../data/types'
 import type { PressView } from '../../engine/KeyEngine'
 
 export interface KeyCapProps {
@@ -50,8 +50,8 @@ export function KeyCap({
   const isHeld = press?.state === 'hold'
   const awaiting = press?.awaitingHold ?? false
 
-  // 本体色に応じて、キーキャップの地色・縁・文字色を反転する
-  const faceDefault = capTone?.face ?? (dark ? 'var(--color-ink)' : 'var(--color-paper)')
+  // 本体色に応じて、キーキャップの地色・縁・文字色を反転する。黒はスクロールパッドと同じ色
+  const faceDefault = capTone?.face ?? (dark ? BLACK_FACE : 'var(--color-paper)')
   const borderDefault = capTone?.border ?? (dark ? 'var(--color-paper)' : 'var(--color-ink)')
   const textDefault = capTone?.text ?? (dark ? 'var(--color-paper)' : 'var(--color-ink)')
   const selectedBorder = selectedTone ?? borderDefault
@@ -59,10 +59,10 @@ export function KeyCap({
   const selectedFace = capTone
     ? capTone.face
     : dark
-      ? 'color-mix(in srgb, var(--color-ink) 55%, #000)'
+      ? `color-mix(in srgb, ${BLACK_FACE} 55%, #000)`
       : 'color-mix(in srgb, var(--color-paper) 70%, #fff)'
   const diffFace = dark
-    ? 'color-mix(in srgb, var(--color-pink) 28%, var(--color-ink))'
+    ? `color-mix(in srgb, var(--color-pink) 28%, ${BLACK_FACE})`
     : 'color-mix(in srgb, var(--color-pink) 20%, var(--color-paper))'
 
   const label = kc.code === 'NONE' ? '' : kc.label || kc.code
