@@ -1,5 +1,5 @@
 import { MAX_LAYERS, type Keycode } from './keycodes.js'
-import { samePick } from './switches.js'
+import { samePick } from './switchPicks.js'
 import {
   isKeymapOs, isValidKeymapShape, LAYER_COLORS, MAX_SWITCH_PICKS, SWITCH_NAME_MAX, TRACKBALL_COLORS, ESC_COLORS,
   type Binding, type Combo, type Flavor, type Keymap, type KeymapSettings, type Layer,

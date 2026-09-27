@@ -1,4 +1,4 @@
-import type { Keymap, SwitchPick } from './types.js'
+import type { SwitchPick } from './types.js'
 
 /* ================================================================
    キースイッチのカタログ
@@ -773,13 +773,6 @@ export function pickOf(sw: KeySwitch): SwitchPick {
   return { id: sw.id, name: sw.name }
 }
 
-/** 同じスイッチか。ID があれば ID で、無ければ名前（大文字小文字・空白の違いは無視）で比べる */
-export function samePick(a: SwitchPick, b: SwitchPick): boolean {
-  if (a.id || b.id) return a.id === b.id
-  const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase()
-  return norm(a.name) === norm(b.name)
-}
-
 /** 添えられたスイッチの表示名。カタログにあるものはカタログの今の名前 */
 export function pickLabel(pick: SwitchPick): string {
   return getSwitch(pick.id)?.name ?? pick.name
@@ -807,13 +800,4 @@ export function clipByWidth(s: string, max: number): string {
 /** チップに出す名前の幅（全角 18 文字・半角 36 文字）。カタログの名前はどれもこれに収まる */
 export const PICK_CHIP_WIDTH = 36
 
-/** 配列に添えられたキースイッチ。無い配列は空 */
-export function switchesOf(km: Keymap): SwitchPick[] {
-  return km.settings?.switches ?? []
-}
-
-/** 配列のキースイッチを付け替える（空なら持たない形に戻す） */
-export function withSwitches(km: Keymap, picks: readonly SwitchPick[]): Keymap {
-  const { switches: _drop, ...settings } = km.settings
-  return { ...km, settings: picks.length > 0 ? { ...settings, switches: [...picks] } : settings }
-}
+export { samePick, switchesOf, withSwitches } from './switchPicks.js'
