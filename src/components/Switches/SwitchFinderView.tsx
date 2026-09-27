@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import {
-  getMount, getSocket, KEYSWITCHES, MOUNTS, pickOf, samePick, socketFit, SOCKETS, stemColorOf, switchesOf, switchSpecLine,
+  getMount, getSocket, KEYSWITCHES, MOUNTS, pickOf, samePick, socketFit, SOCKETS, stemColorOf, switchesOf,
   SWITCH_TYPE_LABEL, SWITCH_TYPES,
   type KeySwitch, type SocketId,
 } from '../../data/switches'
@@ -11,7 +11,9 @@ import type { KeyboardDefinition } from '../../keyboards/types'
 import { useKeymapStore } from '../../store/keymapStore'
 import { useSwitchStore, type SocketFilter, type TypeFilter } from '../../store/switchStore'
 import { KeyboardView } from '../Board/KeyboardView'
-import { KeyboardSpecCard, StemSwatch, SwitchPickChips, SwitchTypeChips } from './SwitchParts'
+import {
+  ForceMeter, KeyboardSpecCard, LowProfileChip, SwitchPickChips, SwitchSoundLink, SwitchTypeChips, SwitchVisual,
+} from './SwitchParts'
 
 /** キースイッチの画面で見るキーボード。指定が無い・見つからないときは編集中のキーボード */
 export function resolveFinderKeyboard(id: string | null, editing: KeyboardDefinition): KeyboardDefinition {
@@ -48,8 +50,9 @@ function fitOf(sw: KeySwitch, sockets: SocketId[] | null): { fits: boolean; note
 
 /**
  * キースイッチの画面。
- * 上: キーボードを選ぶと、そのスペック（タグ）と版ごとのソケットが出る。タグ・ソケットは押すと説明のシートが開く
- * 中: そのソケットに合うスイッチの一覧（種類・名前で絞り込める）。押すとスイッチの詳細
+ * 上: キーボードを選ぶと、そのすぐ下にハマるスイッチのパネル（イラスト・押下圧・打鍵音のリンク）が並ぶ。
+ *     ソケット・種類・名前で絞り込め、パネルを押すとスイッチの詳細
+ * 中: 選んだキーボードの盤面とスペック（タグ・版ごとのソケット）。タグ・ソケットは押すと説明のシートが開く
  * 下: ソケットとスイッチの足の形の対応表
  */
 export function SwitchFinderView() {
@@ -85,8 +88,11 @@ export function SwitchFinderView() {
     [board, keymap],
   )
 
+  // そのまま挿さるものを先に、条件つきで挿さるもの（Orca echo の MX 互換など）を後に並べる（それぞれの中はカタログ順）
   const list = useMemo(
-    () => KEYSWITCHES.filter((sw) => fitOf(sw, sockets).fits && matchesType(sw, typeFilter) && matchesQuery(sw, query)),
+    () => KEYSWITCHES
+      .filter((sw) => fitOf(sw, sockets).fits && matchesType(sw, typeFilter) && matchesQuery(sw, query))
+      .sort((a, b) => Number(!!fitOf(a, sockets).note) - Number(!!fitOf(b, sockets).note)),
     [sockets, typeFilter, query],
   )
 
@@ -108,14 +114,21 @@ export function SwitchFinderView() {
       ? `${spec.editions.length > 1 && currentEdition ? currentEdition.name : board.name} のソケット（${boardSockets.map((id) => getSocket(id).short).join('・')}）に挿さるスイッチ。`
       : `${getSocket(filter).label}に挿さるスイッチ。`
 
+  // 見出しは「名前」と「にハマるスイッチ」で分け、狭い幅でも単語の途中で折り返さないようにする
+  const listTitle: [string, string] = filter === 'all'
+    ? ['すべてのスイッチ', '']
+    : filter === 'board'
+      ? [spec.editions.length > 1 && currentEdition ? currentEdition.name : board.name, 'にハマるスイッチ']
+      : [getSocket(filter).short, 'に挿さるスイッチ']
+
   return (
     <div className="space-y-4">
       <section className="nb nb-lg overflow-hidden">
         <div className="p-4 pb-3">
           <h2 className="text-[1.35rem]">キースイッチ</h2>
           <p className="mt-1 text-[0.78rem] font-bold leading-relaxed opacity-70">
-            キーボードのスペックと、そのソケットにハマるキースイッチを探せます。
-            タグ・ソケット・スイッチを押すと詳しい説明が出ます。
+            キーボードを選ぶと、そのキーボードにハマるキースイッチがすぐ下に並びます。
+            パネルを押すと詳しい説明、「🔊 打鍵音を聞く」で実際の音を探せます。
           </p>
         </div>
 
@@ -127,12 +140,12 @@ export function SwitchFinderView() {
           <SwitchPickChips picks={mine} />
         </MySwitchesBar>
 
-        <div className="border-t-[3px] border-[var(--color-ink)] p-4">
+        <div className="border-t-[3px] border-[var(--color-ink)] p-4 pb-3">
           <p className="nb-eyebrow">キーボード</p>
           <div
             className="-mx-1 mt-1.5 flex gap-1.5 overflow-x-auto px-1 pb-2 sm:flex-wrap sm:overflow-visible"
             role="radiogroup"
-            aria-label="スペックを見るキーボード"
+            aria-label="スイッチを探すキーボード"
           >
             {keyboards.map((d) => (
               <button
@@ -150,8 +163,118 @@ export function SwitchFinderView() {
             ))}
           </div>
 
-          <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <h3 className="text-[1.15rem]">{board.name}</h3>
+          {spec.editions.length > 1 && (
+            <div className="mt-1">
+              <p className="nb-eyebrow">版・キット（ハマるスイッチが変わる）</p>
+              <div className="mt-1 flex flex-wrap gap-1.5" role="radiogroup" aria-label="版・キット">
+                {spec.editions.map((e, i) => (
+                  <button
+                    key={e.name}
+                    type="button"
+                    role="radio"
+                    aria-checked={e === currentEdition}
+                    className="nb-btn !py-1 !px-2.5 text-[0.74rem]"
+                    data-active={e === currentEdition}
+                    onClick={() => setEdition(i)}
+                  >
+                    {e.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t-[3px] border-[var(--color-ink)]">
+          <div className="p-3 pb-2">
+            <h3 className="flex flex-wrap items-baseline gap-x-1.5 text-[1.12rem] !leading-tight">
+              <span>{listTitle[0]}</span>
+              {listTitle[1] && <span>{listTitle[1]}</span>}
+              <span className="font-mono text-[0.8rem] opacity-60">{list.length}</span>
+            </h3>
+            <p className="mt-1 text-[0.72rem] font-bold leading-relaxed opacity-70">
+              {listLead}
+              押下圧はメーカー公称の代表値で、打鍵音は YouTube の検索が開きます。
+            </p>
+          </div>
+
+          <div className="space-y-2 px-3 pb-3">
+            {/* スマホでは横にスクロールする 1 行にして、スイッチのパネルをすぐ下に見せる */}
+            <div
+              className="-mx-3 flex items-center gap-1.5 overflow-x-auto px-3 pb-1.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0"
+              role="group"
+              aria-label="ソケットで絞り込む"
+            >
+              <span className="nb-eyebrow mr-0.5 shrink-0">ソケット</span>
+              {boardSockets.length > 0 && (
+                <FilterChip label="このキーボードに合う" count={countFor('board')} active={filter === 'board'} onClick={() => setSocket('board')} />
+              )}
+              <FilterChip label="すべて" count={countFor('all')} active={filter === 'all'} onClick={() => setSocket('all')} />
+              {SOCKETS.map((s) => (
+                <FilterChip
+                  key={s.id}
+                  label={s.short}
+                  title={s.label}
+                  count={countFor(s.id)}
+                  active={filter === s.id}
+                  onClick={() => setSocket(s.id)}
+                />
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="種類で絞り込む">
+              <span className="nb-eyebrow mr-0.5">種類</span>
+              {(['all', ...SWITCH_TYPES, 'silent'] as TypeFilter[]).map((f) => (
+                <FilterChip
+                  key={f}
+                  label={f === 'all' ? 'すべて' : f === 'silent' ? '静音' : SWITCH_TYPE_LABEL[f]}
+                  active={typeFilter === f}
+                  onClick={() => setType(f)}
+                />
+              ))}
+              <input
+                className="nb-input !py-1 text-[0.8rem] sm:ml-auto sm:!w-[18rem]"
+                type="search"
+                value={query}
+                placeholder="名前・メーカーで探す（例: Gateron、Choc）"
+                aria-label="スイッチを名前・メーカーで探す"
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {conditions.length > 0 && list.some((sw) => fitOf(sw, sockets).note) && (
+            <ul className="space-y-0.5 border-t-[3px] border-[var(--color-ink)] px-3 py-2 text-[0.72rem] font-bold" style={{ background: 'var(--color-sand)' }}>
+              {conditions.map((c) => <li key={c}>△ 条件つき — {c}</li>)}
+            </ul>
+          )}
+
+          {list.length > 0
+            ? (
+              <div className="grid grid-cols-2 gap-2.5 border-t-[3px] border-[var(--color-ink)] p-3 sm:grid-cols-3 xl:grid-cols-4">
+                {list.map((sw) => (
+                  <SwitchPanel
+                    key={sw.id}
+                    sw={sw}
+                    mine={isMine(sw)}
+                    conditional={fitOf(sw, sockets).note}
+                    onOpen={() => openDetail({ kind: 'switch', id: sw.id })}
+                  />
+                ))}
+              </div>
+            )
+            : (
+              <p className="border-t-[3px] border-[var(--color-ink)] p-6 text-center text-[0.82rem] font-bold opacity-60">
+                条件に合うスイッチがカタログにありません。ソケットや種類の絞り込みを変えてみてください。
+              </p>
+            )}
+        </div>
+      </section>
+
+      <section className="nb nb-lg overflow-hidden">
+        <div className="p-4">
+          <p className="nb-eyebrow">キーボードのスペック</p>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <h2 className="text-[1.25rem]">{board.name}</h2>
             {board.maker && <span className="text-[0.72rem] font-bold opacity-60">{board.maker}</span>}
           </div>
 
@@ -160,84 +283,9 @@ export function SwitchFinderView() {
           </div>
 
           <div className="mt-3">
-            <KeyboardSpecCard def={board} spec={spec} edition={edition} onEdition={setEdition} />
+            <KeyboardSpecCard def={board} spec={spec} edition={edition} onEdition={setEdition} showEditions={false} />
           </div>
         </div>
-      </section>
-
-      <section className="nb nb-lg overflow-hidden">
-        <div className="p-4 pb-3">
-          <h2 className="text-[1.35rem]">ハマるスイッチ</h2>
-          <p className="mt-1 text-[0.76rem] font-bold leading-relaxed opacity-70">
-            {listLead}
-            数値はメーカー公称の代表値です。
-          </p>
-        </div>
-
-        <div className="space-y-2.5 border-y-[3px] border-[var(--color-ink)] p-3">
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="ソケットで絞り込む">
-            <span className="nb-eyebrow mr-0.5">ソケット</span>
-            {boardSockets.length > 0 && (
-              <FilterChip label="このキーボードに合う" count={countFor('board')} active={filter === 'board'} onClick={() => setSocket('board')} />
-            )}
-            <FilterChip label="すべて" count={countFor('all')} active={filter === 'all'} onClick={() => setSocket('all')} />
-            {SOCKETS.map((s) => (
-              <FilterChip
-                key={s.id}
-                label={s.short}
-                title={s.label}
-                count={countFor(s.id)}
-                active={filter === s.id}
-                onClick={() => setSocket(s.id)}
-              />
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="種類で絞り込む">
-            <span className="nb-eyebrow mr-0.5">種類</span>
-            {(['all', ...SWITCH_TYPES, 'silent'] as TypeFilter[]).map((f) => (
-              <FilterChip
-                key={f}
-                label={f === 'all' ? 'すべて' : f === 'silent' ? '静音' : SWITCH_TYPE_LABEL[f]}
-                active={typeFilter === f}
-                onClick={() => setType(f)}
-              />
-            ))}
-          </div>
-          <input
-            className="nb-input !py-1.5 text-[0.82rem]"
-            type="search"
-            value={query}
-            placeholder="名前・メーカーで探す（例: Gateron、Choc）"
-            aria-label="スイッチを名前・メーカーで探す"
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-
-        {conditions.length > 0 && list.some((sw) => fitOf(sw, sockets).note) && (
-          <ul className="space-y-0.5 border-b-[3px] border-[var(--color-ink)] px-3 py-2 text-[0.72rem] font-bold" style={{ background: 'var(--color-sand)' }}>
-            {conditions.map((c) => <li key={c}>△ 条件つき — {c}</li>)}
-          </ul>
-        )}
-
-        {list.length > 0
-          ? (
-            <div className="grid gap-2.5 p-3 sm:grid-cols-2">
-              {list.map((sw) => (
-                <SwitchCard
-                  key={sw.id}
-                  sw={sw}
-                  mine={isMine(sw)}
-                  conditional={fitOf(sw, sockets).note}
-                  onOpen={() => openDetail({ kind: 'switch', id: sw.id })}
-                />
-              ))}
-            </div>
-          )
-          : (
-            <p className="p-6 text-center text-[0.82rem] font-bold opacity-60">
-              条件に合うスイッチがカタログにありません。ソケットや種類の絞り込みを変えてみてください。
-            </p>
-          )}
       </section>
 
       <CompatTable />
@@ -285,7 +333,7 @@ function FilterChip({
   return (
     <button
       type="button"
-      className="nb-btn !py-1 !px-2.5 text-[0.74rem]"
+      className="nb-btn shrink-0 !py-1 !px-2.5 text-[0.74rem]"
       data-active={active}
       aria-pressed={active}
       title={title}
@@ -298,7 +346,11 @@ function FilterChip({
   )
 }
 
-function SwitchCard({
+/**
+ * スイッチの一覧のパネル。イラスト・種類・押下圧と、打鍵音へのリンク。
+ * 上のイラストと名前の部分を押すとスイッチの詳細、下の「打鍵音を聞く」は外部のページ（新しいタブ）
+ */
+function SwitchPanel({
   sw, mine, conditional, onOpen,
 }: {
   sw: KeySwitch
@@ -308,32 +360,52 @@ function SwitchCard({
   conditional?: string
   onOpen: () => void
 }) {
-  const spec = switchSpecLine(sw)
   const mount = getMount(sw.mount)
   return (
-    <button
-      type="button"
-      className="nb-btn !flex-col !items-stretch !justify-start !gap-1 !p-2.5 text-left"
-      onClick={onOpen}
-    >
-      <span className="flex items-center gap-2">
-        <StemSwatch color={stemColorOf(sw)} size={16} />
-        <span className="min-w-0 flex-1 truncate text-[0.88rem] font-black">{sw.name}</span>
-        {mine && (
-          <span className="nb-chip shrink-0 !py-0 !text-[0.58rem]" style={{ background: 'var(--color-lime)' }}>使っている</span>
-        )}
-      </span>
-      <span className="flex flex-wrap items-center gap-1">
-        <SwitchTypeChips sw={sw} />
-        <span className="text-[0.68rem] font-bold opacity-60">{sw.maker} ・ {mount.label}</span>
-      </span>
-      <span className="font-mono text-[0.72rem] font-bold opacity-80">{spec || '押下圧など: 公表待ち'}</span>
-      {conditional && (
-        <span className="nb-chip self-start" style={{ background: 'var(--color-sand)' }} title={conditional}>
-          △ 条件つき
+    <article className="nb flex min-w-0 flex-col overflow-hidden !shadow-[3px_3px_0_var(--color-ink)]">
+      <button
+        type="button"
+        className="group flex flex-1 flex-col text-left"
+        title={`${sw.name} の詳細を見る`}
+        onClick={onOpen}
+      >
+        <span
+          className="relative flex w-full justify-center border-b-[3px] border-[var(--color-ink)] pb-1 pt-3"
+          style={{ background: `color-mix(in srgb, ${stemColorOf(sw)} 22%, var(--color-paper))` }}
+        >
+          <SwitchVisual sw={sw} className="h-[84px] w-[84px] transition-transform duration-100 group-hover:-translate-y-1" />
+          {mine && (
+            <span className="nb-chip absolute left-1.5 top-1.5 !py-0 !text-[0.58rem]" style={{ background: 'var(--color-lime)' }}>
+              使っている
+            </span>
+          )}
+          {conditional && (
+            <span
+              className="nb-chip absolute right-1.5 top-1.5 !py-0 !text-[0.58rem]"
+              style={{ background: 'var(--color-sand)' }}
+              title={conditional}
+            >
+              △ 条件つき
+            </span>
+          )}
         </span>
-      )}
-    </button>
+        <span className="flex w-full flex-1 flex-col gap-1.5 p-2.5">
+          <span className="text-[0.86rem] font-black leading-tight group-hover:underline">{sw.name}</span>
+          <span className="flex flex-wrap items-center gap-1">
+            <SwitchTypeChips sw={sw} />
+            {mount.profile === 'low' && <LowProfileChip />}
+          </span>
+          <span className="text-[0.66rem] font-bold opacity-60">{sw.maker} ・ {mount.short}</span>
+          <span className="mt-auto block pt-0.5">
+            <ForceMeter gf={sw.forceGf} />
+          </span>
+        </span>
+      </button>
+      <SwitchSoundLink
+        sw={sw}
+        className="flex items-center justify-center gap-1 border-t-[3px] border-[var(--color-ink)] px-2 py-1.5 text-[0.76rem] font-black hover:bg-[var(--color-lime)] focus-visible:bg-[var(--color-lime)]"
+      />
+    </article>
   )
 }
 

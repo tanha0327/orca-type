@@ -4,6 +4,8 @@
  * 名前は「よかったら採用する」用の候補で、決定ではない。
  */
 
+import { DEFAULT_HOUSING_COLOR, MX_HOUSING_PATH, MX_STEM_PATH } from './switchSilhouette'
+
 function keycapAvatar(bg: string, glyph: string, fg = '#111111'): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`
     + `<rect x="4" y="4" width="56" height="56" rx="14" fill="${bg}" stroke="${fg}" stroke-width="5"/>`
@@ -11,25 +13,6 @@ function keycapAvatar(bg: string, glyph: string, fg = '#111111'): string {
     + `text-anchor="middle" fill="${fg}">${glyph}</text></svg>`
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
-
-/**
- * 実物のキースイッチ 3D モデルを正面から見たシルエット。
- * trimesh でハウジング（上下まとめて）／軸（ステム）に分離し、
- * 正面投影（X-Z平面）で shapely により三角メッシュを結合、
- * Douglas-Peucker で単純化した。
- *
- * 以前は斜め見下ろし（アイソメ）視点で3面を塗り分けていたが、線が多く
- * 「一発でキースイッチとわかる」形として見づらいとの指摘があったため、
- * 正面シルエット1本にして輪郭を強調する形に変更。軸（ステム）はハウジングに
- * 隠れる部分を shapely の差分（difference）で切り取り、実際に飛び出して
- * 見える部分だけを色付きで表示している。
- */
-const SWITCH_HOUSING_PATH = 'M 17.18 45.85 L 14.77 39.87 L 14.77 36.00 L 12.92 36.00 L 12.92 33.54 L 13.54 33.54 L 17.05 21.23 L 46.94 21.23 L 50.46 33.54 L 51.08 33.54 L 51.08 36.00 L 49.23 36.00 L 49.23 39.96 L 46.85 45.85 L 45.54 45.85 L 45.24 52.00 L 43.38 52.00 L 43.08 45.85 L 36.92 45.85 L 36.92 50.77 L 35.69 52.00 L 28.31 52.00 L 27.08 50.77 L 27.08 45.85 L 20.92 45.85 L 20.62 52.00 L 18.77 52.00 L 18.46 45.85 L 17.18 45.85 Z'
-
-/** 軸（ステム）のうち、ハウジングから飛び出して見える部分だけ */
-const SWITCH_STEM_PATH = 'M 24.43 20.62 L 27.08 20.62 L 27.08 12.00 L 36.92 12.00 L 36.92 20.62 L 39.57 20.62 L 40.19 21.23 L 23.81 21.23 L 24.43 20.62 Z'
-
-const SWITCH_HOUSING_COLOR = '#e8e2d0'
 
 /** 軸（ステム）だけが軸色を持つ */
 const SWITCH_STEM_COLORS: Record<'red' | 'blue' | 'brown', string> = {
@@ -39,7 +22,7 @@ const SWITCH_STEM_COLORS: Record<'red' | 'blue' | 'brown', string> = {
 }
 
 /**
- * キースイッチの正面シルエットアイコン。線は黒。主輪郭（ハウジング）を太く、
+ * キースイッチの正面シルエットアイコン（形は switchSilhouette.ts）。線は黒。主輪郭（ハウジング）を太く、
  * 軸（ステム）は副次的な形なのでそれより細い線で描き、線の強弱で主従を出す。
  */
 function switchAvatar(axis: keyof typeof SWITCH_STEM_COLORS, bg = '#faf7f0'): string {
@@ -48,8 +31,8 @@ function switchAvatar(axis: keyof typeof SWITCH_STEM_COLORS, bg = '#faf7f0'): st
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`
     + `<rect x="4" y="4" width="56" height="56" rx="14" fill="${bg}" stroke="#111111" stroke-width="4"/>`
-    + layer(SWITCH_HOUSING_PATH, SWITCH_HOUSING_COLOR, 1.5)
-    + layer(SWITCH_STEM_PATH, SWITCH_STEM_COLORS[axis], 0.8)
+    + layer(MX_HOUSING_PATH, DEFAULT_HOUSING_COLOR, 1.5)
+    + layer(MX_STEM_PATH, SWITCH_STEM_COLORS[axis], 0.8)
     + `</svg>`
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
