@@ -7,6 +7,20 @@
 - Supabase は本番と staging で **同じプロジェクトを共有している**。staging で投稿・いいね・本人確認をすると本番のデータになり、
   `supabase/sql/` の SQL を流すと本番の DB も変わる。SQL は、いまの main のコードが動き続ける形（列やテーブルを足すなど）にする
 
+## Supabase の SQL
+
+- テーブルを作る SQL には、RLS のポリシーと一緒に `grant` も書く。この Supabase は SQL で作ったテーブルに anon / authenticated の
+  select・insert・update・delete を自動で付けないので、書き忘れるとポリシーで許していても REST API が `permission denied` になる。
+  アプリはこのエラーを握りつぶして動き続けるので、画面では「バッジが出ない」「フォルダが空」のようにしか見えない
+  （005・006 がこれで動いていなかったのを 007 で直した）。grant するのはポリシーで許している操作だけにする。
+  おかしいときは Supabase のログ（postgres_logs）に `permission denied` が出ていないかを見る
+- Supabase のコネクタが使えるときは、SQL はユーザーに頼まず自分で流す（`apply_migration`。名前は SQL ファイルと同じにする）。
+  流したら、`execute_sql` で `begin; set local role anon;`（ログイン中の人は `set local role authenticated;` と
+  `set_config('request.jwt.claims', '{"sub":"<user_id>","role":"authenticated"}', true)`）のあとにアプリと同じ問い合わせを投げ、
+  通ることを確かめる。STAGING.md の「先にやること」には実行済みと書く。
+  列や行を消す・型を変えるなど、戻せない SQL は流す前にユーザーに確かめる
+- コネクタが使えないときは、今までどおり「先にやること」に未実行として書き、ユーザーに流してもらう
+
 ## 作ったら staging にマージする
 
 機能や修正を作ったら、作業ブランチに commit・push したあと、確認を待たずに staging にもマージして push する
