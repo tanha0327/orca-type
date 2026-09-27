@@ -93,6 +93,19 @@ export function OsChip({ keymap }: { keymap: Keymap }) {
   )
 }
 
+/** 分割初心者におすすめされている投稿に付けるタグ */
+export function BeginnerRecChip({ count }: { count: number }) {
+  return (
+    <span
+      className="nb-chip"
+      style={{ background: 'var(--color-lime)' }}
+      title={`${count} 人が分割初心者におすすめしています`}
+    >
+      🔰 初心者におすすめ
+    </span>
+  )
+}
+
 export function Avatar({ url, name, size = 22 }: { url: string | null; name: string; size?: number }) {
   const style = {
     width: size, height: size,

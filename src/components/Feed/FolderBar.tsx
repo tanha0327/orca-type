@@ -14,7 +14,8 @@ import { useFolderStore } from '../../store/folderStore'
  * 並び順はサイド列（スマホではタイムラインの上）の並び替えで選ぶ
  */
 export function FolderBar({
-  folder, onFolder, osFilter, onOsFilter, osCounts, allCount, categoryCounts, loggedIn, onRequireLogin, onError,
+  folder, onFolder, osFilter, onOsFilter, osCounts, allCount, categoryCounts, beginnerCount,
+  loggedIn, onRequireLogin, onError,
 }: {
   folder: FeedFolder
   onFolder: (f: FeedFolder) => void
@@ -25,6 +26,11 @@ export function FolderBar({
   /** ここから下の件数は、OS で絞り込んだあとの数 */
   allCount: number
   categoryCounts: Partial<Record<CategoryId, number>>
+  /**
+   * 分割初心者におすすめされている投稿の数（タイムラインに出ていない投稿も含む）。
+   * null なら「初心者におすすめ」の機能が使えないので、フォルダを出さない
+   */
+  beginnerCount: number | null
   loggedIn: boolean
   onRequireLogin: () => void
   onError: (message: string) => void
@@ -113,6 +119,15 @@ export function FolderBar({
           active={folder.kind === 'all'}
           onClick={() => onFolder({ kind: 'all' })}
         />
+        {beginnerCount !== null && (
+          <FolderChip
+            label="🔰 初心者におすすめ"
+            title="分割キーボードに慣れている人が、はじめたばかりの人におすすめした配列"
+            count={beginnerCount}
+            active={folder.kind === 'beginner'}
+            onClick={() => onFolder({ kind: 'beginner' })}
+          />
+        )}
         {FEED_CATEGORIES.map((c) => (
           <FolderChip
             key={c.id}

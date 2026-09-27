@@ -129,7 +129,10 @@ export async function fetchFeed(sort: FeedSort): Promise<FeedPage> {
   return { items: toSharedKeymaps(data), rankFallback: false }
 }
 
-/** ID を指定して投稿を取る（タイムラインに読み込んでいない投稿を自分のフォルダに入れている場合に使う） */
+/**
+ * ID を指定して投稿を取る（タイムラインに読み込んでいない投稿を、自分のフォルダに入れている場合や、
+ * 初心者におすすめの投稿として出す場合に使う）
+ */
 export async function fetchKeymapsByIds(ids: string[]): Promise<SharedKeymap[]> {
   if (!supabase || ids.length === 0) return []
   const { data, error } = await supabase.from('shared_keymaps').select('*').in('id', ids)
@@ -210,7 +213,10 @@ export async function fetchFeedExtras(keymapIds: string[], myUserId: string | nu
   return { likeCounts, likedByMe, commentCounts }
 }
 
-/** 投稿にはログインが必要（RLS 側でも auth.uid() = user_id を要求している） */
+/**
+ * 投稿にはログインが必要（RLS 側でも auth.uid() = user_id を要求している）。
+ * 戻り値は新しい投稿の ID（投稿と同時に「初心者におすすめ」を付けるときに使う）
+ */
 export async function shareKeymap(input: {
   name: string
   author: string
@@ -219,7 +225,7 @@ export async function shareKeymap(input: {
   userId: string
   avatarUrl: string | null
   category: CategoryId
-}): Promise<void> {
+}): Promise<string> {
   if (!supabase) throw new Error('共有フィードは設定されていません')
   const row = {
     name: input.name,
@@ -229,14 +235,18 @@ export async function shareKeymap(input: {
     user_id: input.userId,
     avatar_url: input.avatarUrl,
   }
-  const { error } = await supabase.from('shared_keymaps').insert({ ...row, category: input.category })
-  if (!error) return
+  const { data, error } = await supabase
+    .from('shared_keymaps')
+    .insert({ ...row, category: input.category })
+    .select('id')
+    .single()
+  if (!error) return data.id
   // 006_feed_folders.sql をまだ流していない DB には category 列が無い。
   // その場合はカテゴリ抜きで投稿し直す（一覧では自動判定で振り分けられる）
   if (isMissingColumn(error, 'category')) {
-    const retry = await supabase.from('shared_keymaps').insert(row)
+    const retry = await supabase.from('shared_keymaps').insert(row).select('id').single()
     if (retry.error) throw retry.error
-    return
+    return retry.data.id
   }
   throw error
 }

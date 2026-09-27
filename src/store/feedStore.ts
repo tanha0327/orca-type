@@ -6,9 +6,13 @@ import {
   isFeedSort, isFolderSort, type FeedSort, type FolderSort, type SharedKeymap,
 } from '../lib/feed'
 
-/** タイムラインで見ているフォルダ。すべて／カテゴリ（全員共通の自動フォルダ）／自分のフォルダ */
+/**
+ * タイムラインで見ているフォルダ。すべて／分割初心者におすすめ（🔰 が付いた投稿）／
+ * カテゴリ（全員共通の自動フォルダ）／自分のフォルダ
+ */
 export type FeedFolder =
   | { kind: 'all' }
+  | { kind: 'beginner' }
   | { kind: 'category'; id: CategoryId }
   | { kind: 'mine'; folderId: string }
 

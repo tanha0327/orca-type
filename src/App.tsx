@@ -11,6 +11,7 @@ import { Hud } from './components/Hud/Hud'
 import { LayerBar } from './components/LayerBar/LayerBar'
 import { PipPortal } from './components/PipHost/PipPortal'
 import { usePipWindow } from './components/PipHost/usePipWindow'
+import { AuthorCardModal } from './components/Profile/AuthorCardModal'
 import { ProfileSetupModal } from './components/Profile/ProfileSetupModal'
 import {
   BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_LABEL, ESC_COLORS,
@@ -280,6 +281,7 @@ export function App() {
       <LoginModal />
       <ProfileSetupModal />
       <KeyboardPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
+      <AuthorCardModal />
 
       <footer className="mx-auto max-w-[1500px] px-4 pb-8 pt-2">
         <p className="text-[0.7rem] font-bold leading-relaxed opacity-55">

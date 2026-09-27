@@ -14,17 +14,24 @@ import { keymapIdFromUrl, keymapPermalink, setUrlKeymapId } from '../../lib/perm
 import { PUBLIC_SITE_URL } from '../../lib/site'
 import { fetchXVerifications, type XVerification } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
+import { useBeginnerRecStore } from '../../store/beginnerRecStore'
 import { useFeedStore } from '../../store/feedStore'
 import { useFolderStore } from '../../store/folderStore'
 import { useKeymapStore } from '../../store/keymapStore'
 import { useProfileStore } from '../../store/profileStore'
+import { useProfileTagsStore } from '../../store/profileTagsStore'
 import { KeyboardView } from '../Board/KeyboardView'
 import {
   IconChevronDown, IconChevronUp, IconComment, IconFolder, IconHeart, IconImageSave, IconLoad, IconTrash, IconX,
 } from '../Icons'
+import { useAuthorCardStore } from '../Profile/AuthorCardModal'
+import { BeginnerBadge } from '../Profile/ProfileTagParts'
 import { Ring } from '../Ring'
 import { XVerifiedBadge } from '../XVerifiedBadge'
-import { Avatar, DeviceColors, importSharedKeymap, OsChip, relativeTime } from './FeedParts'
+import { BeginnerPicks } from './BeginnerPicks'
+import {
+  Avatar, BeginnerRecChip, DeviceColors, importSharedKeymap, OsChip, relativeTime,
+} from './FeedParts'
 import { SortBar, sortOption } from './FeedSort'
 import { FolderBar } from './FolderBar'
 import { PostDiff } from './KeymapDiff'
@@ -37,6 +44,9 @@ const EMPTY_EXTRAS: FeedExtras = { likeCounts: {}, likedByMe: new Set(), comment
 const BUZZ_LIKE_THRESHOLD = 10
 /** 投稿からこの時間内は NEW を付ける */
 const NEW_BADGE_MS = 24 * 60 * 60 * 1000
+
+/** タイムラインのページに入っていない「初心者におすすめ」の投稿を、一度に取ってくる数（おすすめの多い順） */
+const BEGINNER_EXTRA_LIMIT = 100
 
 function mergeExtras(a: FeedExtras, b: FeedExtras): FeedExtras {
   return {
@@ -115,6 +125,20 @@ export function FeedView() {
   const [commentItem, setCommentItem] = useState<SharedKeymap | null>(null)
   const [saveItem, setSaveItem] = useState<SharedKeymap | null>(null)
 
+  // 分割初心者におすすめ（🔰）。おすすめの数・自分のおすすめはストアで持ち、投稿カードと上の欄で共有する
+  const recCounts = useBeginnerRecStore((s) => s.counts)
+  const myRecs = useBeginnerRecStore((s) => s.mine)
+  const recsAvailable = useBeginnerRecStore((s) => s.available)
+  const loadRecs = useBeginnerRecStore((s) => s.load)
+  const toggleRec = useBeginnerRecStore((s) => s.toggle)
+  const addRec = useBeginnerRecStore((s) => s.add)
+  const forgetRecs = useBeginnerRecStore((s) => s.forget)
+  const ensureTags = useProfileTagsStore((s) => s.ensure)
+  const openAuthorCard = useAuthorCardStore((s) => s.open)
+  /** 投稿と同時に、自分で「初心者におすすめ」を付けるか */
+  const [shareForBeginners, setShareForBeginners] = useState(false)
+  const showRecs = recsAvailable === true
+
   // 並び順をすばやく切り替えたとき、古いほうの応答で一覧を上書きしないようにする
   const loadSeq = useRef(0)
   const extraRef = useRef<SharedKeymap[]>([])
@@ -158,13 +182,22 @@ export function FeedView() {
     return () => { cancelled = true }
   }, [items, extraPosts, verificationRevision])
 
-  // 自分のフォルダに、タイムラインのページに入っていない投稿があれば取ってくる
+  useEffect(() => { void loadRecs(user?.id ?? null) }, [user?.id, loadRecs])
+
+  // 投稿者の名前の横に 🔰（分割初心者のタグ）を出すために、投稿者のタグをまとめて取っておく
+  useEffect(() => {
+    if (!items) return
+    void ensureTags([...items, ...extraPosts].flatMap((i) => (i.user_id ? [i.user_id] : [])))
+  }, [items, extraPosts, ensureTags])
+
+  // 自分のフォルダと「初心者におすすめ」に、タイムラインのページに入っていない投稿があれば取ってくる
   useEffect(() => {
     if (!items) return
     const known = new Set([...items, ...extraPosts].map((i) => i.id))
-    const missing = Object.values(itemsByFolder)
-      .flat()
-      .map((it) => it.keymapId)
+    const recommendedIds = Object.keys(recCounts)
+      .sort((a, b) => recCounts[b] - recCounts[a])
+      .slice(0, BEGINNER_EXTRA_LIMIT)
+    const missing = [...Object.values(itemsByFolder).flat().map((it) => it.keymapId), ...recommendedIds]
       .filter((id) => !known.has(id) && !requestedExtra.current.has(id))
     if (missing.length === 0) return
     const ids = [...new Set(missing)]
@@ -180,7 +213,12 @@ export function FeedView() {
         // 取れなかった投稿はフォルダの件数にだけ残り、一覧には出ない
       }
     })()
-  }, [items, extraPosts, itemsByFolder, user?.id])
+  }, [items, extraPosts, itemsByFolder, recCounts, user?.id])
+
+  // 「初心者におすすめ」が使えない環境（SQL 未実行など）なら、そのフォルダを開いたままにしない
+  useEffect(() => {
+    if (folder.kind === 'beginner' && recsAvailable === false) setFolder({ kind: 'all' })
+  }, [folder, recsAvailable, setFolder])
 
   // ログアウトしたり、開いていた自分のフォルダが無くなったりしたら「すべて」に戻す
   useEffect(() => {
@@ -271,12 +309,34 @@ export function FeedView() {
         case 'similar': return [...list].sort((a, b) => (similarityOf.get(b.id) ?? 0) - (similarityOf.get(a.id) ?? 0))
       }
     }
-    const list = folder.kind === 'category' ? osItems.filter((it) => categoryOf.get(it.id) === folder.id) : osItems
+    const list = folder.kind === 'category'
+      ? osItems.filter((it) => categoryOf.get(it.id) === folder.id)
+      : folder.kind === 'beginner'
+        ? osItems.filter((it) => (recCounts[it.id] ?? 0) > 0)
+        : osItems
     if (sort === 'similar') {
       return [...list].sort((a, b) => (similarityOf.get(b.id) ?? 0) - (similarityOf.get(a.id) ?? 0) || byNewest(a, b))
     }
     return list
-  }, [items, osItems, matchesOs, folder, sort, folderSort, itemsByFolder, byId, categoryOf, similarityOf, extras.likeCounts])
+  }, [items, osItems, matchesOs, folder, sort, folderSort, itemsByFolder, byId, categoryOf, similarityOf, extras.likeCounts, recCounts])
+
+  /**
+   * 初心者におすすめされている投稿（OS の絞り込みに合うもの）。
+   * タイムラインのページに入っていない古い投稿も、取ってきてあれば含む
+   */
+  const recommendedPosts = useMemo(
+    () => [...byId.values()].filter((it) => matchesOs(it) && (recCounts[it.id] ?? 0) > 0),
+    [byId, matchesOs, recCounts],
+  )
+
+  /** 「初心者におすすめ」のフォルダで、ページの投稿の後ろにまとめて出す、ページに入っていない投稿（おすすめの多い順） */
+  const beginnerExtra = useMemo(() => {
+    if (folder.kind !== 'beginner') return []
+    const inPage = new Set((items ?? []).map((it) => it.id))
+    return recommendedPosts
+      .filter((it) => !inPage.has(it.id))
+      .sort((a, b) => (recCounts[b.id] ?? 0) - (recCounts[a.id] ?? 0) || byNewest(a, b))
+  }, [folder, items, recommendedPosts, recCounts])
 
   // 新しい順のときだけ、バズった投稿を「話題の配列」として先にまとめる
   const buzzSection = activeSort === 'new' ? (visible ?? []).filter((it) => isBuzz(it.id)) : []
@@ -342,7 +402,7 @@ export function FeedView() {
     if (!shareName.trim() || !user || !profile) return
     setSharing(true)
     try {
-      await shareKeymap({
+      const id = await shareKeymap({
         name: shareName.trim(),
         author: profile.name,
         description: shareDesc.trim(),
@@ -351,12 +411,25 @@ export function FeedView() {
         avatarUrl: profile.avatarUrl,
         category: shareCategory ?? autoCategory,
       })
-      setShareMsg('共有しました！')
+      // 投稿そのものは済んでいるので、おすすめを付けられなくても投稿は成功として扱う
+      let recFailed = false
+      if (shareForBeginners && showRecs) {
+        try {
+          await addRec(id, user.id)
+        } catch {
+          recFailed = true
+        }
+      }
+      const done = recFailed
+        ? '共有しました！（初心者へのおすすめは付けられなかったので、投稿の 🔰 ボタンから付け直してください）'
+        : '共有しました！'
+      setShareMsg(done)
       setShareName('')
       setShareDesc('')
+      setShareForBeginners(false)
       setShareOpen(false)
       void load()
-      window.setTimeout(() => setShareMsg(null), 3000)
+      window.setTimeout(() => setShareMsg((cur) => (cur === done ? null : cur)), recFailed ? 8000 : 3000)
     } catch (e) {
       // エラーは自動で消さない（読んで報告できるように残しておく）
       setShareMsg(`共有に失敗しました: ${errorMessage(e)}`)
@@ -412,6 +485,7 @@ export function FeedView() {
       setItems((prev) => prev?.filter((i) => i.id !== item.id) ?? null)
       setExtraPosts((prev) => prev.filter((i) => i.id !== item.id))
       forgetKeymap(item.id)
+      forgetRecs(item.id)
       if (commentItem?.id === item.id) setCommentItem(null)
       if (saveItem?.id === item.id) setSaveItem(null)
       if (useFeedStore.getState().viewer?.id === item.id) openViewer(null)
@@ -436,6 +510,18 @@ export function FeedView() {
 
   const savedIds = new Set(Object.values(itemsByFolder).flat().map((it) => it.keymapId))
 
+  const doToggleRec = async (item: SharedKeymap) => {
+    if (!user) {
+      openLoginModal()
+      return
+    }
+    try {
+      await toggleRec(item.id, user.id)
+    } catch (e) {
+      setShareMsg(`おすすめに失敗しました: ${errorMessage(e)}`)
+    }
+  }
+
   const renderCard = (item: SharedKeymap, index: number, list: SharedKeymap[]) => (
     <PostCard
       key={item.id}
@@ -448,6 +534,13 @@ export function FeedView() {
       likeCount={likeCountOf(item.id)}
       liked={extras.likedByMe.has(item.id)}
       commentCount={extras.commentCounts[item.id] ?? 0}
+      showRec={showRecs}
+      recCount={recCounts[item.id] ?? 0}
+      recommended={myRecs.has(item.id)}
+      onRecommend={() => void doToggleRec(item)}
+      onOpenAuthor={item.user_id
+        ? () => openAuthorCard({ userId: item.user_id!, name: item.author, avatarUrl: item.avatar_url })
+        : null}
       category={categoryOf.get(item.id) ?? 'standard'}
       similarity={similarityOf.get(item.id) ?? 0}
       isNew={Date.now() - Date.parse(item.created_at) < NEW_BADGE_MS}
@@ -517,6 +610,13 @@ export function FeedView() {
         onOpen={openShare}
       />
 
+      <BeginnerPicks
+        pool={[...byId.values()]}
+        likeCounts={extras.likeCounts}
+        onOpen={openViewer}
+        onShowAll={() => setFolder({ kind: 'beginner' })}
+      />
+
       {items !== null && items.length > 0 && (
         <FolderBar
           folder={folder}
@@ -526,6 +626,7 @@ export function FeedView() {
           osCounts={osCounts}
           allCount={osItems?.length ?? 0}
           categoryCounts={categoryCounts}
+          beginnerCount={showRecs ? recommendedPosts.length : null}
           loggedIn={!!user}
           onRequireLogin={openLoginModal}
           onError={flashMsg}
@@ -540,6 +641,14 @@ export function FeedView() {
         </>
       )}
       {restSection.map((item, i) => renderCard(item, i, restSection))}
+      {beginnerExtra.length > 0 && (
+        <>
+          <SectionHeading tone="color-mix(in srgb, var(--color-lime) 45%, var(--color-paper))">
+            🔰 タイムラインに出ていない投稿から（おすすめした人が多い順）
+          </SectionHeading>
+          {beginnerExtra.map((item, i) => renderCard(item, i, beginnerExtra))}
+        </>
+      )}
 
       {items === null && !loadError && (
         <p className="flex items-center justify-center gap-2 py-6 text-[0.85rem] font-bold opacity-60">
@@ -552,13 +661,15 @@ export function FeedView() {
           まだ共有された配列がありません。上の投稿欄から最初の 1 つをどうぞ。
         </p>
       )}
-      {items !== null && items.length > 0 && visible?.length === 0 && (
-        <p className="py-8 text-center text-[0.85rem] font-bold opacity-60">
+      {items !== null && items.length > 0 && visible?.length === 0 && beginnerExtra.length === 0 && (
+        <p className="px-4 py-8 text-center text-[0.85rem] font-bold leading-relaxed opacity-60">
           {osFilter !== 'all'
             ? `${getOsTag(osFilter).label} のタグが付いた投稿は、このフォルダにはまだありません。`
             : folder.kind === 'mine'
               ? 'このフォルダはまだ空です。投稿のフォルダのボタンから追加できます。'
-              : 'このフォルダには、いま読み込んでいる投稿の中に当てはまるものがありません。'}
+              : folder.kind === 'beginner'
+                ? 'まだ初心者におすすめされた配列がありません。分割キーボードに慣れている人は、投稿の 🔰 ボタンで初心者におすすめできます。'
+                : 'このフォルダには、いま読み込んでいる投稿の中に当てはまるものがありません。'}
         </p>
       )}
 
@@ -574,6 +685,9 @@ export function FeedView() {
         onCategory={setShareCategory}
         os={shareOs}
         onOs={setShareOs}
+        showRec={showRecs}
+        forBeginners={shareForBeginners}
+        onForBeginners={setShareForBeginners}
         sharing={sharing}
         onSubmit={() => void doShare()}
         shareMsg={shareMsg}
@@ -719,6 +833,7 @@ function SimilarityChip({ value }: { value: number }) {
 
 function PostCard({
   item, myKeymap, focusLayer, onFocusLayer, canDelete, verification, likeCount, liked, commentCount,
+  showRec, recCount, recommended, onRecommend, onOpenAuthor,
   category, similarity, isNew, isBuzz, saved, reorder,
   onOpen, onImport, onLike, onComments, onSave, onDelete,
 }: {
@@ -734,6 +849,15 @@ function PostCard({
   likeCount: number
   liked: boolean
   commentCount: number
+  /** 「初心者におすすめ」の機能が使えるか（使えない環境ではボタンもタグも出さない） */
+  showRec: boolean
+  /** 分割初心者におすすめした人の数 */
+  recCount: number
+  /** 自分がおすすめしたか */
+  recommended: boolean
+  onRecommend: () => void
+  /** 投稿者のプロフィールカードを開く。ログインせずに投稿された古い配列では null */
+  onOpenAuthor: (() => void) | null
   category: CategoryId
   /** 自分の配列との一致度（0〜1） */
   similarity: number
@@ -815,7 +939,19 @@ function PostCard({
         </div>
       )}
       <div className="flex gap-3">
-        <Avatar url={item.avatar_url} name={item.author} size={40} />
+        {onOpenAuthor
+          ? (
+            <button
+              type="button"
+              className="shrink-0 self-start rounded-full"
+              title={`${item.author} のプロフィール`}
+              aria-label={`${item.author} のプロフィールを見る`}
+              onClick={onOpenAuthor}
+            >
+              <Avatar url={item.avatar_url} name={item.author} size={40} />
+            </button>
+          )
+          : <Avatar url={item.avatar_url} name={item.author} size={40} />}
 
         <div className={`min-w-0 flex-1 ${reorder ? 'pr-11' : ''}`}>
           {/* 本人確認バッジは X へのリンクなので、投稿を開くボタンの外に置く（ボタンの中にリンクは入れられない） */}
@@ -823,6 +959,7 @@ function PostCard({
             <button type="button" className="min-w-0 truncate text-left text-[0.85rem] font-black" onClick={onOpen}>
               {item.author}
             </button>
+            <BeginnerBadge userId={item.user_id} />
             {verification && <XVerifiedBadge verification={verification} className="shrink" />}
             <span className="shrink-0 text-[0.72rem] font-bold opacity-50">・ {relativeTime(item.created_at)}</span>
           </div>
@@ -848,6 +985,7 @@ function PostCard({
           </button>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {showRec && recCount > 0 && <BeginnerRecChip count={recCount} />}
             <OsChip keymap={item.keymap} />
             <CategoryChip id={category} />
             {/* 別のキーボードの配列はキーの位置が対応しないので、一致度は出さない */}
@@ -880,6 +1018,7 @@ function PostCard({
               {/* html2canvas は truncate（overflow: hidden）の中の文字を下にずらして切ってしまうので、画像用は省略しない */}
               <div className="flex items-center gap-1.5">
                 <p className="text-[0.85rem] font-black">{item.author}</p>
+                <BeginnerBadge userId={item.user_id} />
                 {verification && <XVerifiedBadge verification={verification} link={false} />}
               </div>
               <p className="mt-0.5 text-[0.95rem] font-black">{item.name}</p>
@@ -889,6 +1028,7 @@ function PostCard({
                 </p>
               )}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {showRec && recCount > 0 && <BeginnerRecChip count={recCount} />}
                 <OsChip keymap={item.keymap} />
                 <DeviceColors keymap={item.keymap} />
               </div>
@@ -917,6 +1057,17 @@ function PostCard({
         >
           <IconHeart filled={liked} />
         </ActionButton>
+        {showRec && (
+          <ActionButton
+            label={recommended ? '分割初心者へのおすすめを取り消す' : '分割初心者におすすめする'}
+            count={recCount}
+            pressed={recommended}
+            tone={recommended ? 'var(--color-lime)' : undefined}
+            onClick={onRecommend}
+          >
+            <span aria-hidden className="text-[1.05rem] leading-none">🔰</span>
+          </ActionButton>
+        )}
         <ActionButton label="コメント" count={commentCount} onClick={onComments}>
           <IconComment />
         </ActionButton>
@@ -964,6 +1115,7 @@ function PostCard({
 
 function ShareModal({
   open, onClose, shareName, onShareName, shareDesc, onShareDesc, autoCategory, category, onCategory, os, onOs,
+  showRec, forBeginners, onForBeginners,
   sharing, onSubmit, shareMsg, profile, verification, onOpenProfile, onRequireLogin,
 }: {
   open: boolean
@@ -980,6 +1132,11 @@ function ShareModal({
   /** 投稿に付ける OS のタグ。null なら付けない */
   os: KeymapOs | null
   onOs: (os: KeymapOs | null) => void
+  /** 「初心者におすすめ」の機能が使えるか */
+  showRec: boolean
+  /** 投稿と同時に、自分で「初心者におすすめ」を付けるか */
+  forBeginners: boolean
+  onForBeginners: (on: boolean) => void
   sharing: boolean
   onSubmit: () => void
   shareMsg: string | null
@@ -1009,7 +1166,7 @@ function ShareModal({
         role="dialog"
         aria-modal="true"
         aria-label="今の配列を投稿する"
-        className="nb nb-lg w-full max-w-md overflow-hidden"
+        className="nb nb-lg flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden"
       >
         <header
           className="flex items-center gap-2 border-b-[3px] border-[var(--color-ink)] p-3"
@@ -1021,7 +1178,8 @@ function ShareModal({
           </button>
         </header>
 
-        <div className="space-y-3 p-3">
+        {/* フォルダ・OS・初心者へのおすすめの欄で背が高くなったので、背の低いスマホでも「共有する」まで届くよう本文をスクロールさせる */}
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
           <label className="block">
             <span className="nb-eyebrow">配列名</span>
             <input
@@ -1130,6 +1288,35 @@ function ShareModal({
               })}
             </div>
           </div>
+          {showRec && (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={forBeginners}
+              className="nb nb-flat flex w-full items-start gap-2.5 p-2.5 text-left"
+              style={{ background: forBeginners ? 'color-mix(in srgb, var(--color-lime) 45%, var(--color-paper))' : 'var(--color-paper)' }}
+              onClick={() => onForBeginners(!forBeginners)}
+            >
+              <span
+                aria-hidden
+                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] text-[0.8rem] font-black leading-none"
+                style={{
+                  border: '3px solid var(--color-ink)',
+                  background: forBeginners ? 'var(--color-ink)' : 'var(--color-paper)',
+                  color: 'var(--color-lime)',
+                }}
+              >
+                {forBeginners ? '✓' : ''}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[0.82rem] font-black">🔰 分割初心者におすすめする</span>
+                <span className="mt-0.5 block text-[0.7rem] font-bold leading-relaxed opacity-70">
+                  分割キーボードをはじめたばかりの人でも覚えやすい配列なら。「初心者におすすめ」のフォルダに入り、
+                  初心者の人の画面の上に出ます。あとから投稿の 🔰 ボタンでも変えられます。
+                </span>
+              </span>
+            </button>
+          )}
           {shareMsg && (
             <p className="nb-chip" style={{ background: 'var(--color-lime)' }}>{shareMsg}</p>
           )}
@@ -1160,12 +1347,19 @@ function CommentsModal({
   const openLoginModal = useAuthStore((s) => s.openLoginModal)
   const profile = useProfileStore((s) => s.profile)
   const verificationRevision = useProfileStore((s) => s.verificationRevision)
+  const ensureTags = useProfileTagsStore((s) => s.ensure)
+  const openAuthorCard = useAuthorCardStore((s) => s.open)
 
   const [comments, setComments] = useState<KeymapComment[] | null>(null)
   const [verifications, setVerifications] = useState<Record<string, XVerification>>({})
   const [error, setError] = useState<string | null>(null)
   const [body, setBody] = useState('')
   const [posting, setPosting] = useState(false)
+
+  // コメントした人の名前の横に 🔰 を出す（初心者の質問に、慣れている人が気づけるように）
+  useEffect(() => {
+    if (comments) void ensureTags(comments.map((c) => c.user_id))
+  }, [comments, ensureTags])
 
   useEffect(() => {
     if (!item) return
@@ -1268,10 +1462,19 @@ function CommentsModal({
           )}
           {comments?.map((c) => (
             <div key={c.id} className="nb nb-flat flex gap-2 p-2.5">
-              <Avatar url={c.avatar_url} name={c.author_name} size={26} />
+              <button
+                type="button"
+                className="shrink-0 self-start rounded-full"
+                title={`${c.author_name} のプロフィール`}
+                aria-label={`${c.author_name} のプロフィールを見る`}
+                onClick={() => openAuthorCard({ userId: c.user_id, name: c.author_name, avatarUrl: c.avatar_url })}
+              >
+                <Avatar url={c.avatar_url} name={c.author_name} size={26} />
+              </button>
               <div className="min-w-0 flex-1">
                 <p className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-[0.8rem] font-black">{c.author_name}</span>
+                  <BeginnerBadge userId={c.user_id} />
                   {verifications[c.user_id] && (
                     <XVerifiedBadge verification={verifications[c.user_id]} className="shrink" />
                   )}

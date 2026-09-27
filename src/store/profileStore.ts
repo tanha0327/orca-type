@@ -5,6 +5,7 @@ import {
   fetchProfileRow, profileEnabled, resolveProfile, saveProfile, type Profile, type ProfileRow,
 } from '../lib/profile'
 import { fetchXVerifications, type XVerification } from '../lib/xVerification'
+import { useProfileTagsStore } from './profileTagsStore'
 
 interface ProfileState {
   userId: string | null
@@ -46,6 +47,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     if (get().userId === user.id && get().loaded) return
     // 読み込み中も Google の情報でひとまず表示しておく（読み込み完了までのちらつき防止）
     set({ userId: user.id, loaded: false, profile: profileFromUser(user) })
+    // 持っているキーボード・分割初心者のタグも一緒に読み込む（別の表に置いているので、失敗してもプロフィールは出す）
+    void useProfileTagsStore.getState().refresh(user.id)
 
     if (!profileEnabled()) {
       set({ profile: profileFromUser(user), loaded: true })

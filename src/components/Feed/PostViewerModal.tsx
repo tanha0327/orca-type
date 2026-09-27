@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 import type { SharedKeymap } from '../../lib/feed'
 import type { XVerification } from '../../lib/xVerification'
+import { useBeginnerRecStore } from '../../store/beginnerRecStore'
 import { useFeedStore } from '../../store/feedStore'
 import { useKeymapStore } from '../../store/keymapStore'
 import { IconLoad, IconTrash } from '../Icons'
+import { BeginnerBadge } from '../Profile/ProfileTagParts'
 import { XVerifiedBadge } from '../XVerifiedBadge'
-import { Avatar, DeviceColors, OsChip, relativeTime } from './FeedParts'
+import { Avatar, BeginnerRecChip, DeviceColors, OsChip, relativeTime } from './FeedParts'
 import { KeymapDiffView } from './KeymapDiff'
 
 /**
@@ -28,6 +30,7 @@ export function PostViewerModal({
   const setFocus = useFeedStore((s) => s.setFocusLayer)
   const showMine = useFeedStore((s) => s.showMine)
   const setShowMine = useFeedStore((s) => s.setShowMine)
+  const recCount = useBeginnerRecStore((s) => (item && s.available ? s.counts[item.id] ?? 0 : 0))
 
   useEffect(() => {
     if (!item) return
@@ -67,6 +70,7 @@ export function PostViewerModal({
           <div className="min-w-0 flex-1">
             <div className="mb-0.5 flex min-w-0 items-center gap-1.5">
               <p className="nb-eyebrow min-w-0 truncate !opacity-80">{item.author} ・ {relativeTime(item.created_at)}</p>
+              <BeginnerBadge userId={item.user_id} />
               {verification && <XVerifiedBadge verification={verification} className="shrink" />}
             </div>
             <h3 className="truncate text-[1.05rem]">{item.name}</h3>
@@ -83,6 +87,7 @@ export function PostViewerModal({
             </p>
           )}
           <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            {recCount > 0 && <BeginnerRecChip count={recCount} />}
             <OsChip keymap={item.keymap} />
             <DeviceColors keymap={item.keymap} />
           </div>

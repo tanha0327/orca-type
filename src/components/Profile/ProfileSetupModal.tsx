@@ -2,14 +2,17 @@ import type { User } from '@supabase/supabase-js'
 import { useEffect, useRef, useState } from 'react'
 import { SAMPLE_AVATARS, SAMPLE_NAMES } from '../../data/profileSamples'
 import { uploadAvatar } from '../../lib/profile'
+import { EMPTY_PROFILE_TAGS, sameProfileTags, saveProfileTags, type ProfileTags } from '../../lib/profileTags'
 import {
   fetchMyXVerificationCode, isXVerificationUnavailable, removeXVerification, verifyXPost,
   xVerificationEnabled, xVerificationIntentUrl,
 } from '../../lib/xVerification'
 import { useAuthStore } from '../../store/authStore'
 import { useProfileStore } from '../../store/profileStore'
+import { useProfileTags, useProfileTagsStore } from '../../store/profileTagsStore'
 import { Ring } from '../Ring'
 import { XVerifiedBadge } from '../XVerifiedBadge'
+import { OwnedKeyboardsField, SplitBeginnerField } from './ProfileTagParts'
 
 /**
  * Supabase のエラー（PostgrestError / StorageError）は Error を継承していないので、
@@ -40,6 +43,14 @@ export function ProfileSetupModal() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // 持っているキーボード・分割初心者（profile_tags）。自分のタグを読み込めてから欄を出す
+  // （読み込む前に保存すると、登録済みのタグを空で上書きしてしまうので）
+  const savedTags = useProfileTags(user?.id)
+  const tagsAvailable = useProfileTagsStore((s) => s.available)
+  const setStoredTags = useProfileTagsStore((s) => s.setTags)
+  const tagsReady = tagsAvailable === true && savedTags !== undefined
+  const [tags, setTags] = useState<ProfileTags>(EMPTY_PROFILE_TAGS)
+
   // 開くたびに、今のプロフィール（無ければ Google の情報）で初期化する
   useEffect(() => {
     if (!editorOpen) return
@@ -49,6 +60,10 @@ export function ProfileSetupModal() {
     setUploadedUrl(SAMPLE_AVATARS.some((a) => a.url === current) ? null : current)
     setError(null)
   }, [editorOpen, profile])
+
+  useEffect(() => {
+    if (editorOpen) setTags(savedTags ?? EMPTY_PROFILE_TAGS)
+  }, [editorOpen, savedTags])
 
   useEffect(() => {
     if (!editorOpen) return
@@ -80,6 +95,12 @@ export function ProfileSetupModal() {
     setSaving(true)
     setError(null)
     try {
+      // タグは先に保存する（プロフィールの保存でモーダルが閉じるので、失敗したらその前に知らせる）。
+      // まだ一度も保存していない人は、選び直していなくても保存しておく（「設定済み」になり、案内が出なくなる）
+      if (tagsReady && (savedTags === null || !sameProfileTags(tags, savedTags))) {
+        await saveProfileTags(user.id, tags)
+        setStoredTags(user.id, tags)
+      }
       await save(user.id, { name: trimmed, avatarUrl })
     } catch (e) {
       setError(`保存に失敗しました: ${errorMessage(e)}`)
@@ -128,7 +149,12 @@ export function ProfileSetupModal() {
               style={{ border: '3px solid var(--color-ink)' }}
             />
             <div className="min-w-0">
-              <p className="truncate text-[0.95rem] font-black">{name.trim() || '名前を選んでください'}</p>
+              <p className="flex min-w-0 items-center gap-1.5 text-[0.95rem] font-black">
+                <span className="truncate">{name.trim() || '名前を選んでください'}</span>
+                {tagsReady && tags.splitBeginner && (
+                  <span className="shrink-0" role="img" title="分割キーボード初心者" aria-label="分割キーボード初心者">🔰</span>
+                )}
+              </p>
               <p className="text-[0.72rem] font-bold opacity-60">みんなの配列やコメントにこの名前とアイコンで表示されます</p>
             </div>
           </div>
@@ -221,6 +247,19 @@ export function ProfileSetupModal() {
               ))}
             </div>
           </div>
+
+          {tagsReady && (
+            <>
+              <OwnedKeyboardsField
+                value={tags.keyboards}
+                onChange={(keyboards) => setTags((t) => ({ ...t, keyboards }))}
+              />
+              <SplitBeginnerField
+                value={tags.splitBeginner}
+                onChange={(splitBeginner) => setTags((t) => ({ ...t, splitBeginner }))}
+              />
+            </>
+          )}
 
           {error && (
             <p className="text-[0.78rem] font-bold" style={{ color: 'var(--color-pink)' }}>{error}</p>
