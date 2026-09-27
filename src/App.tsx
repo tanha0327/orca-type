@@ -291,6 +291,16 @@ function Header({
 
         <span className="flex-1" />
 
+        <a
+          href={BMC_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nb-btn !py-2 text-[0.82rem]"
+          title="Buy Me a Coffee で開発を応援する"
+        >
+          ☕ 応援する
+        </a>
+
         <AuthButton />
 
         <button
