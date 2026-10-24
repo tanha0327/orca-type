@@ -10,7 +10,7 @@ import { usePipWindow } from './components/PipHost/usePipWindow'
 import { Ring } from './components/Ring'
 import {
   BODY_COLOR_LABEL, DEFAULT_ESC_COLOR, ESC_COLOR_FACE, ESC_COLOR_LABEL, ESC_COLORS,
-  TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS,
+  LAYER_COLOR_HEX, TRACKBALL_COLOR_GRADIENT, TRACKBALL_COLOR_LABEL, TRACKBALL_COLORS,
   type BodyColor, type EscColor, type TrackballColor,
 } from './data/types'
 import { isTypingTarget, keyIdForCode, useKeyCapture, useResetOnCaptureOff } from './engine/useEngine'
@@ -200,7 +200,9 @@ export function App() {
         <div className="min-w-0 space-y-4">
           {view === 'edit' && (
             <>
-              <section className="nb nb-lg p-4">
+              <MobileLayerRail />
+
+              <section className="nb nb-lg p-4 max-sm:p-3">
                 <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -219,8 +221,8 @@ export function App() {
                       ホイールとパッドはドラッグ／スクロールでも試せます。
                     </p>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
-                    <div className="flex items-center gap-1" role="group" aria-label="キーボード本体の色">
+                  <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 max-sm:w-full max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:pb-1">
+                    <div className="flex shrink-0 items-center gap-1" role="group" aria-label="キーボード本体の色">
                       <span className="nb-eyebrow mr-0.5">本体</span>
                       {BODY_COLORS.map((c) => (
                         <RoundSwatch
@@ -234,7 +236,7 @@ export function App() {
                       ))}
                     </div>
                     {keyboard.keys.some((k) => k.accent) && (
-                      <div className="flex items-center gap-1" role="group" aria-label="esc キーキャップの色">
+                      <div className="flex shrink-0 items-center gap-1" role="group" aria-label="esc キーキャップの色">
                         <span className="nb-eyebrow mr-0.5">ESC</span>
                         {ESC_COLORS.map((c) => (
                           <EscColorSwatch
@@ -247,7 +249,7 @@ export function App() {
                       </div>
                     )}
                     {hasBall(keyboard) && (
-                      <div className="flex items-center gap-1" role="group" aria-label="トラックボールの色">
+                      <div className="flex shrink-0 items-center gap-1" role="group" aria-label="トラックボールの色">
                         <span className="nb-eyebrow mr-0.5">BALL</span>
                         {TRACKBALL_COLORS.map((c) => (
                           <RoundSwatch
@@ -271,8 +273,12 @@ export function App() {
                     </button>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <div className="min-w-[520px]">
+                <div className="mb-2 hidden items-center justify-between gap-3 rounded-[10px] bg-[var(--color-ink)] px-3 py-2 text-[0.68rem] font-black text-[var(--color-paper)] max-sm:flex">
+                  <span>← 横にスワイプして全キーを表示</span>
+                  <span className="shrink-0 text-[var(--color-lime)]">TAP TO EDIT</span>
+                </div>
+                <div className="overflow-x-auto overscroll-x-contain pb-2">
+                  <div className="min-w-[520px] max-sm:min-w-[480px]">
                     <KeyboardView subLegends={subLegends} />
                   </div>
                 </div>
@@ -299,7 +305,7 @@ export function App() {
               ? <FeedSide />
               : (
                 <>
-                  <div className="nb nb-lg min-h-[22rem] overflow-hidden lg:min-h-0 lg:flex-[1.15]">
+                  <div id="mobile-hud" className="nb nb-lg min-h-[22rem] overflow-hidden lg:min-h-0 lg:flex-[1.15]">
                     {pip.win ? <PipPlaceholder onClose={pip.close} /> : <Hud />}
                   </div>
                   <div className="min-h-0 lg:flex-1 lg:overflow-y-auto">
@@ -357,19 +363,19 @@ function Header({
       className="sticky top-0 z-30 border-b-[3px] border-[var(--color-ink)]"
       style={{ background: 'var(--color-bg)' }}
     >
-      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-3 gap-y-2 p-3">
+      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-3 gap-y-2 p-3 max-sm:gap-x-2 max-sm:gap-y-2 max-sm:px-3 max-sm:py-2.5">
         <div className="flex items-center gap-2">
           <AppLogo className="h-8 w-8 shrink-0" />
           <h1 className="text-[1.5rem] leading-none">ORCA MAP</h1>
           <span className="nb-eyebrow hidden sm:inline">KEYMAP STUDIO</span>
         </div>
 
-        <nav className="flex flex-wrap gap-1.5" aria-label="表示切替">
+        <nav className="flex flex-wrap gap-1.5 max-sm:order-4 max-sm:-mx-3 max-sm:w-[calc(100%+1.5rem)] max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-3 max-sm:pb-0.5" aria-label="表示切替">
           {VIEWS.map((v) => (
             <button
               key={v.id}
               type="button"
-              className="nb-btn !py-1.5 text-[0.8rem] max-sm:!px-2.5"
+              className="nb-btn shrink-0 !py-1.5 text-[0.8rem] max-sm:!px-2.5"
               data-active={view === v.id}
               onPointerEnter={() => preloadView(v.id)}
               onFocus={() => preloadView(v.id)}
@@ -380,13 +386,13 @@ function Header({
           ))}
         </nav>
 
-        <span className="flex-1" />
+        <span className="flex-1 max-sm:hidden" />
 
         <a
           href={BMC_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="nb-btn !py-2 text-[0.82rem]"
+          className="nb-btn !py-2 text-[0.82rem] max-sm:hidden"
           title="Buy Me a Coffee で開発を応援する"
         >
           ☕ 応援する
@@ -396,7 +402,7 @@ function Header({
 
         <button
           type="button"
-          className="nb-btn !py-2 text-[0.82rem]"
+          className="nb-btn !py-2 text-[0.82rem] max-sm:hidden"
           onClick={onPip}
           disabled={!pipSupported}
           data-active={pipOn}
@@ -407,7 +413,7 @@ function Header({
 
         <button
           type="button"
-          className="nb-btn !py-2 text-[0.85rem]"
+          className="nb-btn !py-2 text-[0.85rem] max-sm:ml-auto max-sm:!px-2.5 max-sm:text-[0.76rem]"
           style={{ background: capture ? 'var(--color-lime)' : 'var(--color-paper)' }}
           onClick={() => onCapture(!capture)}
           aria-pressed={capture}
@@ -416,10 +422,64 @@ function Header({
             className="h-2.5 w-2.5 rounded-full"
             style={{ background: capture ? 'var(--color-ink)' : 'transparent', border: '2px solid var(--color-ink)' }}
           />
-          入力キャプチャ {capture ? 'ON' : 'OFF'}
+          <span className="max-sm:hidden">入力キャプチャ</span>
+          <span className="hidden max-sm:inline">入力</span>
+          {capture ? 'ON' : 'OFF'}
         </button>
       </div>
     </header>
+  )
+}
+
+/**
+ * 狭い画面では、盤面の前でレイヤーを選べるようにする。
+ * PC の右サイドにある一覧はそのまま残し、ここでは編集時に必要な切替だけを横並びに圧縮する。
+ */
+function MobileLayerRail() {
+  const keymap = useKeymapStore((s) => s.keymap)
+  const editingLayer = useKeymapStore((s) => s.editingLayer)
+  const setEditingLayer = useKeymapStore((s) => s.setEditingLayer)
+  const active = keymap.layers.find((layer) => layer.id === editingLayer)
+  const activeHex = LAYER_COLOR_HEX[active?.color ?? 'gray']
+
+  const showHud = () => {
+    document.getElementById('mobile-hud')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  return (
+    <section className="nb overflow-hidden lg:hidden" aria-label="モバイル用レイヤー切替">
+      <div className="flex items-center gap-2 bg-[var(--color-ink)] px-3 py-2 text-[var(--color-paper)]">
+        <span
+          className="rounded-[7px] px-2 py-1 font-mono text-[0.72rem] font-black text-[var(--color-ink)]"
+          style={{ background: activeHex }}
+        >
+          L{editingLayer} {active?.name}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[0.68rem] font-black opacity-65">編集するレイヤー</span>
+        <button type="button" className="rounded-[7px] border-2 border-current px-2 py-1 text-[0.7rem] font-black" onClick={showHud}>
+          HUD ↓
+        </button>
+      </div>
+      <div className="flex gap-2 overflow-x-auto p-2.5" role="group" aria-label="レイヤーを選ぶ">
+        {keymap.layers.map((layer) => {
+          const activeLayer = layer.id === editingLayer
+          const hex = LAYER_COLOR_HEX[layer.color]
+          return (
+            <button
+              key={layer.id}
+              type="button"
+              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-[9px] border-[3px] border-[var(--color-ink)] px-2.5 text-left text-[0.74rem] font-black"
+              style={{ background: activeLayer ? hex : 'var(--color-paper)', boxShadow: activeLayer ? 'none' : '2px 2px 0 var(--color-ink)', transform: activeLayer ? 'translate(2px, 2px)' : undefined }}
+              aria-pressed={activeLayer}
+              onClick={() => setEditingLayer(layer.id)}
+            >
+              <span className="font-mono text-[0.9rem]">{layer.id}</span>
+              <span>{layer.name}</span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
